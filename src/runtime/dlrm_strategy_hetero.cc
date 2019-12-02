@@ -4,9 +4,9 @@
 
 int main()
 {
-  int gpu = 8;
-  int cpu = 8;
-  int nemb = 16; //Assuming >gpu embeddings 1x per GPU and the rest distributed among available CPUs
+  int gpu = 1;
+  int cpu = 1;
+  int nemb = 8; //Assuming >gpu embeddings 1x per GPU and the rest distributed among available CPUs
 
   GOOGLE_PROTOBUF_VERIFY_VERSION;
   FFProtoBuf::Strategy strategy;

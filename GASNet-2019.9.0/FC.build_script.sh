@@ -37,4 +37,4 @@ echo "Using following configure option -- $cfgopts"
 
 #build
 make par tests-par -j
-make install
+#make install

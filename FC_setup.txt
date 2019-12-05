@@ -1,0 +1,16 @@
+git clone --recursive
+git submodule --init --recursive
+source FC_env_setup.sh
+
+cd $PROTOBUF
+git submodule update --init --recursive
+./autogen.sh
+./configure
+make -j
+cd ..
+
+cd $GASNET
+./FC.build_script.sh
+cd ..
+
+make app=examples/DLRM/dlrm -j

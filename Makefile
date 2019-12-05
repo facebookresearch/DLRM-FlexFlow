@@ -18,6 +18,22 @@ ifndef LG_RT_DIR
 LG_RT_DIR	?= legion/runtime
 endif
 
+ifndef GASNET
+#$(error LG_RT_DIR variable is not defined, aborting build)
+GASNET	?= GASNet-2019.9.0 
+endif
+
+ifndef PROTOBUF
+#$(error LG_RT_DIR variable is not defined, aborting build)
+PROTOBUF	?= protobuf 
+endif
+
+ifndef HDF5
+#$(error LG_RT_DIR variable is not defined, aborting build)
+HDF5	?= /usr/include/hdf5/serial 
+endif
+
+
 # Flags for directing the runtime makefile what to include
 DEBUG           ?= 0		# Include debugging symbols
 MAX_DIM         ?= 4		# Maximum number of dimensions
@@ -38,7 +54,7 @@ GEN_GPU_SRC	?= src/ops/conv_2d.cu src/runtime/model.cu src/ops/pool_2d.cu src/op
 		src/runtime/cuda_helper.cu $(app).cu# .cu files
 
 # You can modify these variables, some will be appended to by the runtime makefile
-INC_FLAGS	?= -Iinclude/ -Iprotobuf/src -I/public/apps/cudnn/v7.6/cuda/include -I/usr/include/hdf5/serial/
+INC_FLAGS	?= -Iinclude/ -I${PROTOBUF}/src -I${CUDNN}/include -I${HDF5}/
 CC_FLAGS	?=
 NVCC_FLAGS	?=
 GASNET_FLAGS	?=

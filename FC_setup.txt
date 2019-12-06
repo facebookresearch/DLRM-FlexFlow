@@ -1,9 +1,10 @@
 git clone --recursive
-git submodule --init --recursive
+git submodule update --init --recursive
 source FC_env_setup.sh
 
 cd $PROTOBUF
 git submodule update --init --recursive
+git checkout 6d4e7fd #still cannot get the strategy compile to use the local runtime. So need to checkout v 3.10.0
 ./autogen.sh
 ./configure
 make -j
@@ -13,4 +14,12 @@ cd $GASNET
 ./FC.build_script.sh
 cd ..
 
+cd src/runtime
+../../protobuf/src/protoc --cpp_out=. strategy.proto
+./compile.sh
+./generate
+cd ../..
+
 make app=examples/DLRM/dlrm -j
+cd examples/DLRM
+./run_random.sh 1 ~/datasets/kaggle_day_1.h5

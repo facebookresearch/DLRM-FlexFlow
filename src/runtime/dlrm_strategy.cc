@@ -4,7 +4,7 @@
 
 int main()
 {
-  int gpu = 8;
+  int gpu = 1;
   GOOGLE_PROTOBUF_VERIFY_VERSION;
   FFProtoBuf::Strategy strategy;
   // Embedding

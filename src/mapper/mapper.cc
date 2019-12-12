@@ -71,8 +71,10 @@ void FFMapper::slice_task(const MapperContext ctx,
       config = strategies[hash];
       // Check that the dimensions match
       assert(config.nDims == input.domain.get_dim());
-      for (int i = 0; i < config.nDims; i++)
+      for (int i = 0; i < config.nDims; i++) {
+	//std::cout << "config.din[" << i << "]=" << config.dim[i] << " input.hi=" << input.domain.hi()[i] << " lo=" << input.domain.lo()[i] << std::endl;
         assert(config.dim[i] == input.domain.hi()[i] - input.domain.lo()[i] + 1);
+      }
     }
     const std::vector<Processor>* devices;
     if (config.device_type == ParallelConfig::GPU) {

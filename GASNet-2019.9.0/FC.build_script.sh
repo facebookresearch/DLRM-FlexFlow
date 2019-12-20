@@ -38,3 +38,5 @@ echo "Using following configure option -- $cfgopts"
 #build
 make par tests-par -j
 #make install
+
+ln -s $GASNET/ibv-conduit/libgasnet-ibv-par lib/.

@@ -16,10 +16,9 @@ cd ..
 
 cd src/runtime
 ../../protobuf/src/protoc --cpp_out=. strategy.proto
-./compile.sh
-./generate
+./gen_strategy.sh 8 8 # for 8 gpu and 8 embeddings
 cd ../..
 
 make app=examples/DLRM/dlrm -j
 cd examples/DLRM
-./run_random.sh 1 ~/datasets/kaggle_day_1.h5
+./run_random.sh 1 

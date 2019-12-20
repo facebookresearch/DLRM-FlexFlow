@@ -52,7 +52,23 @@ module load protobuf
 #./run_random.sh 16 ~/datasets/kaggle_day_1.h5 
 per_gpu_batch_size=256
 numgpu=8
-totalnumgpu=16
+totalnumgpu=8
 batchsize=$((totalnumgpu * per_gpu_batch_size))
 
-./dlrm -ll:gpu ${numgpu} -ll:cpu 1 -ll:fsize 12000 -ll:zsize 20000 -ll:util 1 --arch-sparse-feature-size 64 --arch-embedding-size 1000000-1000000-1000000-1000000-1000000-1000000-1000000-1000000-1000000-1000000-1000000-1000000-1000000-1000000-1000000-1000000 --arch-mlp-bot 64-512-512-64 --arch-mlp-top 576-1024-1024-1024-1 --epochs 20 --batch-size ${batchsize} -dm:memorize --strategy ../../src/runtime/dlrm_strategy_${totalnumgpu}gpus.pb
+per_gpu_batch_size=256
+numgpu=8
+numemb=16
+totalnumgpu=8
+batchsize=$((numgpu * per_gpu_batch_size))
+embsize="1000000"
+embsizes=$embsize
+
+for ((a=1 ; a<$numemb ; a++)) 
+do
+	embsizes+="-"
+	embsizes+=$embsize
+done
+echo $embsizes
+
+./dlrm -ll:gpu ${numgpu} -ll:cpu 1 -ll:fsize 12000 -ll:zsize 20000 -ll:util 1 -lg:prof 2 -lg:prof_logfile prof_%.gz --arch-sparse-feature-size 64 --arch-embedding-size ${embsizes} --arch-mlp-bot 64-512-512-64 --arch-mlp-top 576-1024-1024-1024-1 --epochs 20 --batch-size ${batchsize} -dm:memorize --strategy ../../src/runtime/dlrm_strategy_${numemb}embs_${totalnumgpu}gpus.pb
+

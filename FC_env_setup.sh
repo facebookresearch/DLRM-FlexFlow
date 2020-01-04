@@ -24,5 +24,5 @@ export NCCL=/public/apps/NCCL/2.2.13-1
 module load cmake/3.15.3/gcc.7.3.0
 module load anaconda3/2019.07
 
-export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$PROTOBUF/.libs
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$PROTOBUF/src/.libs
 export PATH=$PATH:$PROTOBUF

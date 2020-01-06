@@ -4,6 +4,7 @@ export GASNET=${PWD}/GASNet-2019.9.0
 export LEGION=${PWD}/legion
 export PROTOBUF=${PWD}/protobuf
 
+module unload cuda cudnn NCCL
 
 #cuda v10
 #module load cuda/10.0

@@ -50,25 +50,25 @@ module load protobuf
 #srun --label echo $PROTOBUF
 #mpirun -n 16 -N 8 --mca btl_openib_allow_ib 1 --mca btl_openib_warn_default_gid_prefix 0  ./run_random.sh 16 ~/datasets/kaggle_day_1.h5
 #./run_random.sh 16 ~/datasets/kaggle_day_1.h5 
-per_gpu_batch_size=256
-numgpu=8
-totalnumgpu=8
-batchsize=$((totalnumgpu * per_gpu_batch_size))
+nnodes=$1
+nemb=$2
 
 per_gpu_batch_size=256
-numgpu=8
-numemb=16
-totalnumgpu=8
-batchsize=$((numgpu * per_gpu_batch_size))
+pngpu=8
+ngpu=$((nnodes * pngpu))
+batchsize=$((ngpu * per_gpu_batch_size))
+
 embsize="1000000"
 embsizes=$embsize
 
-for ((a=1 ; a<$numemb ; a++)) 
+for ((a=1 ; a<$nemb ; a++)) 
 do
 	embsizes+="-"
 	embsizes+=$embsize
 done
 echo $embsizes
 
-./dlrm -ll:gpu ${numgpu} -ll:cpu 1 -ll:fsize 12000 -ll:zsize 20000 -ll:util 1 -lg:prof 2 -lg:prof_logfile prof_%.gz --arch-sparse-feature-size 64 --arch-embedding-size ${embsizes} --arch-mlp-bot 64-512-512-64 --arch-mlp-top 576-1024-1024-1024-1 --epochs 20 --batch-size ${batchsize} -dm:memorize --strategy ../../src/runtime/dlrm_strategy_${numemb}embs_${totalnumgpu}gpus.pb
+strategy_file=../../src/runtime/dlrm_strategy_${nemb}embs_${ngpu}gpus.pb
+echo $strategy_file
 
+LEGION_FREEZE_ON_ERROR=1 ./dlrm -ll:gpu ${pngpu} -ll:cpu 1 -ll:fsize 12000 -ll:zsize 20000 -ll:util 1 -lg:prof 2 -lg:prof_logfile prof_%.gz --nodes ${nnodes} --arch-sparse-feature-size 64 --arch-embedding-size ${embsizes} --arch-mlp-bot 64-512-512-64 --arch-mlp-top 576-1024-1024-1024-1 --epochs 20 --batch-size ${batchsize} -dm:memorize --strategy ${strategy_file}

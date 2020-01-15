@@ -569,9 +569,9 @@ void FFModel::update()
 {
   optimizer->next();
   for (size_t i = 0; i < parameters.size(); i++) {
-    //if (parameters[i].op->name[0] != 'e')
     //if (i >= parameters.size() - 6)
-    optimizer->update(&(parameters[i]));
+    if (parameters[i].op->name[0] != 'l')
+      optimizer->update(&(parameters[i]));
   }
 }
 
@@ -807,7 +807,6 @@ ShardID DataParallelShardingFunctor::shard(const DomainPoint &point,
                                            const Domain &full_space,
                                            const size_t total_shards)
 {
-  printf("full_space.size = %zu total_shards = %zu\n", full_space.get_volume(), total_shards);
   assert(point.get_dim() == full_space.get_dim());
   int idx = full_space.get_dim() - 1;
   int samples = full_space.hi()[idx] - full_space.lo()[idx] + 1;

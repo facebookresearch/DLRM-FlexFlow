@@ -10,33 +10,10 @@
 #include <iostream>
 
 
-class FFStrategy {
-public:
-  FFStrategy(void);
-  bool add_conv_config(const std::string& name,
-                       const std::string& device_type,
-                       int num_par_n,
-                       int num_par_c,
-                       const std::string& input_memory,
-                       const std::string& output_memory);
-private:
-  FFProtoBuf::Strategy strategy;
-}
-
-FFStrategy::FFStrategy(void)
-{}
-
-bool FFStrategy::add_conv_config(const std::string& name,
-                                 const std::string& device_type,
-                                 int num_par_n,
-                                 int num_par_c)
-{
-}
-
 int main()
 {
-  int gpu = 32;
-  int emb = 32;
+  int gpu = 128;
+  int emb = 128;
   GOOGLE_PROTOBUF_VERIFY_VERSION;
   FFProtoBuf::Strategy strategy;
   // Embedding
@@ -48,15 +25,6 @@ int main()
     op->add_dims(1);
     op->add_dims(1);
     op->add_device_ids(i % gpu);
-  }
-  if (false) {
-    FFProtoBuf::Op* op = strategy.add_ops();
-    op->set_name("concat");
-    op->set_device_type(FFProtoBuf::Op_DeviceType_GPU);
-    op->add_dims(1);
-    op->add_dims(gpu / 6);
-    for (int j = 0; j < gpu / 6; j++)
-      op->add_device_ids(j * 6);
   }
   std::vector<std::string> names;
   names.push_back("concat");

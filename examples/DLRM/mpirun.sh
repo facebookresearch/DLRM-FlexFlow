@@ -71,4 +71,4 @@ echo $embsizes
 strategy_file=../../src/runtime/dlrm_strategy_${nemb}embs_${ngpu}gpus.pb
 echo $strategy_file
 
-./dlrm -ll:gpu ${pngpu} -ll:cpu 1 -ll:fsize 12000 -ll:zsize 20000 -ll:util 1 -lg:prof 2 -lg:prof_logfile prof_%.gz --nodes ${nnodes} --arch-sparse-feature-size 64 --arch-embedding-size ${embsizes} --arch-mlp-bot 64-512-512-64 --arch-mlp-top 576-1024-1024-1024-1 --epochs 20 --batch-size ${batchsize} -dm:memorize --strategy ${strategy_file}
+GASNET_FREEZE_ON_ERROR=1 ./dlrm -ll:gpu ${pngpu} -ll:cpu 1 -ll:fsize 12000 -ll:zsize 20000 -ll:util 1 -lg:prof 2 -lg:prof_logfile prof_%.gz --nodes ${nnodes} --arch-sparse-feature-size 64 --arch-embedding-size ${embsizes} --arch-mlp-bot 64-512-512-64 --arch-mlp-top 576-1024-1024-1024-1 --epochs 20 --batch-size ${batchsize} -dm:memorize --strategy ${strategy_file}

@@ -24,10 +24,10 @@
 GASNET_PREFIX = ###INSTALL_PREFIX###
 
 GASNETTOOLS_INCLUDES =  -I###INSTALL_INCLUDE###
-GASNETTOOLS_INCLUDES =  -I/private/home/ehsanardestani/DLRM_FlexFlow_h2/GASNet-2019.9.0 -I/private/home/ehsanardestani/DLRM_FlexFlow_h2/GASNet-2019.9.0/other -I/private/home/ehsanardestani/DLRM_FlexFlow_h2/GASNet-2019.9.0 ###NOINSTALL###
+GASNETTOOLS_INCLUDES =  -I/private/home/ehsanardestani/DLRM_FlexFlow_d/GASNet-2019.9.0 -I/private/home/ehsanardestani/DLRM_FlexFlow_d/GASNet-2019.9.0/other -I/private/home/ehsanardestani/DLRM_FlexFlow_d/GASNet-2019.9.0 ###NOINSTALL###
 
 GASNETTOOLS_LIBDIR = ###INSTALL_LIB###
-GASNETTOOLS_LIBDIR = /private/home/ehsanardestani/DLRM_FlexFlow_h2/GASNet-2019.9.0  ###NOINSTALL###
+GASNETTOOLS_LIBDIR = /private/home/ehsanardestani/DLRM_FlexFlow_d/GASNet-2019.9.0  ###NOINSTALL###
 
 GASNETTOOLS_DEBUGFLAGS = -DNDEBUG
 

@@ -17,7 +17,7 @@ GASNET_LD_REQUIRES_MPI = 1
 
 # hooks for using AMMPI library from within build tree ###NOINSTALL### 
 # (nothing additional required for installed copy)     ###NOINSTALL###
-CONDUIT_INCLUDES = -I/private/home/ehsanardestani/DLRM_FlexFlow_h2/GASNet-2019.9.0/other/ammpi -I/private/home/ehsanardestani/DLRM_FlexFlow_h2/GASNet-2019.9.0/other/ammpi ###NOINSTALL###
-CONDUIT_LIBDIRS =  -L/private/home/ehsanardestani/DLRM_FlexFlow_h2/GASNet-2019.9.0/other/ammpi        ###NOINSTALL###
+CONDUIT_INCLUDES = -I/private/home/ehsanardestani/DLRM_FlexFlow_d/GASNet-2019.9.0/other/ammpi -I/private/home/ehsanardestani/DLRM_FlexFlow_d/GASNet-2019.9.0/other/ammpi ###NOINSTALL###
+CONDUIT_LIBDIRS =  -L/private/home/ehsanardestani/DLRM_FlexFlow_d/GASNet-2019.9.0/other/ammpi        ###NOINSTALL###
 
 CONDUIT_LIBS = $(CONDUIT_LIBDIRS) -lammpi 

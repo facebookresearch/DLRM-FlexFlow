@@ -101,11 +101,11 @@ testtools testtoolscxx: force
 	  CONDUIT_TESTS="$(CONDUIT_TESTS)" $(CONDUIT_TEST_MAKEARGS)
 
 testtool%-seq: force
-	@$(MAKE) `basename $@ -seq` tools_fragment=/private/home/ehsanardestani/DLRM_FlexFlow_h2/GASNet-2019.9.0/gasnet_tools-seq.mak
+	@$(MAKE) `basename $@ -seq` tools_fragment=/private/home/ehsanardestani/DLRM_FlexFlow_d/GASNet-2019.9.0/gasnet_tools-seq.mak
 
 testtool%-par: force
 	@$(PTHREADS_ERROR_CHECK)
-	@$(MAKE) `basename $@ -par` tools_fragment=/private/home/ehsanardestani/DLRM_FlexFlow_h2/GASNet-2019.9.0/gasnet_tools-par.mak
+	@$(MAKE) `basename $@ -par` tools_fragment=/private/home/ehsanardestani/DLRM_FlexFlow_d/GASNet-2019.9.0/gasnet_tools-par.mak
 
 test%: $(top_srcdir)/tests/test%.c force 
 	@$(MAKE) libgasnet-$(CONDUIT_NAME)-$(THREAD_MODEL_LC).a $(CONDUIT_NAME)-$(THREAD_MODEL_LC).mak

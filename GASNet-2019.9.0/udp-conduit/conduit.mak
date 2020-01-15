@@ -17,10 +17,10 @@ GASNET_LD_REQUIRES_CXX = 1
 
 # hooks for using AMUDP library from within build tree ###NOINSTALL###
 # (nothing additional required for installed copy)     ###NOINSTALL###
-CONDUIT_INCLUDES = -I/private/home/ehsanardestani/DLRM_FlexFlow_h2/GASNet-2019.9.0/other/amudp -I/private/home/ehsanardestani/DLRM_FlexFlow_h2/GASNet-2019.9.0/other/amudp ###NOINSTALL###
+CONDUIT_INCLUDES = -I/private/home/ehsanardestani/DLRM_FlexFlow_d/GASNet-2019.9.0/other/amudp -I/private/home/ehsanardestani/DLRM_FlexFlow_d/GASNet-2019.9.0/other/amudp ###NOINSTALL###
 
 CONDUIT_LDFLAGS = 
-CONDUIT_LIBDIRS = -L/private/home/ehsanardestani/DLRM_FlexFlow_h2/GASNet-2019.9.0/other/amudp ###NOINSTALL###
+CONDUIT_LIBDIRS = -L/private/home/ehsanardestani/DLRM_FlexFlow_d/GASNet-2019.9.0/other/amudp ###NOINSTALL###
 
 CONDUIT_LIBS = $(CONDUIT_LIBDIRS) -lamudp    
 

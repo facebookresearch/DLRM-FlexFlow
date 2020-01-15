@@ -20,7 +20,7 @@ GASNET_LD_REQUIRES_MPI = 1
 # Some platforms need extra -libs for the socket calls in ssh-spawner:
 SSH_LIBS = 
 
-CONDUIT_INCLUDES = -I/private/home/ehsanardestani/DLRM_FlexFlow_h2/GASNet-2019.9.0/other/firehose ###NOINSTALL###
+CONDUIT_INCLUDES = -I/private/home/ehsanardestani/DLRM_FlexFlow_d/GASNet-2019.9.0/other/firehose ###NOINSTALL###
 
 CONDUIT_LDFLAGS =   
 CONDUIT_LIBS = -libverbs $(MPI_COMPAT_LIBS) $(SSH_LIBS)  

@@ -12,22 +12,22 @@ all:
 GASNET_MPI_CC = /usr/bin/mpicc
 GASNET_MPI_LD = $(GASNET_MPI_CC)
 
-srcdir="/private/home/ehsanardestani/DLRM_FlexFlow_h2/GASNet-2019.9.0/tests"
+srcdir="/private/home/ehsanardestani/DLRM_FlexFlow_d/GASNet-2019.9.0/tests"
 
 configfile=/dev/null # must be overridden by caller
 include $(configfile)
 
-tools_fragment = /private/home/ehsanardestani/DLRM_FlexFlow_h2/GASNet-2019.9.0/gasnet_tools-par.mak
-#tools_fragment = /private/home/ehsanardestani/DLRM_FlexFlow_h2/GASNet-2019.9.0/gasnet_tools-seq.mak
+tools_fragment = /private/home/ehsanardestani/DLRM_FlexFlow_d/GASNet-2019.9.0/gasnet_tools-par.mak
+#tools_fragment = /private/home/ehsanardestani/DLRM_FlexFlow_d/GASNet-2019.9.0/gasnet_tools-seq.mak
 
 $(tools_fragment): force
-	cd /private/home/ehsanardestani/DLRM_FlexFlow_h2/GASNet-2019.9.0 && $(MAKE) `basename $@`
+	cd /private/home/ehsanardestani/DLRM_FlexFlow_d/GASNet-2019.9.0 && $(MAKE) `basename $@`
 
 -include $(tools_fragment)
 
 
-Makefile: /private/home/ehsanardestani/DLRM_FlexFlow_h2/GASNet-2019.9.0/tests/Makefile.in $(tools_fragment)
-	cd /private/home/ehsanardestani/DLRM_FlexFlow_h2/GASNet-2019.9.0 ; \
+Makefile: /private/home/ehsanardestani/DLRM_FlexFlow_d/GASNet-2019.9.0/tests/Makefile.in $(tools_fragment)
+	cd /private/home/ehsanardestani/DLRM_FlexFlow_d/GASNet-2019.9.0 ; \
 	CONFIG_HEADERS= CONFIG_FILES=tests/Makefile ./config.status
 
 # GASNet-related MPI tests
@@ -231,7 +231,7 @@ run-tests: force
 	if test -z "$$TEST_RUNCMD" ; then                                               \
 	  TEST_RUNCMD="$(CONDUIT_RUNCMD)" ;                                             \
 	fi ;                                                                            \
-	MPI_RUNCMD="$${MPI_RUNCMD:=/private/home/ehsanardestani/DLRM_FlexFlow_h2/GASNet-2019.9.0/mpi-conduit/contrib/gasnetrun_mpi -np %N %C}" \
+	MPI_RUNCMD="$${MPI_RUNCMD:=/private/home/ehsanardestani/DLRM_FlexFlow_d/GASNet-2019.9.0/mpi-conduit/contrib/gasnetrun_mpi -np %N %C}" \
         export MPI_RUNCMD ;                                                             \
 	if test -z "$$TIMECMD" ; then                                                   \
 	  TIMECMD="" ;                                                         \
@@ -356,7 +356,7 @@ KEEPTMP_CFLAGS = $(patsubst %,-save-temps,$(KEEPTMPS))
 # it uses the variables provided by the gasnet_tools-{seq,par}.mak
 #FAKE_DEFS = -DGASNETI_TOOLS_CONDUIT=MPI
 testtools: force
-	@cd /private/home/ehsanardestani/DLRM_FlexFlow_h2/GASNet-2019.9.0 && $(MAKE) lib$(GASNETTOOLS_TOOLLIB_NAME).a
+	@cd /private/home/ehsanardestani/DLRM_FlexFlow_d/GASNet-2019.9.0 && $(MAKE) lib$(GASNETTOOLS_TOOLLIB_NAME).a
 	$(GASNETTOOLS_CC) $(GASNETTOOLS_CPPFLAGS) $(GASNETTOOLS_CFLAGS) $(FAKE_DEFS) -c -o $@.o $(srcdir)/$@.c
 	$(GASNETTOOLS_LD) $(GASNETTOOLS_LDFLAGS) -o $@ $@.o $(GASNETTOOLS_LIBS)
 	@test -n '$(KEEPTMPS)' || ( cmd="rm -f $@.o"; echo "$$cmd"; eval "$$cmd" )
@@ -367,7 +367,7 @@ testtoolscxx: force
 		echo "ERROR: testtoolscxx target requested, but no c++ compiler is configured"; \
 		exit 1; \
 	 fi
-	@cd /private/home/ehsanardestani/DLRM_FlexFlow_h2/GASNet-2019.9.0 && $(MAKE) lib$(GASNETTOOLS_TOOLLIB_NAME).a
+	@cd /private/home/ehsanardestani/DLRM_FlexFlow_d/GASNet-2019.9.0 && $(MAKE) lib$(GASNETTOOLS_TOOLLIB_NAME).a
 	$(GASNETTOOLS_CXX) $(GASNETTOOLS_CPPFLAGS) $(GASNETTOOLS_CXXFLAGS) $(FAKE_DEFS) -c -o $@.o $(srcdir)/$@.cc
 	$(GASNETTOOLS_CXX) $(GASNETTOOLS_CXXFLAGS) $(GASNETTOOLS_LDFLAGS) -o $@ $@.o $(GASNETTOOLS_LIBS)
 	@test -n '$(KEEPTMPS)' || ( cmd="rm -f $@.o"; echo "$$cmd"; eval "$$cmd" )
@@ -400,7 +400,7 @@ testmpi: mpi-check force
 # the following are just plain MPI programs
 # testmpinbr requires libm
 $(MPI_TESTS): mpi-check force
-	$(GASNET_MPI_CC) -I$(srcdir)/mpi -I/private/home/ehsanardestani/DLRM_FlexFlow_h2/GASNet-2019.9.0/other -D_GNU_SOURCE=1 -O3 --param max-inline-insns-single=35000 --param inline-unit-growth=10000 --param large-function-growth=200000  -Wno-unused -Wunused-result -Wno-unused-parameter -Wno-address  $(KEEPTMP_CFLAGS) $(MANUAL_MPICFLAGS) -c -o $@.o $(srcdir)/mpi/$@.c
+	$(GASNET_MPI_CC) -I$(srcdir)/mpi -I/private/home/ehsanardestani/DLRM_FlexFlow_d/GASNet-2019.9.0/other -D_GNU_SOURCE=1 -O3 --param max-inline-insns-single=35000 --param inline-unit-growth=10000 --param large-function-growth=200000  -Wno-unused -Wunused-result -Wno-unused-parameter -Wno-address  $(KEEPTMP_CFLAGS) $(MANUAL_MPICFLAGS) -c -o $@.o $(srcdir)/mpi/$@.c
 	$(GASNET_MPI_LD) $(GASNET_LDFLAGS) -D_GNU_SOURCE=1 -O3 --param max-inline-insns-single=35000 --param inline-unit-growth=10000 --param large-function-growth=200000  -Wno-unused -Wunused-result -Wno-unused-parameter -Wno-address  -o $@ $@.o  -lm $(MANUAL_LIBS)
 	@test -n '$(KEEPTMPS)' || ( cmd="rm -f $@.o"; echo "$$cmd"; eval "$$cmd" )
 

@@ -12,8 +12,8 @@
 #endif
 
 
-#define GASNETI_BUILD_ID "Mon Jan  6 14:48:17 PST 2020 ehsanardestani"
-#define GASNETI_CONFIGURE_ARGS "'--enable-ibv' '--enable-mpi' '--disable-portals' '--disable-mxm' '--enable-pthreads' '--enable-segment-fast' '--enable-par' '--disable-seq' '--disable-parsync' '--enable-mpi-compat' '--with-ibv-spawner=mpi' '--disable-ibv-rcv-thread' '--disable-aligned-segments' '--disable-pshm' '--disable-fca' '--enable-ibv-multirail' '--with-ibv-max-hcas=4' '--with-ibv-physmem-max=2/3' '--disable-ibv-physmem-probe' '--prefix=/private/home/ehsanardestani/DLRM_FlexFlow_h2/GASNet-2019.9.0'"
+#define GASNETI_BUILD_ID "Wed Jan 15 08:10:13 PST 2020 ehsanardestani"
+#define GASNETI_CONFIGURE_ARGS "'--enable-ibv' '--enable-mpi' '--disable-portals' '--disable-mxm' '--enable-pthreads' '--enable-segment-fast' '--enable-par' '--disable-seq' '--disable-parsync' '--enable-mpi-compat' '--with-ibv-spawner=mpi' '--disable-ibv-rcv-thread' '--disable-aligned-segments' '--disable-pshm' '--disable-fca' '--enable-ibv-multirail' '--with-ibv-max-hcas=4' '--with-ibv-physmem-max=2/3' '--disable-ibv-physmem-probe' '--prefix=/private/home/ehsanardestani/DLRM_FlexFlow_d/GASNet-2019.9.0'"
 #define GASNETI_SYSTEM_TUPLE "x86_64-unknown-linux-gnu"
 #define GASNETI_SYSTEM_NAME "devfair0172"
 /* #undef GASNETI_CROSS_COMPILING */

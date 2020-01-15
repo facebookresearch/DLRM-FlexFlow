@@ -10,8 +10,8 @@ GASNET_LIBDIRS = -L###INSTALL_LIB###
 
 # Textual lines containing the string "###NOINSTALL###" are removed by the install process
 # (must be one continuous line) ###NOINSTALL###
-GASNET_INCLUDES =  -I/private/home/ehsanardestani/DLRM_FlexFlow_h2/GASNet-2019.9.0 -I/private/home/ehsanardestani/DLRM_FlexFlow_h2/GASNet-2019.9.0/#conduit_name#-conduit -I/private/home/ehsanardestani/DLRM_FlexFlow_h2/GASNet-2019.9.0/other $(CONDUIT_INCLUDES) $(CONDUIT_INCLUDES_#THREAD_MODEL#) -I/private/home/ehsanardestani/DLRM_FlexFlow_h2/GASNet-2019.9.0/extended-ref/vis -I/private/home/ehsanardestani/DLRM_FlexFlow_h2/GASNet-2019.9.0/extended-ref/coll -I/private/home/ehsanardestani/DLRM_FlexFlow_h2/GASNet-2019.9.0/extended-ref/ratomic -I/private/home/ehsanardestani/DLRM_FlexFlow_h2/GASNet-2019.9.0/extended-ref -I/private/home/ehsanardestani/DLRM_FlexFlow_h2/GASNet-2019.9.0  ###NOINSTALL###
-GASNET_LIBDIRS = -L/private/home/ehsanardestani/DLRM_FlexFlow_h2/GASNet-2019.9.0/#conduit_name#-conduit ###NOINSTALL###
+GASNET_INCLUDES =  -I/private/home/ehsanardestani/DLRM_FlexFlow_d/GASNet-2019.9.0 -I/private/home/ehsanardestani/DLRM_FlexFlow_d/GASNet-2019.9.0/#conduit_name#-conduit -I/private/home/ehsanardestani/DLRM_FlexFlow_d/GASNet-2019.9.0/other $(CONDUIT_INCLUDES) $(CONDUIT_INCLUDES_#THREAD_MODEL#) -I/private/home/ehsanardestani/DLRM_FlexFlow_d/GASNet-2019.9.0/extended-ref/vis -I/private/home/ehsanardestani/DLRM_FlexFlow_d/GASNet-2019.9.0/extended-ref/coll -I/private/home/ehsanardestani/DLRM_FlexFlow_d/GASNet-2019.9.0/extended-ref/ratomic -I/private/home/ehsanardestani/DLRM_FlexFlow_d/GASNet-2019.9.0/extended-ref -I/private/home/ehsanardestani/DLRM_FlexFlow_d/GASNet-2019.9.0  ###NOINSTALL###
+GASNET_LIBDIRS = -L/private/home/ehsanardestani/DLRM_FlexFlow_d/GASNet-2019.9.0/#conduit_name#-conduit ###NOINSTALL###
 
 # ----------------------------------------------------------------------
 # C compiler and options

@@ -12,7 +12,7 @@
 
 class FFStrategy {
 public:
-  FFStrategy(int _gpus_per_node, int _num_nodes);
+  FFStrategy(int _gpus_per_node, int _embs_per_node, int _num_nodes);
   bool add_conv_config(const std::string& name,
                        const std::string& device_type,
                        int num_par_n,
@@ -67,14 +67,14 @@ public:
                       const std::vector<int>& device_ids);
   void export_file(const std::string& file);
 private:
-  int gpus_per_node, num_nodes;
+  int gpus_per_node, embs_per_node, num_nodes;
   FFProtoBuf::Strategy strategy;
 };
 
-FFStrategy::FFStrategy(int _gpus_per_node, int _num_nodes)
-: gpus_per_node(_gpus_per_node), num_nodes(_num_nodes)
+FFStrategy::FFStrategy(int _gpus_per_node, int _num_nodes, int _embs_per_node)
+: gpus_per_node(_gpus_per_node), num_nodes(_num_nodes), embs_per_node(_embs_per_node)
 {
-  if (_gpus_per_node <= 0 || _num_nodes <= 0) {
+  if (_gpus_per_node <= 0 || _num_nodes <= 0 || _embs_per_node <= 0) {
     printf("Invalide input configurations...\n");
     exit(0);
   }
@@ -165,7 +165,7 @@ void FFStrategy::export_file(const std::string& output)
   strategy.SerializeToOstream(&outputFile);
 }
 
-void parse_input_args(char **argv, int argc, int& gpus_per_node, int& num_nodes)
+void parse_input_args(char **argv, int argc, int& gpus_per_node, int& embs_per_node, int& num_nodes)
 {
   for (int i = 1; i < argc; i++) {
     if (!strcmp(argv[i], "--gpu")) {
@@ -176,21 +176,24 @@ void parse_input_args(char **argv, int argc, int& gpus_per_node, int& num_nodes)
       num_nodes = std::atoi(argv[++i]);
       continue;
     }
+    if (!strcmp(argv[i], "--emb")) {
+      embs_per_node = std::atoi(argv[++i]);
+      continue;
+    }
   }
 }
 
 int main(int argc, char **argv)
 {
   GOOGLE_PROTOBUF_VERIFY_VERSION;
-  int gpus_per_node = 0, num_nodes = 0;
-  parse_input_args(argv, argc, gpus_per_node, num_nodes);
-  int num_emb = gpus_per_node * num_nodes;
+  int gpus_per_node = 0, embs_per_node = 0, num_nodes = 0;
+  parse_input_args(argv, argc, gpus_per_node, embs_per_node ,num_nodes);
   printf("Number of GPUs Per Node = %d\n", gpus_per_node);
   printf("Number of Nodes = %d\n", num_nodes);
-  printf("Number of Embeddings = %d\n", num_emb);
-  FFStrategy strategy(gpus_per_node, num_nodes);
+  printf("Number of Embeddings Per Node = %d\n", embs_per_node);
+  FFStrategy strategy(gpus_per_node, embs_per_node, num_nodes);
   // Embedding
-  for (int i = 0; i < num_emb; i++) {
+  for (int i = 0; i < num_nodes * embs_per_node; i++) {
     std::string name = "embedding"+std::to_string(i);
     strategy.add_embed_config(name, "GPU", "FBM"/*input*/,
         "FBM"/*weight*/, "FBM"/*output*/, i % (gpus_per_node * num_nodes));
@@ -205,18 +208,18 @@ int main(int argc, char **argv)
   {
     std::vector<int> device_ids;
     for (int i = 0; i < num_nodes * gpus_per_node; i++)
-      device_ids.push_back(i * gpus_per_node);
+      device_ids.push_back(i);
     strategy.add_linear_config("linear", "GPU", "FBM"/*input*/, "FBM"/*weight*/,
-        "FBM"/*output*/, 1, num_nodes*gpus_per_node, device_ids);
+        "FBM"/*output*/, 1, num_nodes * gpus_per_node, device_ids);
   }
   {
     std::vector<int> device_ids;
     for (int i = 0; i < num_nodes * gpus_per_node; i++)
-      device_ids.push_back(i * gpus_per_node);
-    strategy.add_mse_config("mse", "GPU", "FBM"/*input*/,
+      device_ids.push_back(i);
+    strategy.add_mse_config("mse_loss", "GPU", "FBM"/*input*/,
         num_nodes*gpus_per_node, device_ids);
   }
-  std::string output = "dlrm_strategy_gpu_" + std::to_string(gpus_per_node) + "_node_" + std::to_string(num_nodes) + ".pb";
+  std::string output = "dlrm_strategy_emb_" + std::to_string(embs_per_node) + "_gpu_" + std::to_string(gpus_per_node) + "_node_" + std::to_string(num_nodes) + ".pb";
   strategy.export_file(output);
   google::protobuf::ShutdownProtobufLibrary();
 }

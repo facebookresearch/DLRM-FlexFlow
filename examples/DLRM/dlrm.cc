@@ -137,6 +137,19 @@ void top_level_task(const Task* task,
   // Data Loader
   DataLoader data_loader(ff, dlrmConfig, sparse_inputs, dense_input, label);
 
+#if 0
+  // Warmup iterations
+  for (int iter = 0; iter < 1; iter++) {
+    data_loader.reset();
+    ff.reset_metrics();
+    data_loader.next_batch(ff);
+    ff.forward();
+    //ff.zero_gradients();
+    ff.backward();
+    ff.update();
+  }
+#endif
+
   //Start timer
   {
     runtime->issue_execution_fence(ctx);
@@ -144,6 +157,9 @@ void top_level_task(const Task* task,
     Future future = runtime->issue_timing_measurement(ctx, timer);
     future.get_void_result();
   }
+  log_app.print("Warmup finished...Start timer...");
+  log_app.print("Num. epochs = %d", ffConfig.epochs);
+  log_app.print("Num. iterations/epoch = %d", data_loader.num_samples / ffConfig.batchSize);
   double ts_start = Realm::Clock::current_time_in_microseconds();
   for (int epoch = 0; epoch < ffConfig.epochs; epoch++) {
     data_loader.reset();
@@ -249,7 +265,8 @@ DataLoader::DataLoader(FFModel& ff,
   num_samples = 0;
   if (dlrm.dataset_path == "") {
     log_app.print("Use random dataset...");
-    num_samples = 256 * 10 * ff.config.workersPerNode * ff.config.numNodes;
+    //num_samples = 256 * 10 * ff.config.workersPerNode * ff.config.numNodes;
+    num_samples = 1024 * 64;
     log_app.print("Number of random samples = %d\n", num_samples);
   } else {
     log_app.print("Start loading dataset from %s", dlrm.dataset_path.c_str());

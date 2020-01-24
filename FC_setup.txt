@@ -1,4 +1,3 @@
-git clone --recursive
 git submodule update --init --recursive
 source FC_env_setup.sh
 
@@ -16,8 +15,12 @@ cd ..
 
 cd src/runtime
 ../../protobuf/src/protoc --cpp_out=. strategy.proto
-./gen_strategy.sh 8 8 # for 8 gpu and 8 embeddings
+./gen_strategy.sh 8 8 1 # for 8 gpu per node,  and 8 embeddings per node, and 1 node
 cd ../..
+
+cd $LEGION
+git checkout control_replication
+cd ../
 
 make app=examples/DLRM/dlrm -j
 cd examples/DLRM

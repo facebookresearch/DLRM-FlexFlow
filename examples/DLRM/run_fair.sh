@@ -51,11 +51,12 @@ module load protobuf
 #mpirun -n 16 -N 8 --mca btl_openib_allow_ib 1 --mca btl_openib_warn_default_gid_prefix 0  ./run_random.sh 16 ~/datasets/kaggle_day_1.h5
 #./run_random.sh 16 ~/datasets/kaggle_day_1.h5 
 nnodes=$1
-nemb=$2
+pnemb=$2
 
-per_gpu_batch_size=256
+per_gpu_batch_size=512
 pngpu=8
 ngpu=$((nnodes * pngpu))
+nemb=$((nnodes * pnemb))
 batchsize=$((ngpu * per_gpu_batch_size))
 
 embsize="1000000"
@@ -68,7 +69,10 @@ do
 done
 echo $embsizes
 
-strategy_file=../../src/runtime/dlrm_strategy_${nemb}embs_${ngpu}gpus.pb
+strategy_file=../../src/runtime/dlrm_strategy_emb_${pnemb}_gpu_${pngpu}_node_${nnodes}.pb
 echo $strategy_file
 
-GASNET_FREEZE_ON_ERROR=1 ./dlrm -ll:gpu ${pngpu} -ll:cpu 1 -ll:fsize 12000 -ll:zsize 20000 -ll:util 1 -lg:prof 2 -lg:prof_logfile prof_%.gz --nodes ${nnodes} --arch-sparse-feature-size 64 --arch-embedding-size ${embsizes} --arch-mlp-bot 64-512-512-64 --arch-mlp-top 576-1024-1024-1024-1 --epochs 20 --batch-size ${batchsize} -dm:memorize --strategy ${strategy_file}
+#GASNET_FREEZE_ON_ERROR=1 ./dlrm -ll:gpu ${pngpu} -ll:cpu 1 -ll:dma 1 -ll:ahandlers 1 -ll:fsize 12000 -ll:zsize 20000 -ll:util 4 -lg:prof 2 -lg:prof_logfile prof_%.gz --nodes ${nnodes} --arch-sparse-feature-size 64 --arch-embedding-size ${embsizes} --arch-mlp-bot 64-512-512-64 --arch-mlp-top 576-1024-1024-1024-1 --epochs 5 --batch-size ${batchsize} -dm:memorize --strategy ${strategy_file}
+
+./dlrm -ll:gpu ${pngpu} -ll:cpu 1 -ll:dma 2 -ll:ahandlers 2  -ll:fsize 12000 -ll:zsize 20000 -ll:util 8 --nodes ${nnodes} --embedding-bag-size 100 --arch-sparse-feature-size 64 --arch-embedding-size ${embsizes} --arch-mlp-bot 2048-4096-4096-4096-4096-4096 --arch-mlp-top 10240-4096-4096-4096-4096-1 --epochs 15 --batch-size ${batchsize} --strategy ${strategy_file}
+#-dm:memoize  

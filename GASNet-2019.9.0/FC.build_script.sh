@@ -6,7 +6,7 @@ fi
 echo "Using GASNET at - ${GASNET}"
 
 #Bootstrap automake
-./Bootstrap
+./Bootstrap -y
 
 cfgopts=" --enable-ibv \
         --enable-mpi \

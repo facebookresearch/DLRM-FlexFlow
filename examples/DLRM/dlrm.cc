@@ -137,14 +137,14 @@ void top_level_task(const Task* task,
   // Data Loader
   DataLoader data_loader(ff, dlrmConfig, sparse_inputs, dense_input, label);
 
-#if 0
+#if 1
   // Warmup iterations
   for (int iter = 0; iter < 1; iter++) {
     data_loader.reset();
     ff.reset_metrics();
     data_loader.next_batch(ff);
     ff.forward();
-    //ff.zero_gradients();
+    ff.zero_gradients();
     ff.backward();
     ff.update();
   }
@@ -168,8 +168,8 @@ void top_level_task(const Task* task,
     for (int iter = 0; iter < iterations; iter++) {
       if (dlrmConfig.dataset_path.length() == 0) {
         // Only load data once for random input
-        if (iter == 0 && epoch == 0)
-          data_loader.next_batch(ff);
+        //if (iter == 0 && epoch == 0)
+        //  data_loader.next_batch(ff);
       } else {
         data_loader.next_batch(ff);
       }
@@ -265,8 +265,8 @@ DataLoader::DataLoader(FFModel& ff,
   num_samples = 0;
   if (dlrm.dataset_path == "") {
     log_app.print("Use random dataset...");
-    //num_samples = 256 * 10 * ff.config.workersPerNode * ff.config.numNodes;
-    num_samples = 1024 * 64;
+    num_samples = 256 * 4 * ff.config.workersPerNode * ff.config.numNodes;
+    //num_samples = 256 * 2 * 8 * 16;
     log_app.print("Number of random samples = %d\n", num_samples);
   } else {
     log_app.print("Start loading dataset from %s", dlrm.dataset_path.c_str());

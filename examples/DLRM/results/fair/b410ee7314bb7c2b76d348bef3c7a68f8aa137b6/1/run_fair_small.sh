@@ -61,7 +61,7 @@ batchsize=$((ngpu * per_gpu_batch_size))
 
 embsize="1000000"
 embsizes=$embsize
-sparse_feature_size=256
+sparse_feature_size=64
 first_top_mlp_size=$((nemb * sparse_feature_size + sparse_feature_size))
 
 for ((a=1 ; a<$nemb ; a++)) 

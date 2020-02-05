@@ -49,6 +49,9 @@ enum TaskIDs {
   BATCHNORM_INIT_PARA_TASK_ID,
   BATCHNORM_FWD_TASK_ID,
   BATCHNORM_BWD_TASK_ID,
+  BATCHMATMUL_INIT_TASK_ID,
+  BATCHMATMUL_INI_PARA_TASK_ID,
+  BATCHMATMUL_FWD_TASK_ID,
   LINEAR_INIT_TASK_ID,
   LINEAR_INIT_PARA_TASK_ID,
   LINEAR_FWD_TASK_ID,
@@ -83,6 +86,7 @@ enum TaskIDs {
   CUSTOM_GPU_TASK_ID_5,
   CUSTOM_GPU_TASK_ID_6,
   CUSTOM_GPU_TASK_ID_7,
+  CUSTOM_GPU_TASK_ID_8,
   CUSTOM_GPU_TASK_ID_LAST,
   CUSTOM_CPU_TASK_ID_FIRST,
   CUSTOM_CPU_TASK_ID_1,
@@ -695,5 +699,73 @@ void data_load_task(const Task* task,
                     Context ctx, Runtime* runtime);
 
 void register_custom_tasks();
+
+
+
+
+
+
+
+
+
+
+
+class BatchMatmul : public Op {
+public:
+  BatchMatmul(FFModel& model,
+         const std::string& pcname,
+         const Tensor& input1,
+         const Tensor& input2);
+  void init(const FFModel&);
+  void forward(const FFModel&);
+    // Need to implement the skeleton for backward
+  void backward(const FFModel&);
+  //void update(const FFModel&);
+
+  static OpMeta* init_task(const Task *task,
+                           const std::vector<PhysicalRegion> &regions,
+                           Context ctx, Runtime *runtime);
+  //static void init_para_task(const Task *task,
+  //                           const std::vector<PhysicalRegion> &regions,
+  //                           Context ctx, Runtime *runtime);
+  static void forward_task(const Task *task,
+                           const std::vector<PhysicalRegion> &regions,
+                           Context ctx, Runtime *runtime);
+  
+  //static void update_task(const Task *task,
+  //                        const std::vector<PhysicalRegion> &regions,
+  //                        Context ctx, Runtime *runtime);
+public:
+  IndexSpaceT<2> task_is;
+  Tensor kernel, bias, replica;
+  bool profiling;
+  ActiMode activation;
+};
+
+class BatchMatmulMeta : public OpMeta {
+public:
+  BatchMatmulMeta(FFHandler handle) : OpMeta(handle) {};
+  cudnnTensorDescriptor_t outputTensor;
+  cudnnActivationDescriptor_t actiDesc;
+  const float *one_ptr;
+};
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 #endif//_FLEXFLOW_RUNTIME_H_
 

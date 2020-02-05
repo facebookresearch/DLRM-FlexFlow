@@ -121,3 +121,31 @@ void DataLoader::load_label(const Task *task,
   checkCUDA(cudaFreeHost(label_zc));
 }
 
+
+
+/*
+  regions[0](O): batch
+*/
+void DataLoader::random_3d_batch(const Task *task,
+                                  const std::vector<PhysicalRegion> &regions,
+                                  Context ctx,
+                                  Runtime* runtime)
+{
+    int num_dim = 3;
+  //assert(regions.size() == 1);
+  //assert(task->regions.size() == 1);
+  SampleIdxs* meta = (SampleIdxs*) task->local_args;
+  TensorAccessorW<float, num_dim> acc_batch_input(
+      regions[0], task->regions[0], FID_DATA, ctx, runtime,
+      false/*readOutput*/);
+ 
+  float* input_zc;
+  checkCUDA(cudaHostAlloc(&input_zc, sizeof(float) * acc_batch_input.rect.volume(),
+                          cudaHostAllocPortable | cudaHostAllocMapped));
+ 
+  checkCUDA(cudaMemcpy(acc_batch_input.ptr, input_zc,
+                       sizeof(float) * acc_batch_input.rect.volume(),
+                       cudaMemcpyHostToDevice));
+  checkCUDA(cudaFreeHost(input_zc));
+}
+

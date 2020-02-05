@@ -616,3 +616,45 @@ void register_custom_tasks()
         registrar, "Load Labels");
   }
 }
+
+
+
+
+
+void DataLoader::next_random_batch(FFModel& ff)
+{
+  Context ctx = ff.config.lg_ctx;
+  Runtime* runtime = ff.config.lg_hlr;
+  
+  // Load Dense Input
+  {
+      int num_dim = 3;
+    std::string pc_name = "";
+      // !QUESTION!: confirm this, should it be 1 or 2 or 3
+    IndexSpaceT<2> task_is = IndexSpaceT<2>(ff.get_or_create_task_is(pc_name));
+    Rect<num_dim> rect = runtime->get_index_space_domain(ctx, task_is);
+    ArgumentMap argmap;
+    int idx = next_index;
+    for (PointInRectIterator<num_dim> it(rect); it(); it++) {
+      SampleIdxs meta;
+      assert(ff.config.batchSize % (rect.hi[1] - rect.lo[1] + 1) == 0);
+      meta.num_samples = ff.config.batchSize / (rect.hi[1] - rect.lo[1] + 1);
+      for (int i = 0; i < meta.num_samples; i++)
+        meta.idxs[i] = idx++;
+      argmap.set_point(*it, TaskArgument(&meta, sizeof(SampleIdxs)));
+    }
+    IndexLauncher launcher(CUSTOM_GPU_TASK_ID_8, task_is,
+                         TaskArgument(NULL, 0), argmap,
+                         Predicate::TRUE_PRED, false/*must*/, 0/*mapper_id*/,
+                         FFConfig::get_hash_id(std::string(pc_name)));
+
+    launcher.add_region_requirement(
+        RegionRequirement(batch_dense_input.part, 0/*projection id*/,
+                          WRITE_ONLY, EXCLUSIVE, batch_dense_input.region));
+    launcher.add_field(0, FID_DATA);
+    runtime->execute_index_space(ctx, launcher);
+  }
+  
+  // progress next_index
+  next_index += ff.config.batchSize;
+}

@@ -122,7 +122,6 @@ void DataLoader::load_label(const Task *task,
 }
 
 
-
 /*
   regions[0](O): batch
 */

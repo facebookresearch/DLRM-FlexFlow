@@ -184,7 +184,7 @@ void BatchMatmul::forward(const FFModel& ff){
           RegionRequirement(input_lps[i], 0/*projection id*/,
                             READ_ONLY, EXCLUSIVE, inputs[i].region,
                             MAP_TO_ZC_MEMORY));
-      launcher.add_field(i + 1, FID_DATA);
+      launcher.add_field(i, FID_DATA);
     }
     runtime->execute_index_space(ctx, launcher);
 }

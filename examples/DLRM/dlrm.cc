@@ -144,7 +144,7 @@ void top_level_task(const Task* task,
     ff.reset_metrics();
     data_loader.next_batch(ff);
     ff.forward();
-    ff.zero_gradients();
+    //ff.zero_gradients();
     ff.backward();
     ff.update();
   }
@@ -173,12 +173,14 @@ void top_level_task(const Task* task,
       } else {
         data_loader.next_batch(ff);
       }
-      runtime->begin_trace(ctx, 111/*trace_id*/);
+      if (epoch > 0)
+        runtime->begin_trace(ctx, 111/*trace_id*/);
       ff.forward();
-      ff.zero_gradients();
+      //ff.zero_gradients();
       ff.backward();
       ff.update();
-      runtime->end_trace(ctx, 111/*trace_id*/);
+      if (epoch > 0)
+        runtime->end_trace(ctx, 111/*trace_id*/);
     }
   }
   // End timer
@@ -335,8 +337,17 @@ DataLoader::DataLoader(FFModel& ff,
   }
   // Load entire dataset
   // TODO: Use index launcher instead of task launcher
+
+  // passing DLRM Config through plain struct. ->
+  ArgsConfig dlrm_args;
+  assert(dlrm.embedding_size.size() <= MAX_NUM_EMB);
+  assert(dlrm.dataset_path.length() <= MAX_DATASET_PATH_LEN);
+  for (size_t i = 0; i < dlrm.embedding_size.size(); i++)
+    dlrm_args.embedding_size[i] = dlrm.embedding_size[i];
+  strcpy(dlrm_args.dataset_path, dlrm.dataset_path.c_str());
+  // <-
   TaskLauncher launcher(CUSTOM_CPU_TASK_ID_1,
-      TaskArgument(dlrm.dataset_path.c_str(), dlrm.dataset_path.length()+10));
+      TaskArgument(&dlrm_args, sizeof(dlrm_args)));
   // regions[0]: full_sparse_input
   launcher.add_region_requirement(
       RegionRequirement(full_sparse_input.region,
@@ -388,11 +399,13 @@ void DataLoader::load_entire_dataset(const Task *task,
   int num_dense_dims = rect_dense_input.hi[0] - rect_dense_input.lo[0] + 1;
   assert(num_samples == rect_label_input.hi[1] - rect_label_input.lo[1] + 1);
   assert(rect_label_input.hi[0] == rect_label_input.lo[0]);
-  std::string file_name((const char*)task->args);
+  const ArgsConfig dlrm = *((const ArgsConfig *)task->args);
+  const int emb_size = dlrm.embedding_size[0]; // TODO: This means all the size must be the same
+  std::string file_name((const char*)dlrm.dataset_path);
   if (file_name.length() == 0) {
     log_app.print("Start generating random input samples");
     for (size_t i = 0; i < rect_sparse_input.volume(); i++)
-      sparse_input_ptr[i] = std::rand() % 1000000;
+      sparse_input_ptr[i] = std::rand() % emb_size;
     for (size_t i = 0; i < rect_dense_input.volume(); i++)
       dense_input_ptr[i] = ((float)std::rand()) / RAND_MAX;
     for (size_t i = 0; i < rect_label_input.volume(); i++)
@@ -464,7 +477,7 @@ void DataLoader::next_batch(FFModel& ff)
   Runtime* runtime = ff.config.lg_hlr;
   // Load Sparse Inputs
   for (size_t i = 0; i < batch_sparse_inputs.size(); i++) {
-    int hash = batch_sparse_inputs.size() * 1000 + i;
+    int hash = batch_sparse_inputs.size() * MAX_NUM_EMB + i;
     std::string pc_name = "embedding"+std::to_string(i);
     IndexSpaceT<2> task_is = IndexSpaceT<2>(ff.get_or_create_task_is(pc_name));
     Rect<2> rect = runtime->get_index_space_domain(ctx, task_is);

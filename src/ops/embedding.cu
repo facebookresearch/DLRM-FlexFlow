@@ -259,7 +259,7 @@ void Embedding::backward_task(const Task *task,
   TensorAccessorR<float, 2> accOutput(
       regions[1], task->regions[1], FID_DATA, ctx, runtime);
   TensorAccessorW<float, 2> accWeightGrad(
-      regions[2], task->regions[2], FID_DATA, ctx, runtime, true/*readOutput*/);
+      regions[2], task->regions[2], FID_DATA, ctx, runtime, false/*readOutput*/);
   // Input matches Output
   assert(accInput.rect.hi[1] == accOutput.rect.hi[1]);
   assert(accInput.rect.lo[1] == accOutput.rect.lo[1]);
@@ -270,8 +270,8 @@ void Embedding::backward_task(const Task *task,
   int batch_size = accOutput.rect.hi[1] - accOutput.rect.lo[1] + 1;
   // Explicitly initialize accWegihtGrad to zero to aviod calling zero_gradients() before backward()
   // as an optimization for DLRM
-  //assign_kernel<<<GET_BLOCKS(accWeightGrad.rect.volume()), CUDA_NUM_THREADS>>>(
-  //      accWeightGrad.ptr, accWeightGrad.rect.volume(), 0.0f);
+  assign_kernel<<<GET_BLOCKS(accWeightGrad.rect.volume()), CUDA_NUM_THREADS>>>(
+        accWeightGrad.ptr, accWeightGrad.rect.volume(), 0.0f);
   embed_backward<<<GET_BLOCKS(accOutput.rect.volume()), CUDA_NUM_THREADS>>>(
       accInput.ptr, accOutput.ptr, accWeightGrad.ptr, out_dim, in_dim, batch_size, embed->aggr);
   checkCUDA(cudaDeviceSynchronize());
@@ -306,7 +306,7 @@ void Embedding::backward(const FFModel& ff)
   // regions[2]: weight_grad
   launcher.add_region_requirement(
       RegionRequirement(kernel.part_grad, 0/*projection*/,
-                        READ_WRITE, EXCLUSIVE, kernel.region_grad));
+                        WRITE_ONLY, EXCLUSIVE, kernel.region_grad));
   launcher.add_field(2, FID_DATA);
   runtime->execute_index_space(ctx, launcher);
 }

@@ -886,7 +886,7 @@ int main(int argc, char** argv)
         registrar, "Embedding Backward Task");
   }
   // Embedding task CPU
-  {
+  /* {
     TaskVariantRegistrar registrar(EMBED_FWD_TASK_ID, "Embedding Forward");
     registrar.add_constraint(ProcessorConstraint(Processor::LOC_PROC));
     registrar.set_leaf();
@@ -899,7 +899,7 @@ int main(int argc, char** argv)
     registrar.set_leaf();
     Runtime::preregister_task_variant<Embedding::backward_task_cpu>(
         registrar, "Embedding Backward Task");
-  }
+  }*/
   // Pool2D task
   {
     TaskVariantRegistrar registrar(POOL2D_INIT_TASK_ID, "pool2d_init_task");
@@ -1073,14 +1073,14 @@ int main(int argc, char** argv)
         registrar, "SGD Update Task");
   }
   // Initializer
-  {
+  /*{
     TaskVariantRegistrar registrar(ZERO_INIT_TASK_ID,
                                    "Zero Init");
     registrar.add_constraint(ProcessorConstraint(Processor::LOC_PROC));
     registrar.set_leaf();
     Runtime::preregister_task_variant<ZeroInitializer::init_task_cpu>(
         registrar, "Zero Init Task");
-  }
+  }*/
   {
     TaskVariantRegistrar registrar(ZERO_INIT_TASK_ID,
                                    "Zero Init");

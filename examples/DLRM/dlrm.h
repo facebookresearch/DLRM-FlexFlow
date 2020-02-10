@@ -15,6 +15,9 @@
 
 #include "model.h"
 #define MAX_NUM_SAMPLES 65536
+#define MAX_NUM_EMB 1000
+#define MAX_NUM_MLPS 100 
+#define MAX_DATASET_PATH_LEN 1023
 
 using namespace Legion;
 
@@ -35,6 +38,12 @@ struct DLRMConfig {
   float loss_threshold;
   std::vector<int> embedding_size, mlp_bot, mlp_top;
   std::string arch_interaction_op, dataset_path;
+};
+
+struct ArgsConfig {
+  int sparse_feature_size, sigmoid_bot, sigmoid_top, embedding_bag_size;
+  int embedding_size[MAX_NUM_EMB], mlp_bot[MAX_NUM_MLPS], mlp_top[MAX_NUM_MLPS];
+  char dataset_path[MAX_DATASET_PATH_LEN];
 };
 
 class DataLoader {

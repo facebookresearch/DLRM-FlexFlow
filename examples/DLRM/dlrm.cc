@@ -342,8 +342,10 @@ DataLoader::DataLoader(FFModel& ff,
   ArgsConfig dlrm_args;
   assert(dlrm.embedding_size.size() <= MAX_NUM_EMB);
   assert(dlrm.dataset_path.length() <= MAX_DATASET_PATH_LEN);
-  for (size_t i = 0; i < dlrm.embedding_size.size(); i++)
-    dlrm_args.embedding_size[i] = dlrm.embedding_size[i];
+  auto prev_s = dlrm.embedding_size[0];
+  for (auto s : dlrm.embedding_size)
+    assert (s == prev_s);
+  dlrm_args.embedding_size = prev_s;
   strcpy(dlrm_args.dataset_path, dlrm.dataset_path.c_str());
   // <-
   TaskLauncher launcher(CUSTOM_CPU_TASK_ID_1,
@@ -400,7 +402,7 @@ void DataLoader::load_entire_dataset(const Task *task,
   assert(num_samples == rect_label_input.hi[1] - rect_label_input.lo[1] + 1);
   assert(rect_label_input.hi[0] == rect_label_input.lo[0]);
   const ArgsConfig dlrm = *((const ArgsConfig *)task->args);
-  const int emb_size = dlrm.embedding_size[0]; // TODO: This means all the size must be the same
+  const int emb_size = dlrm.embedding_size; 
   std::string file_name((const char*)dlrm.dataset_path);
   if (file_name.length() == 0) {
     log_app.print("Start generating random input samples");

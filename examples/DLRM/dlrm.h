@@ -42,7 +42,7 @@ struct DLRMConfig {
 
 struct ArgsConfig {
   int sparse_feature_size, sigmoid_bot, sigmoid_top, embedding_bag_size;
-  int embedding_size[MAX_NUM_EMB], mlp_bot[MAX_NUM_MLPS], mlp_top[MAX_NUM_MLPS];
+  int embedding_size, mlp_bot[MAX_NUM_MLPS], mlp_top[MAX_NUM_MLPS];
   char dataset_path[MAX_DATASET_PATH_LEN];
 };
 

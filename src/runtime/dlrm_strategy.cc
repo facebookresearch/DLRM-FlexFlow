@@ -52,6 +52,12 @@ public:
                          const std::string& output_memory_type,
                          int num_parts_sample,
                          const std::vector<int>& device_ids);
+  bool add_batch_matmul_config(const std::string& name,
+                        const std::string& device_type,
+                        const std::string& input_memory_type,
+                        const std::string& output_memory_type,
+                        int num_parts_sample,
+                        const std::vector<int>& device_ids);
   bool add_linear_config(const std::string& name,
                          const std::string& device_type,
                          const std::string& input_memory_type,
@@ -99,6 +105,27 @@ bool FFStrategy::add_embed_config(const std::string& name,
     op->add_device_ids(gpu_id);
   }
   return true;
+}
+
+
+bool FFStrategy::add_batch_matmul_config(const std::string& name,
+                                   const std::string& device_type,
+                                   const std::string& input_memory_type,
+                                   const std::string& output_memory_type,
+                                   int num_parts_sample,
+                                   const std::vector<int>& device_ids)
+{
+  FFProtoBuf::Op* op = strategy.add_ops();
+  op->set_name(name);
+  op->set_device_type(to_device_type(device_type));
+  op->add_memory_types(to_memory_type(input_memory_type));
+  op->add_memory_types(to_memory_type(output_memory_type));
+  op->add_dims(1);
+  op->add_dims(1);
+  op->add_dims(num_parts_sample);
+  assert(num_parts_sample == (int) device_ids.size());
+  for (int i = 0; i < num_parts_sample; i++)
+    op->add_device_ids(device_ids[i]);
 }
 
 bool FFStrategy::add_concat_config(const std::string& name,
@@ -207,6 +234,14 @@ int main(int argc, char **argv)
   }
   {
     std::vector<int> device_ids;
+    for (int i = 0; i < num_nodes; i++)
+      device_ids.push_back(i * gpus_per_node);
+      // todo @charles we may need to add another "FBM" for 2nd input
+    strategy.add_batch_matmul_config("batch_matmul", "GPU", "FBM"/*input*/,
+        "FBM"/*output*/, num_nodes * gpus_per_node, device_ids);
+  }
+  {
+    std::vector<int> device_ids;
     for (int i = 0; i < num_nodes * gpus_per_node; i++)
       device_ids.push_back(i);
     strategy.add_linear_config("linear", "GPU", "FBM"/*input*/, "FBM"/*weight*/,
@@ -223,4 +258,3 @@ int main(int argc, char **argv)
   strategy.export_file(output);
   google::protobuf::ShutdownProtobufLibrary();
 }
-

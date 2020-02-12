@@ -42,7 +42,11 @@ public:
   DataLoader(FFModel& ff, const DLRMConfig& dlrm,
              const std::vector<Tensor>& _sparse_inputs,
              Tensor _dense_input, Tensor _label);
+
+  // Dummy loader for test purpose
+  DataLoader(FFModel& ff, const DLRMConfig& dlrm);
   void next_batch(FFModel& ff);
+  void next_random_batch(FFModel& ff);
   void shuffle();
   void reset();
   static void load_entire_dataset(const Task *task,
@@ -65,11 +69,15 @@ public:
                          const std::vector<PhysicalRegion> &regions,
                          Context ctx,
                          Runtime* runtime);
+  static void random_3d_batch(const Task *task,
+                              const std::vector<PhysicalRegion> &regions,
+                              Context ctx,
+                              Runtime* runtime);
 public:
   int num_samples, next_index;
 private:
   std::vector<Tensor> batch_sparse_inputs;
-  Tensor full_sparse_input, full_dense_input, batch_dense_input, full_label, batch_label;
+  Tensor full_sparse_input, full_dense_input, batch_dense_input, full_label, batch_label, batch_matmul_output, batch_matmul_input1, batch_matmul_input2;
 };
 
 struct SampleIdxs {

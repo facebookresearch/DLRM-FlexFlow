@@ -206,7 +206,7 @@ class FFModel {
 public:
   FFModel(FFConfig &config);
 
-  // Add a 2D convolutional layer 
+  // Add a 2D convolutional layer
   Tensor conv2d(std::string name,
                 Tensor input, int outChannels,
                 int kernelH, int kernelW,
@@ -246,6 +246,12 @@ public:
                 bool use_bias = true,
                 Initializer* kernel_initializer = NULL,
                 Initializer* bias_initializer = NULL);
+
+  // Add a batch matmul layer
+  Tensor batch_matmul(std::string name,
+                      const Tensor& input1,
+                      const Tensor& input2);
+
   // Add a concat layer
   Tensor concat(std::string name,
                 int n, const Tensor* tensors,
@@ -731,15 +737,13 @@ public:
   static void forward_task(const Task *task,
                            const std::vector<PhysicalRegion> &regions,
                            Context ctx, Runtime *runtime);
-  
+
   //static void update_task(const Task *task,
   //                        const std::vector<PhysicalRegion> &regions,
   //                        Context ctx, Runtime *runtime);
 public:
   IndexSpaceT<2> task_is;
-  Tensor kernel, bias, replica;
-  bool profiling;
-  ActiMode activation;
+  Tensor output, input1, input2;
 };
 
 class BatchMatmulMeta : public OpMeta {
@@ -749,8 +753,6 @@ public:
   cudnnActivationDescriptor_t actiDesc;
   const float *one_ptr;
 };
-
-
 
 
 

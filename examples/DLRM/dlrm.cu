@@ -130,21 +130,55 @@ void DataLoader::random_3d_batch(const Task *task,
                                   Context ctx,
                                   Runtime* runtime)
 {
-    int num_dim = 3;
+  const int num_dim = 3;
   //assert(regions.size() == 1);
   //assert(task->regions.size() == 1);
   SampleIdxs* meta = (SampleIdxs*) task->local_args;
-  TensorAccessorW<float, num_dim> acc_batch_input(
+  TensorAccessorW<float, num_dim> batch_mm_output(
       regions[0], task->regions[0], FID_DATA, ctx, runtime,
       false/*readOutput*/);
- 
-  float* input_zc;
-  checkCUDA(cudaHostAlloc(&input_zc, sizeof(float) * acc_batch_input.rect.volume(),
-                          cudaHostAllocPortable | cudaHostAllocMapped));
- 
-  checkCUDA(cudaMemcpy(acc_batch_input.ptr, input_zc,
-                       sizeof(float) * acc_batch_input.rect.volume(),
-                       cudaMemcpyHostToDevice));
-  checkCUDA(cudaFreeHost(input_zc));
+  TensorAccessorW<float, num_dim> batch_mm_input1(
+    regions[1], task->regions[1], FID_DATA, ctx, runtime);
+  TensorAccessorW<float, num_dim> batch_mm_input2(
+    regions[2], task->regions[2], FID_DATA, ctx, runtime);
+
+  int batch_size = batch_mm_input1.rect.hi[2] - batch_mm_input1.rect.lo[2] + 1;
+  int num_feats = batch_mm_input1.rect.hi[1] - batch_mm_input1.rect.lo[1] + 1;
+  // float* input_zc;
+  // checkCUDA(cudaHostAlloc(&input_zc, sizeof(float) * batch_mm_input1.rect.volume(),
+                          // cudaHostAllocPortable | cudaHostAllocMapped));
+
+
+  // TODO @Charles, this assertion failed!
+  // assert(batch_size == meta->num_samples);
+  // // random value to test
+  // for (int i = 0; i < batch_size; i++) {
+  //   int base_offset = meta->idxs[i] * num_feats;
+  //   for (int j = 0; j < num_feats; j++)
+  //     input_zc[i*num_feats+j] = i+j;
+  // }
+  // checkCUDA(cudaMemcpy(batch_mm_input1.ptr, input_zc,
+  //                       sizeof(float) * batch_mm_input1.rect.volume(),
+  //                       cudaMemcpyHostToDevice));
+  // checkCUDA(cudaFreeHost(input_zc));
+
+
+
+  // batch_size = batch_mm_input2.rect.hi[2] - batch_mm_input2.rect.lo[2] + 1;
+  // num_feats = batch_mm_input2.rect.hi[1] - batch_mm_input2.rect.lo[1] + 1;
+  // checkCUDA(cudaHostAlloc(&input_zc, sizeof(float) * batch_mm_input2.rect.volume(),
+  //                         cudaHostAllocPortable | cudaHostAllocMapped));
+  // assert(batch_size == meta->num_samples);
+  // for (int i = 0; i < batch_size; i++) {
+  //   int base_offset = meta->idxs[i] * num_feats;
+  //   for (int j = 0; j < num_feats; j++)
+  //     input_zc[i*num_feats+j] = i+j;
+  // }
+  // checkCUDA(cudaMemcpy(batch_mm_input2.ptr, input_zc,
+  //                       sizeof(float) * batch_mm_input2.rect.volume(),
+  //                       cudaMemcpyHostToDevice));
+  // checkCUDA(cudaFreeHost(input_zc));
+
+
 }
 

@@ -17,6 +17,10 @@
 #include "hdf5.h"
 #include <sstream>
 
+
+#include <iostream>
+
+
 using namespace Legion;
 
 LegionRuntime::Logger::Category log_app("DLRM");
@@ -74,125 +78,7 @@ void print_vector(const std::string& name, const std::vector<int>& vector)
   log_app.print("%s: %s", name.c_str(), out.str().c_str());
 }
 
-void top_level_task(const Task* task,
-                    const std::vector<PhysicalRegion>& regions,
-                    Context ctx, Runtime* runtime)
-{
-  FFConfig ffConfig;
-  // Parse input arguments
-  DLRMConfig dlrmConfig;
-  {
-    const InputArgs &command_args = HighLevelRuntime::get_input_args();
-    char **argv = command_args.argv;
-    int argc = command_args.argc;
-    ffConfig.parse_args(argv, argc);
-    parse_input_args(argv, argc, dlrmConfig);
-    log_app.print("batchSize(%d) workersPerNodes(%d) numNodes(%d)",
-        ffConfig.batchSize, ffConfig.workersPerNode, ffConfig.numNodes);
-    log_app.print("EmbeddingBagSize(%d)", dlrmConfig.embedding_bag_size);
-    print_vector("Embedding Vocab Sizes", dlrmConfig.embedding_size);
-    print_vector("MLP Top", dlrmConfig.mlp_top);
-    print_vector("MLP Bot", dlrmConfig.mlp_bot);
-  }
 
-  ffConfig.lg_ctx = ctx;
-  ffConfig.lg_hlr = runtime;
-  ffConfig.field_space = runtime->create_field_space(ctx);
-  FFModel ff(ffConfig);
-
-  std::vector<Tensor> sparse_inputs;
-  for (size_t i = 0; i < dlrmConfig.embedding_size.size(); i++) {
-    const int dims[] = {ffConfig.batchSize, dlrmConfig.embedding_bag_size};
-    Tensor input = ff.create_tensor<2>(dims, "embedding"+std::to_string(i), DT_INT64);
-    sparse_inputs.push_back(input);
-  }
-  Tensor dense_input;
-  {
-    const int dims[] = {ffConfig.batchSize, dlrmConfig.mlp_bot[0]};
-    dense_input = ff.create_tensor<2>(dims, "", DT_FLOAT);
-  }
-  Tensor label;
-  {
-    const int dims[] = {ffConfig.batchSize, 1};
-    label = ff.create_tensor<2>(dims, "", DT_FLOAT);
-  }
-  // Step 1 create dense_mlp
-  Tensor x = create_mlp(&ff, dense_input, dlrmConfig.mlp_bot, dlrmConfig.sigmoid_bot);
-  std::vector<Tensor> ly;
-  for (size_t i = 0; i < dlrmConfig.embedding_size.size(); i++) {
-    int input_dim = dlrmConfig.embedding_size[i];
-    int output_dim = dlrmConfig.sparse_feature_size;
-    ly.push_back(create_emb(&ff, sparse_inputs[i], input_dim, output_dim, i));
-  }
-  Tensor z = interact_features(&ff, x, ly, dlrmConfig.arch_interaction_op);
-  Tensor p = create_mlp(&ff, z, dlrmConfig.mlp_top, dlrmConfig.mlp_top.size() - 2);
-  if (dlrmConfig.loss_threshold > 0.0f && dlrmConfig.loss_threshold < 1.0f) {
-    // TODO: implement clamp
-    assert(false);
-  }
-  ff.mse_loss("mse_loss"/*name*/, p, label, "average"/*reduction*/);
-  // Use SGD Optimizer
-  ff.optimizer = new SGDOptimizer(&ff, 0.01f);
-  ff.init_layers();
-  // Data Loader
-  DataLoader data_loader(ff, dlrmConfig, sparse_inputs, dense_input, label);
-
-#if 1
-  // Warmup iterations
-  for (int iter = 0; iter < 1; iter++) {
-    data_loader.reset();
-    ff.reset_metrics();
-    data_loader.next_batch(ff);
-    ff.forward();
-    ff.zero_gradients();
-    ff.backward();
-    ff.update();
-  }
-#endif
-
-  //Start timer
-  {
-    runtime->issue_execution_fence(ctx);
-    TimingLauncher timer(MEASURE_MICRO_SECONDS);
-    Future future = runtime->issue_timing_measurement(ctx, timer);
-    future.get_void_result();
-  }
-  log_app.print("Warmup finished...Start timer...");
-  log_app.print("Num. epochs = %d", ffConfig.epochs);
-  log_app.print("Num. iterations/epoch = %d", data_loader.num_samples / ffConfig.batchSize);
-  double ts_start = Realm::Clock::current_time_in_microseconds();
-  for (int epoch = 0; epoch < ffConfig.epochs; epoch++) {
-    data_loader.reset();
-    ff.reset_metrics();
-    int iterations = data_loader.num_samples / ffConfig.batchSize;
-    for (int iter = 0; iter < iterations; iter++) {
-      if (dlrmConfig.dataset_path.length() == 0) {
-        // Only load data once for random input
-        //if (iter == 0 && epoch == 0)
-        //  data_loader.next_batch(ff);
-      } else {
-        data_loader.next_batch(ff);
-      }
-      runtime->begin_trace(ctx, 111/*trace_id*/);
-      ff.forward();
-      ff.zero_gradients();
-      ff.backward();
-      ff.update();
-      runtime->end_trace(ctx, 111/*trace_id*/);
-    }
-  }
-  // End timer
-  {
-    runtime->issue_execution_fence(ctx);
-    TimingLauncher timer(MEASURE_MICRO_SECONDS);
-    Future future = runtime->issue_timing_measurement(ctx, timer);
-    future.get_void_result();
-  }
-  double ts_end = Realm::Clock::current_time_in_microseconds();
-  double run_time = 1e-6 * (ts_end - ts_start);
-  printf("ELAPSED TIME = %.4fs, THROUGHPUT = %.2f samples/s\n", run_time,
-         data_loader.num_samples * ffConfig.epochs / run_time);
-}
 
 void parse_input_args(char **argv, int argc, DLRMConfig& config)
 {
@@ -254,6 +140,91 @@ void parse_input_args(char **argv, int argc, DLRMConfig& config)
     }
   }
 }
+
+DataLoader::DataLoader(FFModel& ff, const DLRMConfig& dlrm){
+  Context ctx = ff.config.lg_ctx;
+  Runtime* runtime = ff.config.lg_hlr;
+  const int m = 32,n = 16,k = 128,d = 8;
+
+    // for batch_matmul testing
+  {
+    const int dims[] = {d, m, n};
+    batch_matmul_output = ff.create_tensor<3>(dims, "batch_matmul", DT_FLOAT);
+  }
+  {
+    const int dims[] = {d, m, k};
+    batch_matmul_input1 = ff.create_tensor<3>(dims, "batch_matmul", DT_FLOAT);
+  }
+  {
+    const int dims[] = {d, k, n};
+    batch_matmul_input2 = ff.create_tensor<3>(dims, "batch_matmul", DT_FLOAT);
+  }
+
+  // we can only use zero initializer because others don't support 3-dimensional tensor
+  Initializer* initializer = new ZeroInitializer();
+  initializer->init(ctx, runtime, &batch_matmul_input1);
+  initializer->init(ctx, runtime, &batch_matmul_input2);
+  initializer->init(ctx, runtime, &batch_matmul_output);
+  /*
+  MISSING THE LAUNCHER AND ARGUEMENT THINGS HERE
+    TaskLauncher launcher(CUSTOM_CPU_TASK_ID_1,
+      TaskArgument(dlrm.dataset_path.c_str(), dlrm.dataset_path.length()+10));
+  // regions[0]: full_sparse_input
+  launcher.add_region_requirement(
+      RegionRequirement(full_sparse_input.region,
+                        WRITE_ONLY, EXCLUSIVE, full_sparse_input.region,
+                        MAP_TO_FB_MEMORY));
+  launcher.add_field(0, FID_DATA);
+  // regions[1]: full_dense_input
+  launcher.add_region_requirement(
+      RegionRequirement(full_dense_input.region,
+                        WRITE_ONLY, EXCLUSIVE, full_dense_input.region,
+                        MAP_TO_ZC_MEMORY));
+  launcher.add_field(1, FID_DATA);
+  // regions[3]: full_label
+  launcher.add_region_requirement(
+      RegionRequirement(full_label.region,
+                        WRITE_ONLY, EXCLUSIVE, full_label.region,
+                        MAP_TO_ZC_MEMORY));
+  launcher.add_field(2, FID_DATA);
+  runtime->execute_task(ctx, launcher);
+  */
+    // CUSTOM_GPU_TASK_ID_8 is random_3d_batch
+  const int num_dim = 3;
+  std::string pc_name = "batch_matmul";
+  IndexSpaceT<num_dim> task_is = IndexSpaceT<3>(ff.get_or_create_task_is(pc_name));
+  Rect<num_dim> rect = runtime->get_index_space_domain(ctx, task_is);
+  ArgumentMap argmap;
+  int idx = next_index;
+  for (PointInRectIterator<num_dim> it(rect); it(); it++) {
+    SampleIdxs meta;
+    // assert(ff.config.batchSize % (rect.hi[1] - rect.lo[1] + 1) == 0);
+    meta.num_samples = ff.config.batchSize / (rect.hi[1] - rect.lo[1] + 1);
+    for (int i = 0; i < meta.num_samples; i++)
+      meta.idxs[i] = idx++;
+    argmap.set_point(*it, TaskArgument(&meta, sizeof(SampleIdxs)));
+  }
+  // CUSTOM_GPU_TASK_ID_8 is random_3d_batch
+  IndexLauncher launcher(CUSTOM_GPU_TASK_ID_8, task_is,
+                        TaskArgument(NULL, 0), argmap,
+                        Predicate::TRUE_PRED, false/*must*/, 0/*mapper_id*/,
+                        FFConfig::get_hash_id(std::string(pc_name)));
+
+  launcher.add_region_requirement(
+      RegionRequirement(batch_matmul_output.part, 0/*projection id*/,
+                        WRITE_ONLY, EXCLUSIVE, batch_matmul_output.region));
+  launcher.add_field(0, FID_DATA);
+  launcher.add_region_requirement(
+    RegionRequirement(batch_matmul_input1.part, 0/*projection id*/,
+    READ_ONLY, EXCLUSIVE, batch_matmul_input1.region));
+  launcher.add_field(1, FID_DATA);
+  launcher.add_region_requirement(
+    RegionRequirement(batch_matmul_input2.part, 0/*projection id*/,
+    READ_ONLY, EXCLUSIVE, batch_matmul_input2.region));
+  launcher.add_field(2, FID_DATA);
+  runtime->execute_index_space(ctx, launcher);
+}
+
 
 DataLoader::DataLoader(FFModel& ff,
                        const DLRMConfig& dlrm,
@@ -496,9 +467,9 @@ void DataLoader::next_batch(FFModel& ff)
         RegionRequirement(batch_sparse_inputs[i].part, 0/*projection id*/,
                           WRITE_ONLY, EXCLUSIVE, batch_sparse_inputs[i].region));
     launcher.add_field(1, FID_DATA);
-    //std::cout << "CUSTOM_CPU_TASK_ID_2" << std::endl; 
+    //std::cout << "CUSTOM_CPU_TASK_ID_2" << std::endl;
     runtime->execute_index_space(ctx, launcher);
-    //std::cout << "Done CUSTOM_CPU_TASK_ID_2" << std::endl; 
+    //std::cout << "Done CUSTOM_CPU_TASK_ID_2" << std::endl;
   }
   // Load Dense Input
   {
@@ -620,23 +591,9 @@ void register_custom_tasks()
       TaskVariantRegistrar registrar(CUSTOM_GPU_TASK_ID_8, "Load Batched Matrices");
       registrar.add_constraint(ProcessorConstraint(Processor::TOC_PROC));
       registrar.set_leaf();
-      Runtime::preregister_task_variant<DataLoader::next_random_batch>(
+      Runtime::preregister_task_variant<DataLoader::random_3d_batch>(
           registrar, "Load Batched Matrices");
     }
-}
-
-
-
-// ===================== Batch matmul
-
-
-
-Tensor batch_matmul(FFModel* model, const Tensor& a,
-                         const Tensor& b,)
-{
-
-
-    return model->batch_matmul("batch_matmul", a, b)
 }
 
 
@@ -667,39 +624,88 @@ void top_level_task2(const Task* task,
   ffConfig.field_space = runtime->create_field_space(ctx);
   FFModel ff(ffConfig);
 
-    int m = 32;
-    int k = 128;
-    int n = 16;
-    int d = 8;
-  Tensor dense_input1;
-  {
-    const int dims[] = {d, m, k};
-    dense_input1 = ff.create_tensor<3>(dims, "", DT_FLOAT);
+  std::vector<Tensor> sparse_inputs;
+  for (size_t i = 0; i < dlrmConfig.embedding_size.size(); i++) {
+    const int dims[] = {ffConfig.batchSize, dlrmConfig.embedding_bag_size};
+    Tensor input = ff.create_tensor<2>(dims, "embedding"+std::to_string(i), DT_INT64);
+    sparse_inputs.push_back(input);
   }
-  Tensor dense_input2;
+  Tensor dense_input;
   {
-    const int dims[] = {d, k, n};
-    dense_input2 = ff.create_tensor<3>(dims, "", DT_FLOAT);
+    const int dims[] = {ffConfig.batchSize, dlrmConfig.mlp_bot[0]};
+    dense_input = ff.create_tensor<2>(dims, "", DT_FLOAT);
   }
-
-    Tensor batch_matmul_ret = batch_matmul(&ff, dense_input1, dense_input2);
-  
-
-//  ff.mse_loss("mse_loss"/*name*/, p, label, "average"/*reduction*/);
+  Tensor label;
+  {
+    const int dims[] = {ffConfig.batchSize, 1};
+    label = ff.create_tensor<2>(dims, "", DT_FLOAT);
+  }
+  // Step 1 create dense_mlp
+  Tensor x = create_mlp(&ff, dense_input, dlrmConfig.mlp_bot, dlrmConfig.sigmoid_bot);
+  std::vector<Tensor> ly;
+  for (size_t i = 0; i < dlrmConfig.embedding_size.size(); i++) {
+    int input_dim = dlrmConfig.embedding_size[i];
+    int output_dim = dlrmConfig.sparse_feature_size;
+    ly.push_back(create_emb(&ff, sparse_inputs[i], input_dim, output_dim, i));
+  }
+  Tensor z = interact_features(&ff, x, ly, dlrmConfig.arch_interaction_op);
+  Tensor p = create_mlp(&ff, z, dlrmConfig.mlp_top, dlrmConfig.mlp_top.size() - 2);
+  if (dlrmConfig.loss_threshold > 0.0f && dlrmConfig.loss_threshold < 1.0f) {
+    // TODO: implement clamp
+    assert(false);
+  }
+  ff.mse_loss("mse_loss"/*name*/, p, label, "average"/*reduction*/);
   // Use SGD Optimizer
-//  ff.optimizer = new SGDOptimizer(&ff, 0.01f);
+  ff.optimizer = new SGDOptimizer(&ff, 0.01f);
   ff.init_layers();
   // Data Loader
   DataLoader data_loader(ff, dlrmConfig, sparse_inputs, dense_input, label);
 
+#if 1
   // Warmup iterations
   for (int iter = 0; iter < 1; iter++) {
     data_loader.reset();
-    data_loader.random_3d_batch(ff);
+    ff.reset_metrics();
+    data_loader.next_batch(ff);
     ff.forward();
+    ff.zero_gradients();
+    ff.backward();
+    ff.update();
   }
+#endif
 
-  
+  //Start timer
+  {
+    runtime->issue_execution_fence(ctx);
+    TimingLauncher timer(MEASURE_MICRO_SECONDS);
+    Future future = runtime->issue_timing_measurement(ctx, timer);
+    future.get_void_result();
+  }
+  log_app.print("Warmup finished...Start timer...");
+  log_app.print("Num. epochs = %d", ffConfig.epochs);
+  log_app.print("Num. iterations/epoch = %d", data_loader.num_samples / ffConfig.batchSize);
+  double ts_start = Realm::Clock::current_time_in_microseconds();
+  for (int epoch = 0; epoch < ffConfig.epochs; epoch++) {
+    data_loader.reset();
+    ff.reset_metrics();
+    int iterations = data_loader.num_samples / ffConfig.batchSize;
+    for (int iter = 0; iter < iterations; iter++) {
+      if (dlrmConfig.dataset_path.length() == 0) {
+        // Only load data once for random input
+        //if (iter == 0 && epoch == 0)
+        //  data_loader.next_batch(ff);
+      } else {
+        data_loader.next_batch(ff);
+      }
+      runtime->begin_trace(ctx, 111/*trace_id*/);
+      ff.forward();
+      ff.zero_gradients();
+      ff.backward();
+      ff.update();
+      runtime->end_trace(ctx, 111/*trace_id*/);
+    }
+  }
+  // End timer
   {
     runtime->issue_execution_fence(ctx);
     TimingLauncher timer(MEASURE_MICRO_SECONDS);
@@ -712,6 +718,72 @@ void top_level_task2(const Task* task,
          data_loader.num_samples * ffConfig.epochs / run_time);
 }
 
+// ===================== Batch matmul
+
+void top_level_task(const Task* task,
+                    const std::vector<PhysicalRegion>& regions,
+                    Context ctx, Runtime* runtime)
+{
+
+  int m = 32;
+  int k = 128;
+  int n = 16;
+  int d = 8;
+    FFConfig ffConfig;
+  // Parse input arguments
+  DLRMConfig dlrmConfig;
+  {
+    const InputArgs &command_args = HighLevelRuntime::get_input_args();
+    char **argv = command_args.argv;
+    int argc = command_args.argc;
+    ffConfig.parse_args(argv, argc);
+    parse_input_args(argv, argc, dlrmConfig);
+    log_app.print("batchSize(%d) workersPerNodes(%d) numNodes(%d)",
+        ffConfig.batchSize, ffConfig.workersPerNode, ffConfig.numNodes);
+    log_app.print("EmbeddingBagSize(%d)", dlrmConfig.embedding_bag_size);
+    print_vector("Embedding Vocab Sizes", dlrmConfig.embedding_size);
+    print_vector("MLP Top", dlrmConfig.mlp_top);
+    print_vector("MLP Bot", dlrmConfig.mlp_bot);
+  }
+
+  ffConfig.lg_ctx = ctx;
+  ffConfig.lg_hlr = runtime;
+  ffConfig.field_space = runtime->create_field_space(ctx);
+  FFModel ff(ffConfig);
+
+
+  Tensor dense_input1;
+  {
+
+    const int dims[] = {d, m, k};
+    // sadly we have to pass batch_matmul 3-dimensional stretegy in this way for now to handle 3 dimensional tensor
+    dense_input1 = ff.create_tensor<3>(dims, "batch_matmul", DT_FLOAT);
+  }
+  Tensor dense_input2;
+  {
+    const int dims[] = {d, k, n};
+    // sadly we have to pass batch_matmul 3-dimensional stretegy in this way for now to handle 3 dimensional tensor
+    dense_input2 = ff.create_tensor<3>(dims, "batch_matmul", DT_FLOAT);
+  }
+  // we can only use zero initializer because others don't support 3-dimensional tensor
+  Initializer* initializer = new ZeroInitializer();
+  initializer->init(ffConfig.lg_ctx, runtime, &dense_input1);
+  initializer->init(ffConfig.lg_ctx, runtime, &dense_input2);
+  Tensor batch_matmul_ret = ff.batch_matmul("batch_matmul", dense_input1, dense_input2);
+
+  ff.init_layers();
+  // Data Loader
+  DataLoader data_loader(ff, dlrmConfig);
+
+  // Warmup iterations
+  for (int iter = 0; iter < 1; iter++) {
+    data_loader.reset();
+      data_loader.next_random_batch(ff);
+      ff.forward();
+  }
+    std::cout << "!!!Hello world!!!13" << std::endl;
+
+}
 
 
 
@@ -719,19 +791,18 @@ void DataLoader::next_random_batch(FFModel& ff)
 {
   Context ctx = ff.config.lg_ctx;
   Runtime* runtime = ff.config.lg_hlr;
-  
+
   // Load Dense Input
   {
-      int num_dim = 3;
-    std::string pc_name = "";
-      // !QUESTION!: confirm this, should it be 1 or 2 or 3
-    IndexSpaceT<2> task_is = IndexSpaceT<2>(ff.get_or_create_task_is(pc_name));
+    const int num_dim = 3;
+    std::string pc_name = "batch_matmul";
+    IndexSpaceT<num_dim> task_is = IndexSpaceT<3>(ff.get_or_create_task_is(pc_name));
     Rect<num_dim> rect = runtime->get_index_space_domain(ctx, task_is);
     ArgumentMap argmap;
     int idx = next_index;
     for (PointInRectIterator<num_dim> it(rect); it(); it++) {
       SampleIdxs meta;
-      assert(ff.config.batchSize % (rect.hi[1] - rect.lo[1] + 1) == 0);
+      // assert(ff.config.batchSize % (rect.hi[1] - rect.lo[1] + 1) == 0);
       meta.num_samples = ff.config.batchSize / (rect.hi[1] - rect.lo[1] + 1);
       for (int i = 0; i < meta.num_samples; i++)
         meta.idxs[i] = idx++;
@@ -744,12 +815,20 @@ void DataLoader::next_random_batch(FFModel& ff)
                          FFConfig::get_hash_id(std::string(pc_name)));
 
     launcher.add_region_requirement(
-        RegionRequirement(batch_dense_input.part, 0/*projection id*/,
-                          WRITE_ONLY, EXCLUSIVE, batch_dense_input.region));
+        RegionRequirement(batch_matmul_output.part, 0/*projection id*/,
+                          WRITE_ONLY, EXCLUSIVE, batch_matmul_output.region));
     launcher.add_field(0, FID_DATA);
+    launcher.add_region_requirement(
+      RegionRequirement(batch_matmul_input1.part, 0/*projection id*/,
+      READ_ONLY, EXCLUSIVE, batch_matmul_input1.region));
+    launcher.add_field(1, FID_DATA);
+    launcher.add_region_requirement(
+      RegionRequirement(batch_matmul_input2.part, 0/*projection id*/,
+      READ_ONLY, EXCLUSIVE, batch_matmul_input2.region));
+    launcher.add_field(2, FID_DATA);
     runtime->execute_index_space(ctx, launcher);
   }
-  
+
   // progress next_index
   next_index += ff.config.batchSize;
 }

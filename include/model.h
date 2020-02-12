@@ -737,7 +737,6 @@ public:
   static void forward_task(const Task *task,
                            const std::vector<PhysicalRegion> &regions,
                            Context ctx, Runtime *runtime);
-
   //static void update_task(const Task *task,
   //                        const std::vector<PhysicalRegion> &regions,
   //                        Context ctx, Runtime *runtime);
@@ -769,5 +768,10 @@ public:
 
 
 
+<<<<<<< HEAD
+=======
+
+
+>>>>>>> 4d1bdaf07e66bc436a39b8bdaebcdc9a66cc8c2e
 #endif//_FLEXFLOW_RUNTIME_H_
 

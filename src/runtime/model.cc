@@ -1052,6 +1052,20 @@ int main(int argc, char** argv)
   //  Runtime::preregister_task_variant<OpMeta*, Concat::init_task>(
   //      registrar, "concat_init_task");
   //}
+  {
+    TaskVariantRegistrar registrar(CONCAT_FWD_TASK_ID, "Concat Forward");
+    registrar.add_constraint(ProcessorConstraint(Processor::TOC_PROC));
+    registrar.set_leaf();
+    Runtime::preregister_task_variant<Concat::forward_task>(
+        registrar, "Concat Forward Task");
+  }
+  {
+    TaskVariantRegistrar registrar(CONCAT_BWD_TASK_ID, "Concat Backward");
+    registrar.add_constraint(ProcessorConstraint(Processor::TOC_PROC));
+    registrar.set_leaf();
+    Runtime::preregister_task_variant<Concat::backward_task>(
+        registrar, "Concat Backward Task");
+  }
 
   // Batch matmul task
   {
@@ -1068,21 +1082,16 @@ int main(int argc, char** argv)
     Runtime::preregister_task_variant<BatchMatmul::forward_task>(
         registrar, "batch_matmul_fwd_task");
   }
+  {
+    TaskVariantRegistrar registrar(BATCHMATMUL_BWD_TASK_ID, "batch_matmul_bwd_task");
+    registrar.add_constraint(ProcessorConstraint(Processor::TOC_PROC));
+    registrar.set_leaf();
+    Runtime::preregister_task_variant<BatchMatmul::backward_task>(
+        registrar, "batch_matmul_bwd_task");
+  }
 
-  {
-    TaskVariantRegistrar registrar(CONCAT_FWD_TASK_ID, "Concat Forward");
-    registrar.add_constraint(ProcessorConstraint(Processor::TOC_PROC));
-    registrar.set_leaf();
-    Runtime::preregister_task_variant<Concat::forward_task>(
-        registrar, "Concat Forward Task");
-  }
-  {
-    TaskVariantRegistrar registrar(CONCAT_BWD_TASK_ID, "Concat Backward");
-    registrar.add_constraint(ProcessorConstraint(Processor::TOC_PROC));
-    registrar.set_leaf();
-    Runtime::preregister_task_variant<Concat::backward_task>(
-        registrar, "Concat Backward Task");
-  }
+
+
   // Optimizer
   {
     TaskVariantRegistrar registrar(SGD_UPD_TASK_ID,

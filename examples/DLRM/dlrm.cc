@@ -290,6 +290,25 @@ DataLoader::DataLoader(FFModel& ff,
   for (size_t i = 0; i < _sparse_inputs.size(); i++) {
     batch_sparse_inputs.push_back(_sparse_inputs[i]);
   }
+  /*
+  Kernel
+  {out_dim, in_dim}
+  Input dim (output of previous layer)
+  {batch_size, in_dim}
+  Output dim
+  {batch_size, out_dim}
+
+  >>>>> all transposed after send to childrieb tasks
+
+  CONFIRM THIS
+
+
+  but in cublas it's shape
+  kernel k,m; tranposeA=true;
+  input k,n; trabsoiseB=false;
+  output m,n;
+  Output = kernel^T * input
+  */
   {
     const int dims[] = {num_samples, (int)_sparse_inputs.size()*dlrm.embedding_bag_size};
     full_sparse_input = ff.create_tensor<2>(dims, "", DT_INT64);
@@ -755,13 +774,13 @@ void top_level_task(const Task* task,
   Tensor dense_input1;
   {
 
-    const int dims[] = {d, m, k};
+    const int dims[] = {m,k,d};
     // sadly we have to pass batch_matmul 3-dimensional stretegy in this way for now to handle 3 dimensional tensor
     dense_input1 = ff.create_tensor<3>(dims, "batch_matmul", DT_FLOAT);
   }
   Tensor dense_input2;
   {
-    const int dims[] = {d, k, n};
+    const int dims[] = {n,k,d};
     // sadly we have to pass batch_matmul 3-dimensional stretegy in this way for now to handle 3 dimensional tensor
     dense_input2 = ff.create_tensor<3>(dims, "batch_matmul", DT_FLOAT);
   }
@@ -769,7 +788,7 @@ void top_level_task(const Task* task,
   Initializer* initializer = new ZeroInitializer();
   initializer->init(ffConfig.lg_ctx, runtime, &dense_input1);
   initializer->init(ffConfig.lg_ctx, runtime, &dense_input2);
-  Tensor batch_matmul_ret = ff.batch_matmul("batch_matmul", dense_input1, dense_input2);
+  Tensor batch_matmul_ret = ff.batch_matmul("batch_matmul", dense_input1, dense_input2, true, false);
 
   ff.init_layers();
   // Data Loader
@@ -780,6 +799,8 @@ void top_level_task(const Task* task,
     data_loader.reset();
       data_loader.next_random_batch(ff);
       ff.forward();
+      ff.zero_gradients(); // initialize gradiance
+      ff.backward();
   }
     std::cout << "!!!Hello world!!!13" << std::endl;
 

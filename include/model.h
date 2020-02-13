@@ -52,6 +52,7 @@ enum TaskIDs {
   BATCHMATMUL_INIT_TASK_ID,
   BATCHMATMUL_INI_PARA_TASK_ID,
   BATCHMATMUL_FWD_TASK_ID,
+  BATCHMATMUL_BWD_TASK_ID,
   LINEAR_INIT_TASK_ID,
   LINEAR_INIT_PARA_TASK_ID,
   LINEAR_FWD_TASK_ID,
@@ -250,7 +251,9 @@ public:
   // Add a batch matmul layer
   Tensor batch_matmul(std::string name,
                       const Tensor& input1,
-                      const Tensor& input2);
+                      const Tensor& input2,
+                      const bool trans1=true,
+                      const bool trans2=false);
 
   // Add a concat layer
   Tensor concat(std::string name,
@@ -721,7 +724,9 @@ public:
   BatchMatmul(FFModel& model,
          const std::string& pcname,
          const Tensor& input1,
-         const Tensor& input2);
+         const Tensor& input2,
+         const bool trans1=true, // default matmul is C=A^T*B
+         const bool trans2=false);
   void init(const FFModel&);
   void forward(const FFModel&);
     // Need to implement the skeleton for backward
@@ -737,12 +742,19 @@ public:
   static void forward_task(const Task *task,
                            const std::vector<PhysicalRegion> &regions,
                            Context ctx, Runtime *runtime);
+  static void backward_task(
+                          const Task *task,
+                          const std::vector<PhysicalRegion> &regions,
+                          Context ctx, Runtime *runtime
+                          );
   //static void update_task(const Task *task,
   //                        const std::vector<PhysicalRegion> &regions,
   //                        Context ctx, Runtime *runtime);
 public:
   IndexSpaceT<2> task_is;
   Tensor output, input1, input2;
+  cublasOperation_t transpose_1, transpose_2;
+  bool transpose_1_flag, transpose_2_flag;
 };
 
 class BatchMatmulMeta : public OpMeta {
@@ -768,10 +780,4 @@ public:
 
 
 
-<<<<<<< HEAD
-=======
-
-
->>>>>>> 4d1bdaf07e66bc436a39b8bdaebcdc9a66cc8c2e
 #endif//_FLEXFLOW_RUNTIME_H_
-

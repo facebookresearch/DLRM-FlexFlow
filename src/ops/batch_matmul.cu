@@ -43,10 +43,14 @@ BatchMatmul::BatchMatmul(
     Runtime* runtime = model.config.lg_hlr;
     Domain domain = runtime->get_index_space_domain(ctx, task_is);
     FieldSpace fs = model.config.field_space;
-    // because input A is d,k,m
-    const int dims[] = {input2.adim[0], input1.adim[0], input1.adim[2]};
 
-    printf("trans A %d, trans B %d", trans1, trans2);
+
+    // because input dims[] passed to create_tensor<dims> is `d,k,m`
+    // the input.adim is reversed from the order of dims[] passed to create_tensor / create_weights layer
+    const int dims[] = {input2.adim[2], input1.adim[2], input1.adim[0]};
+    printf("batch_matmul inputs:\n");
+    printf("input 1 shape d(%d) k(%d) m(%d)\n", input1.adim[0], input1.adim[1], input1.adim[2]);
+    printf("input 2 shape d(%d) k(%d) n(%d)\n", input2.adim[0], input2.adim[1], input2.adim[2]);
     transpose_1_flag = trans1;
     transpose_2_flag = trans2;
     transpose_1 = trans1 ? CUBLAS_OP_T : CUBLAS_OP_N;
@@ -169,22 +173,22 @@ OpMeta* BatchMatmul::init_task(const Task *task,
 
 
     /*
-    NEED TO VERIFY THE SHAPE,
     input1 (d,k,m)
     input2 (d,k,n)
     output (d,m,n)
     */
-    int k = input1.rect.hi[0] - input1.rect.lo[0] + 1;
+    int k = input1.rect.hi[1] - input1.rect.lo[1] + 1;
     int m = acc_output.rect.hi[1] - acc_output.rect.lo[1] + 1;
     int n = acc_output.rect.hi[2] - acc_output.rect.lo[2] + 1;
-    int batch_stride_a = input1.rect.hi[2] - input1.rect.lo[2] + 1;
-    int batch_stride_b = input2.rect.hi[2] - input2.rect.lo[2] + 1;
-    int batch_stride_c = acc_output.rect.hi[2] - acc_output.rect.lo[2] + 1;
+    int batch_stride_a = input1.rect.hi[0] - input1.rect.lo[0] + 1;
+    int batch_stride_b = input2.rect.hi[0] - input2.rect.lo[0] + 1;
+    int batch_stride_c = acc_output.rect.hi[0] - acc_output.rect.lo[0] + 1;
 
 
 
     BatchMatmulMeta* bmm_meta = new BatchMatmulMeta(handle);
     printf("init batch_matmul (input): batdh_dim(%d) k(%d) m(%d) n(%d)\n", batch_stride_a, k, m, n);
+
     checkCUDNN(cudnnCreateTensorDescriptor(&bmm_meta->outputTensor));
     checkCUDNN(cudnnSetTensor4dDescriptor(bmm_meta->outputTensor,
                         CUDNN_TENSOR_NCHW,
@@ -235,6 +239,7 @@ void BatchMatmul::backward(const FFModel& ff){
                         READ_ONLY, EXCLUSIVE, inputs[1].region));
     launcher.add_field(4, FID_DATA);
 
+
     runtime->execute_index_space(ctx, launcher);
 }
 
@@ -251,12 +256,6 @@ void BatchMatmul::backward_task(
     Context ctx, Runtime *runtime
     )
 {
-
-    /*
-    IMPLEMENT 0,0 and 1,0 transpose scenario according to this
-    scuba query
-    https://our.internmc.facebook.com/intern/scuba/query/?dataset=caffe2_operator_stats&drillstate=%7B%22cols%22%3A[]%2C%22derivedCols%22%3A[%7B%22name%22%3A%22cpu_time_us%22%2C%22sql%22%3A%22cpu_time_ns%2F1000%22%2C%22type%22%3A%22Numeric%22%7D]%2C%22mappedCols%22%3A[]%2C%22enumCols%22%3A[]%2C%22return_remainder%22%3Afalse%2C%22hideEmptyColumns%22%3Afalse%2C%22start%22%3A%221581245391%22%2C%22samplingRatio%22%3A%221%22%2C%22compare%22%3A%22%22%2C%22hide_sample_cols%22%3Afalse%2C%22minBucketSamples%22%3A%22%22%2C%22dimensions%22%3A[%22operator_type%22%2C%22input_dims%22%2C%22output_dims%22%2C%22net_pos_int%22%2C%22arguments%22]%2C%22cellOverlay%22%3A%22None%22%2C%22metric%22%3A%22sum%22%2C%22top%22%3A%22200%22%2C%22timezone%22%3A%22America%2FLos_Angeles%22%2C%22end%22%3A%221581435008%22%2C%22aggregateList%22%3A[]%2C%22param_dimensions%22%3A[]%2C%22modifiers%22%3A[]%2C%22order%22%3A%22cpu_time_us%22%2C%22order_desc%22%3Atrue%2C%22filterMode%22%3A%22DEFAULT%22%2C%22constraints%22%3A[[%7B%22column%22%3A%22model_id%22%2C%22op%22%3A%22eq%22%2C%22value%22%3A[%22[%5C%22167229611%5C%22]%22]%7D%2C%7B%22column%22%3A%22operator_type%22%2C%22op%22%3A%22eq%22%2C%22value%22%3A[%22[%5C%22BatchMatMul%5C%22]%22]%7D]]%2C%22c_constraints%22%3A[[]]%2C%22b_constraints%22%3A[[]]%2C%22metrik_view_params%22%3A%7B%7D%7D&view=Table&selector=%23u_fetchstream_3_n&setRelative=true&height=474px&width=1000px&normalized=1581537964&pool=uber
-    */
     const BatchMatmul* bm = (BatchMatmul*) task->args;
     float alpha = 1.0f, beta = 0.0f;
     const BatchMatmulMeta* lm = *((BatchMatmulMeta**) task->local_args);
@@ -274,14 +273,19 @@ void BatchMatmul::backward_task(
     TensorAccessorR<float, batch_tensor_dim> acc_input2(
         regions[4], task->regions[4], FID_DATA, ctx, runtime);
 
-    int k = acc_input1_grad.rect.hi[0] - acc_input1_grad.rect.lo[0] + 1;
-    int m = acc_output_grad.rect.hi[0] - acc_output_grad.rect.lo[0] + 1;
-    int n = acc_input1_grad.rect.hi[1] - acc_input1_grad.rect.lo[1] + 1;
-    int batch_stride_a = acc_input1_grad.rect.hi[2] - acc_input1_grad.rect.lo[2] + 1;
-    int batch_stride_b = acc_input2_grad.rect.hi[2] - acc_input2_grad.rect.lo[2] + 1;
-    int batch_stride_c = acc_output_grad.rect.hi[2] - acc_output_grad.rect.lo[2] + 1;
+
+
+    int k = acc_input1_grad.rect.hi[1] - acc_input1_grad.rect.lo[1] + 1;
+    int m = acc_output_grad.rect.hi[1] - acc_output_grad.rect.lo[1] + 1;
+    int n = acc_output_grad.rect.hi[2] - acc_output_grad.rect.lo[2] + 1;
+    int batch_stride_a = acc_input1_grad.rect.hi[0] - acc_input1_grad.rect.lo[0] + 1;
+    int batch_stride_b = acc_input2_grad.rect.hi[0] - acc_input2_grad.rect.lo[0] + 1;
+    int batch_stride_c = acc_output_grad.rect.hi[0] - acc_output_grad.rect.lo[0] + 1;
     printf("k:%d m:%d n:%d batch_stride_a:%d batch_stride_b:%d batch_stride_c:%d\n", k, m,n,batch_stride_a, batch_stride_b, batch_stride_c);
-    printf("trans A %d, trans B %d", bm->transpose_1_flag, bm->transpose_2_flag);
+
+
+
+    printf("trans A %d, trans B %d\n", bm->transpose_1_flag, bm->transpose_2_flag);
     printf("cuBLAS initializing...\n");
 
     #ifndef DISABLE_LEGION_CUDA_HIJACK
@@ -290,21 +294,44 @@ void BatchMatmul::backward_task(
     checkCUDA(cublasSetStream(lm->handle.blas, stream));
     checkCUDNN(cudnnSetStream(lm->handle.dnn, stream));
     #endif
-
+    // because cublas is row major ordering, so leading dimension is the reduction dimension
+    // !QUESTION!: why this doesn't work!
     // if (bm->transpose_1_flag) {
         // if (bm->transpose_2_flag) {
     if (true) {
         if (false) {
             // A'B':
             // dA = B'G', dB = G'A'
+            // checkCUDA(cublasSgemmStridedBatched(lm->handle.blas,
+            //                 CUBLAS_OP_T, CUBLAS_OP_T,
+            //                 k,m,n,
+            //                 &alpha,
+            //                 acc_input2.ptr, k,
+            //                 k*n,
+            //                 acc_output_grad.ptr, m,
+            //                 m*n,
+            //                 &beta,
+            //                 acc_input1_grad.ptr, k,
+            //                 m*k,
+            //                 batch_stride_a));
+            // checkCUDA(cublasSgemmStridedBatched(lm->handle.blas,
+            //                 CUBLAS_OP_T, CUBLAS_OP_T,
+            //                 n,k,m,
+            //                 &alpha,
+            //                 acc_output_grad.ptr, m,
+            //                 m*n,
+            //                 acc_input1.ptr, k,
+            //                 m*k,
+            //                 &beta,
+            //                 acc_input2_grad.ptr, k,
+            //                 k*n,
+            //                 batch_stride_a));
             // not implemented
-            printf("A'B'");
-            throw;
+            throw 255;
         }
         else {
             // A'B:
             // dA = BG', dB = AG
-            printf("cuBLAS batch_matmul input1 grad job running...\n");
             checkCUDA(cublasSgemmStridedBatched(lm->handle.blas,
                                         CUBLAS_OP_N, CUBLAS_OP_T,
                                         k,m,n,
@@ -317,8 +344,6 @@ void BatchMatmul::backward_task(
                                         acc_input1_grad.ptr, k,
                                         m*k,
                                         batch_stride_a));
-            printf("done!\n");
-            printf("cuBLAS batch_matmul input2 grad job running...\n");
             checkCUDA(cublasSgemmStridedBatched(lm->handle.blas,
                                         CUBLAS_OP_N, CUBLAS_OP_N,
                                         k,n,m,
@@ -331,23 +356,20 @@ void BatchMatmul::backward_task(
                                         acc_input2_grad.ptr, k,
                                         k*n,
                                         batch_stride_a));
-            printf("done!\n");
         }
     } else {
         if (bm->transpose_2_flag) {
             // AB':
             // dA = GB, dB = G'A
             // not implemented
-            printf("AB'");
-            throw;
+            throw 255;
 
         }
         else {
             // AB:
             // dA = GB', dB = A'G
             // not implemented
-            printf("AB");
-            throw;
+            throw 255;
         }
     }
 
@@ -391,12 +413,12 @@ void BatchMatmul::forward_task(
         regions[2], task->regions[2], FID_DATA, ctx, runtime);
 
 
-    int k = acc_input1.rect.hi[0] - acc_input1.rect.lo[0] + 1;
-    int m = acc_output.rect.hi[0] - acc_output.rect.lo[0] + 1;
-    int n = acc_input1.rect.hi[1] - acc_input1.rect.lo[1] + 1;
-    int batch_stride_a = acc_input1.rect.hi[2] - acc_input1.rect.lo[2] + 1;
-    int batch_stride_b = acc_input2.rect.hi[2] - acc_input2.rect.lo[2] + 1;
-    int batch_stride_c = acc_output.rect.hi[2] - acc_output.rect.lo[2] + 1;
+    int k = acc_input1.rect.hi[1] - acc_input1.rect.lo[1] + 1;
+    int m = acc_output.rect.hi[1] - acc_output.rect.lo[1] + 1;
+    int n = acc_output.rect.hi[2] - acc_output.rect.lo[2] + 1;
+    int batch_stride_a = acc_input1.rect.hi[0] - acc_input1.rect.lo[0] + 1;
+    int batch_stride_b = acc_input2.rect.hi[0] - acc_input2.rect.lo[0] + 1;
+    int batch_stride_c = acc_output.rect.hi[0] - acc_output.rect.lo[0] + 1;
     printf("k:%d m:%d n:%d batch_stride_a:%d batch_stride_b:%d batch_stride_c:%d\n", k, m,n,batch_stride_a, batch_stride_b, batch_stride_c);
     printf("cuBLAS initializing...\n");
     /*
@@ -408,30 +430,24 @@ void BatchMatmul::forward_task(
         checkCUDA(cublasSetStream(lm->handle.blas, stream));
         checkCUDNN(cudnnSetStream(lm->handle.dnn, stream));
     #endif
-    printf("cuBLAS job running...\n");
-    /*
-    Figure out the trans_a and trans_b
-    CUBLAS_OP_T, CUBLAS_OP_N,
-    relationship
 
-    assume OP(a) has shape m,k
-    OP(b) has shape k,n
-    OP(c) has shaoe m,n
-    */
-    checkCUDA(cublasSgemmStridedBatched(lm->handle.blas,
-        bm->transpose_1,
-        bm->transpose_2,
-                                m, n, k,
-                                &alpha,
-                                acc_input1.ptr, k,
-                                m*k,
-                                acc_input2.ptr, k,
-                                k*n,
-                                &beta,
-                                acc_output.ptr, m,
-                                m*n,
-                                batch_stride_a));
-    printf("cuBLAS job done!\n");
+    // because cublas is row major ordering, so leading dimension is the reduction dimension
+    checkCUDA(
+        cublasSgemmStridedBatched(
+            lm->handle.blas,
+            bm->transpose_1,
+            bm->transpose_2,
+            m, n, k,
+            &alpha,
+            acc_input1.ptr, k,
+            m*k,
+            acc_input2.ptr, k,
+            k*n,
+            &beta,
+            acc_output.ptr, m,
+            m*n,
+            batch_stride_a)
+        );
 
 }
 

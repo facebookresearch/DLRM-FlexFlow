@@ -165,30 +165,6 @@ DataLoader::DataLoader(FFModel& ff, const DLRMConfig& dlrm){
   initializer->init(ctx, runtime, &batch_matmul_input1);
   initializer->init(ctx, runtime, &batch_matmul_input2);
   initializer->init(ctx, runtime, &batch_matmul_output);
-  /*
-  MISSING THE LAUNCHER AND ARGUEMENT THINGS HERE
-    TaskLauncher launcher(CUSTOM_CPU_TASK_ID_1,
-      TaskArgument(dlrm.dataset_path.c_str(), dlrm.dataset_path.length()+10));
-  // regions[0]: full_sparse_input
-  launcher.add_region_requirement(
-      RegionRequirement(full_sparse_input.region,
-                        WRITE_ONLY, EXCLUSIVE, full_sparse_input.region,
-                        MAP_TO_FB_MEMORY));
-  launcher.add_field(0, FID_DATA);
-  // regions[1]: full_dense_input
-  launcher.add_region_requirement(
-      RegionRequirement(full_dense_input.region,
-                        WRITE_ONLY, EXCLUSIVE, full_dense_input.region,
-                        MAP_TO_ZC_MEMORY));
-  launcher.add_field(1, FID_DATA);
-  // regions[3]: full_label
-  launcher.add_region_requirement(
-      RegionRequirement(full_label.region,
-                        WRITE_ONLY, EXCLUSIVE, full_label.region,
-                        MAP_TO_ZC_MEMORY));
-  launcher.add_field(2, FID_DATA);
-  runtime->execute_task(ctx, launcher);
-  */
     // CUSTOM_GPU_TASK_ID_8 is random_3d_batch
   const int num_dim = 3;
   std::string pc_name = "batch_matmul";
@@ -744,10 +720,10 @@ void top_level_task(const Task* task,
                     Context ctx, Runtime* runtime)
 {
 
-  int m = 32;
-  int k = 128;
-  int n = 16;
-  int d = 8;
+  int m = 265;
+  int k = 64;
+  int n = 15;
+  int d = 145;
     FFConfig ffConfig;
   // Parse input arguments
   DLRMConfig dlrmConfig;
@@ -802,7 +778,6 @@ void top_level_task(const Task* task,
       ff.zero_gradients(); // initialize gradiance
       ff.backward();
   }
-    std::cout << "!!!Hello world!!!13" << std::endl;
 
 }
 

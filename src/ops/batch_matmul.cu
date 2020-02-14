@@ -295,7 +295,7 @@ void BatchMatmul::backward_task(
     checkCUDNN(cudnnSetStream(lm->handle.dnn, stream));
     #endif
     // because cublas is row major ordering, so leading dimension is the reduction dimension
-    // !QUESTION!: why this doesn't work!
+    // !QUESTION!: why bm object values are different from the one in the parent task
     // if (bm->transpose_1_flag) {
         // if (bm->transpose_2_flag) {
     if (true) {

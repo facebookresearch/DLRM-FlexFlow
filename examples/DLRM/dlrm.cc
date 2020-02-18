@@ -266,25 +266,6 @@ DataLoader::DataLoader(FFModel& ff,
   for (size_t i = 0; i < _sparse_inputs.size(); i++) {
     batch_sparse_inputs.push_back(_sparse_inputs[i]);
   }
-  /*
-  Kernel
-  {out_dim, in_dim}
-  Input dim (output of previous layer)
-  {batch_size, in_dim}
-  Output dim
-  {batch_size, out_dim}
-
-  >>>>> all transposed after send to childrieb tasks
-
-  CONFIRM THIS
-
-
-  but in cublas it's shape
-  kernel k,m; tranposeA=true;
-  input k,n; trabsoiseB=false;
-  output m,n;
-  Output = kernel^T * input
-  */
   {
     const int dims[] = {num_samples, (int)_sparse_inputs.size()*dlrm.embedding_bag_size};
     full_sparse_input = ff.create_tensor<2>(dims, "", DT_INT64);
@@ -720,10 +701,19 @@ void top_level_task(const Task* task,
                     Context ctx, Runtime* runtime)
 {
 
-  int m = 265;
-  int k = 64;
-  int n = 15;
-  int d = 145;
+  // int m = 265;
+  // int k = 64;
+  // int n = 15;
+  // int d = 145;
+
+  // simple problem for testing and debugging
+  int m = 2;
+  int k = 3;
+  int n = 2;
+  int d = 4;
+
+
+
     FFConfig ffConfig;
   // Parse input arguments
   DLRMConfig dlrmConfig;
@@ -761,7 +751,7 @@ void top_level_task(const Task* task,
     dense_input2 = ff.create_tensor<3>(dims, "batch_matmul", DT_FLOAT);
   }
   // we can only use zero initializer because others don't support 3-dimensional tensor
-  Initializer* initializer = new ZeroInitializer();
+  Initializer* initializer = new UniformInitializer(0, 0, 1);
   initializer->init(ffConfig.lg_ctx, runtime, &dense_input1);
   initializer->init(ffConfig.lg_ctx, runtime, &dense_input2);
   Tensor batch_matmul_ret = ff.batch_matmul("batch_matmul", dense_input1, dense_input2, true, false);

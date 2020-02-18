@@ -43,6 +43,7 @@ BatchMatmul::BatchMatmul(
     transpose_2 = trans2 ? CUBLAS_OP_T : CUBLAS_OP_N;
     const int tensor_obj_n_dim = 3;
 
+    // create output tensor for this layer to hold the results
     Rect<tensor_obj_n_dim> part_rect = domain;
     output = model.create_tensor<tensor_obj_n_dim>(dims, "batch_matmul", DT_FLOAT);
 
@@ -52,28 +53,37 @@ BatchMatmul::BatchMatmul(
         input_lps[0] = input1.part;
         input_grad_lps[0] = input1.part_grad;
     } else {
-        model.create_disjoint_partition<tensor_obj_n_dim>(input1,
-        IndexSpaceT<3>(task_is), input_lps[0], input_grad_lps[0]);
+        model.create_disjoint_partition<tensor_obj_n_dim>(
+            input1,
+            IndexSpaceT<3>(task_is),
+            input_lps[0],
+            input_grad_lps[0]
+        );
     }
 
     Rect<tensor_obj_n_dim> input2_rect = runtime->get_index_partition_color_space(
       ctx, input2.part.get_index_partition());
     if (input2_rect == part_rect) {
-    input_lps[1] = input2.part;
-    input_grad_lps[1] = input2.part_grad;
+        input_lps[1] = input2.part;
+        input_grad_lps[1] = input2.part_grad;
     } else {
-     model.create_disjoint_partition<tensor_obj_n_dim>(input2,
-         IndexSpaceT<3>(task_is), input_lps[1], input_grad_lps[1]);
+        model.create_disjoint_partition<tensor_obj_n_dim>(
+            input2,
+            IndexSpaceT<3>(task_is),
+            input_lps[1],
+            input_grad_lps[1]
+        );
     }
 
 
 
 
-    // initialize the output gradients temporarily , we dont have to do this once we connect the layer to a loss layer
-
-    // currently only support 3 dimensional batch matmul , outter dimension is sample dimension
+    // initialize the output gradients here temporarily , we dont have to do this once we connect the layer to a loss layer
+    // or receive the gradients from previous layer (in this case the gradients will be initialized/handled by previous layer)
+    // current impl only supports 3 dimensional batch matmul , outter dimension is sample dimension
     Rect<3> rect = runtime->get_index_space_domain(ctx, task_is);
     int idx = 0;
+    // seems like there are 2 ways to construct argument maps
     for (PointInRectIterator<3> it(rect); it(); it++) {
         OpMeta* mp = meta[idx++];
         argmap.set_point(*it, TaskArgument(&mp, sizeof(OpMeta*)));
@@ -83,7 +93,8 @@ BatchMatmul::BatchMatmul(
     Domain output_grad_domain = runtime->get_index_partition_color_space(
         ctx, output.part_grad.get_index_partition());
     IndexSpace output_grad_task_is = model.get_or_create_task_is(output_grad_domain);
-
+    // HACK: launch intialize gradients task, this one is used in weights gradients, we are not supposed to
+    // initialize non-weights gradients in the layer (should receive it from parent layer)
     IndexLauncher launcher(ZERO_INIT_TASK_ID, output_grad_task_is,
                            TaskArgument(NULL, 0), argmap,
                            Predicate::TRUE_PRED, false/*must*/, 0/*mapper_id*/,
@@ -360,6 +371,9 @@ void BatchMatmul::backward_task(
     }
 
 
+    print_tensor<3, float>(acc_output_grad.ptr, acc_output_grad.rect, "[BatchMatmul:backward:acc_output_grad]");
+    print_tensor<3, float>(acc_input1_grad.ptr, acc_input1_grad.rect, "[BatchMatmul:backward:input1_gard]");
+    print_tensor<3, float>(acc_input1_grad.ptr, acc_input1_grad.rect, "[BatchMatmul:backward:input2_gard]");
 
 
 }
@@ -435,6 +449,11 @@ void BatchMatmul::forward_task(
             batch_stride_a)
         );
 
+
+
+        print_tensor<3, float>(acc_input1.ptr, acc_input1.rect, "[BatchMatmul:forward:input1]");
+        print_tensor<3, float>(acc_input2.ptr, acc_input2.rect, "[BatchMatmul:forward:input2]");
+        print_tensor<3, float>(acc_output.ptr, acc_output.rect, "[BatchMatmul:forward:output]");
 }
 
 

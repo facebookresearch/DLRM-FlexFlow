@@ -54,7 +54,8 @@ public:
                          const std::vector<int>& device_ids);
   bool add_batch_matmul_config(const std::string& name,
                         const std::string& device_type,
-                        const std::string& input_memory_type,
+                        const std::string& input1_memory_type,
+                        const std::string& input2_memory_type,
                         const std::string& output_memory_type,
                         int num_parts_sample,
                         const std::vector<int>& device_ids);
@@ -108,25 +109,7 @@ bool FFStrategy::add_embed_config(const std::string& name,
 }
 
 
-bool FFStrategy::add_batch_matmul_config(const std::string& name,
-                                   const std::string& device_type,
-                                   const std::string& input_memory_type,
-                                   const std::string& output_memory_type,
-                                   int num_parts_sample,
-                                   const std::vector<int>& device_ids)
-{
-  FFProtoBuf::Op* op = strategy.add_ops();
-  op->set_name(name);
-  op->set_device_type(to_device_type(device_type));
-  op->add_memory_types(to_memory_type(input_memory_type));
-  op->add_memory_types(to_memory_type(output_memory_type));
-  op->add_dims(1);
-  op->add_dims(1);
-  op->add_dims(num_parts_sample);
-  assert(num_parts_sample == (int) device_ids.size());
-  for (int i = 0; i < num_parts_sample; i++)
-    op->add_device_ids(device_ids[i]);
-}
+
 
 bool FFStrategy::add_concat_config(const std::string& name,
                                    const std::string& device_type,
@@ -146,6 +129,29 @@ bool FFStrategy::add_concat_config(const std::string& name,
   for (int i = 0; i < num_parts_sample; i++)
     op->add_device_ids(device_ids[i]);
 }
+
+bool FFStrategy::add_batch_matmul_config(const std::string& name,
+                                   const std::string& device_type,
+                                   const std::string& input1_memory_type,
+                                   const std::string& input2_memory_type,
+                                   const std::string& output_memory_type,
+                                   int num_parts_sample,
+                                   const std::vector<int>& device_ids)
+{
+  FFProtoBuf::Op* op = strategy.add_ops();
+  op->set_name(name);
+  op->set_device_type(to_device_type(device_type));
+  op->add_memory_types(to_memory_type(input1_memory_type));
+  op->add_memory_types(to_memory_type(input2_memory_type));
+  op->add_memory_types(to_memory_type(output_memory_type));
+  op->add_dims(1);
+  op->add_dims(1);
+  op->add_dims(num_parts_sample);
+  assert(num_parts_sample == (int) device_ids.size());
+  for (int i = 0; i < num_parts_sample; i++)
+    op->add_device_ids(device_ids[i]);
+}
+
 
 bool FFStrategy::add_linear_config(const std::string& name,
                                    const std::string& device_type,
@@ -234,10 +240,10 @@ int main(int argc, char **argv)
   }
   {
     std::vector<int> device_ids;
-    for (int i = 0; i < num_nodes; i++)
-      device_ids.push_back(i * gpus_per_node);
+    for (int i = 0; i < num_nodes * gpus_per_node; i++)
+      device_ids.push_back(i);
       // todo @charles we may need to add another "FBM" for 2nd input
-    strategy.add_batch_matmul_config("batch_matmul", "GPU", "FBM"/*input*/,
+    strategy.add_batch_matmul_config("batch_matmul", "GPU", "FBM"/*input1*/, "FBM"/*input2*/,
         "FBM"/*output*/, num_nodes * gpus_per_node, device_ids);
   }
   {

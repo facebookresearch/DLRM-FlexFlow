@@ -707,10 +707,10 @@ void top_level_task(const Task* task,
   // int d = 145;
 
   // simple problem for testing and debugging
-  int m = 2;
-  int k = 3;
-  int n = 2;
-  int d = 4;
+  int m = 3;
+  int k = 4;
+  int n = 1;
+  int d = 2;
 
 
 
@@ -740,13 +740,13 @@ void top_level_task(const Task* task,
   Tensor dense_input1;
   {
 
-    const int dims[] = {m,k,d};
+    const int dims[] = {d,m,k};
     // sadly we have to pass batch_matmul 3-dimensional stretegy in this way for now to handle 3 dimensional tensor
     dense_input1 = ff.create_tensor<3>(dims, "batch_matmul", DT_FLOAT);
   }
   Tensor dense_input2;
   {
-    const int dims[] = {n,k,d};
+    const int dims[] = {d,n,k};
     // sadly we have to pass batch_matmul 3-dimensional stretegy in this way for now to handle 3 dimensional tensor
     dense_input2 = ff.create_tensor<3>(dims, "batch_matmul", DT_FLOAT);
   }

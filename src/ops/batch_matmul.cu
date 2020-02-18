@@ -31,12 +31,17 @@ BatchMatmul::BatchMatmul(
     FieldSpace fs = model.config.field_space;
 
 
-    // because input dims[] passed to create_tensor<dims> is `d,k,m`
+    // because input dims[] passed to create_tensor<dims> is `d,m,k`
     // the input.adim is reversed from the order of dims[] passed to create_tensor / create_weights layer
-    const int dims[] = {input2.adim[2], input1.adim[2], input1.adim[0]};
+
+    int d = input1.adim[2];
+    int m = input1.adim[1];
+    int n = input2.adim[1];
+    int k = input1.adim[0];
+    const int dims[] = {d,n,m};
     printf("batch_matmul inputs:\n");
-    printf("input 1 shape d(%d) k(%d) m(%d)\n", input1.adim[0], input1.adim[1], input1.adim[2]);
-    printf("input 2 shape d(%d) k(%d) n(%d)\n", input2.adim[0], input2.adim[1], input2.adim[2]);
+    printf("input 1 shape d(%d) k(%d) m(%d)\n", d,k,m);
+    printf("input 2 shape d(%d) k(%d) n(%d)\n", d,k,n);
     transpose_1_flag = trans1;
     transpose_2_flag = trans2;
     transpose_1 = trans1 ? CUBLAS_OP_T : CUBLAS_OP_N;
@@ -170,16 +175,16 @@ OpMeta* BatchMatmul::init_task(const Task *task,
 
 
     /*
-    input1 (d,k,m)
-    input2 (d,k,n)
-    output (d,m,n)
+    input1 (k,m,d)
+    input2 (k,n,d)
+    output (n,m,d)
     */
-    int k = input1.rect.hi[1] - input1.rect.lo[1] + 1;
+    int k = input1.rect.hi[0] - input1.rect.lo[0] + 1;
     int m = acc_output.rect.hi[1] - acc_output.rect.lo[1] + 1;
-    int n = acc_output.rect.hi[2] - acc_output.rect.lo[2] + 1;
-    int batch_stride_a = input1.rect.hi[0] - input1.rect.lo[0] + 1;
-    int batch_stride_b = input2.rect.hi[0] - input2.rect.lo[0] + 1;
-    int batch_stride_c = acc_output.rect.hi[0] - acc_output.rect.lo[0] + 1;
+    int n = acc_output.rect.hi[0] - acc_output.rect.lo[0] + 1;
+    int batch_stride_a = input1.rect.hi[2] - input1.rect.lo[2] + 1;
+    int batch_stride_b = input2.rect.hi[2] - input2.rect.lo[2] + 1;
+    int batch_stride_c = acc_output.rect.hi[2] - acc_output.rect.lo[2] + 1;
 
 
 
@@ -271,13 +276,12 @@ void BatchMatmul::backward_task(
         regions[4], task->regions[4], FID_DATA, ctx, runtime);
 
 
-
-    int k = acc_input1_grad.rect.hi[1] - acc_input1_grad.rect.lo[1] + 1;
+    int k = acc_input1_grad.rect.hi[0] - acc_input1_grad.rect.lo[0] + 1;
     int m = acc_output_grad.rect.hi[1] - acc_output_grad.rect.lo[1] + 1;
-    int n = acc_output_grad.rect.hi[2] - acc_output_grad.rect.lo[2] + 1;
-    int batch_stride_a = acc_input1_grad.rect.hi[0] - acc_input1_grad.rect.lo[0] + 1;
-    int batch_stride_b = acc_input2_grad.rect.hi[0] - acc_input2_grad.rect.lo[0] + 1;
-    int batch_stride_c = acc_output_grad.rect.hi[0] - acc_output_grad.rect.lo[0] + 1;
+    int n = acc_output_grad.rect.hi[0] - acc_output_grad.rect.lo[0] + 1;
+    int batch_stride_a = acc_input1_grad.rect.hi[2] - acc_input1_grad.rect.lo[2] + 1;
+    int batch_stride_b = acc_input2_grad.rect.hi[2] - acc_input2_grad.rect.lo[2] + 1;
+    int batch_stride_c = acc_output_grad.rect.hi[2] - acc_output_grad.rect.lo[2] + 1;
     printf("k:%d m:%d n:%d batch_stride_a:%d batch_stride_b:%d batch_stride_c:%d\n", k, m,n,batch_stride_a, batch_stride_b, batch_stride_c);
 
 
@@ -413,12 +417,12 @@ void BatchMatmul::forward_task(
         regions[2], task->regions[2], FID_DATA, ctx, runtime);
 
 
-    int k = acc_input1.rect.hi[1] - acc_input1.rect.lo[1] + 1;
+    int k = acc_input1.rect.hi[0] - acc_input1.rect.lo[0] + 1;
     int m = acc_output.rect.hi[1] - acc_output.rect.lo[1] + 1;
-    int n = acc_output.rect.hi[2] - acc_output.rect.lo[2] + 1;
-    int batch_stride_a = acc_input1.rect.hi[0] - acc_input1.rect.lo[0] + 1;
-    int batch_stride_b = acc_input2.rect.hi[0] - acc_input2.rect.lo[0] + 1;
-    int batch_stride_c = acc_output.rect.hi[0] - acc_output.rect.lo[0] + 1;
+    int n = acc_output.rect.hi[0] - acc_output.rect.lo[0] + 1;
+    int batch_stride_a = acc_input1.rect.hi[2] - acc_input1.rect.lo[2] + 1;
+    int batch_stride_b = acc_input2.rect.hi[2] - acc_input2.rect.lo[2] + 1;
+    int batch_stride_c = acc_output.rect.hi[2] - acc_output.rect.lo[2] + 1;
     printf("k:%d m:%d n:%d batch_stride_a:%d batch_stride_b:%d batch_stride_c:%d\n", k, m,n,batch_stride_a, batch_stride_b, batch_stride_c);
     printf("cuBLAS initializing...\n");
     /*

@@ -25,7 +25,7 @@ struct DLRMConfig {
   DLRMConfig(void)
   : sparse_feature_size(2), sigmoid_bot(-1), sigmoid_top(-1),
     embedding_bag_size(1), loss_threshold(0.0f),
-    arch_interaction_op("cat"), dataset_path("") {
+    arch_interaction_op("cat"), dataset_path(""), data_size(-1) {
     embedding_size.push_back(4);
     //embedding_size.push_back(4);
     //embedding_size.push_back(4);
@@ -38,6 +38,7 @@ struct DLRMConfig {
   float loss_threshold;
   std::vector<int> embedding_size, mlp_bot, mlp_top;
   std::string arch_interaction_op, dataset_path;
+  int data_size;
 };
 
 struct ArgsConfig {

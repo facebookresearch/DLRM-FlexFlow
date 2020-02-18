@@ -31,17 +31,19 @@ with open("res_single_node.csv", "wb") as csvfile:
             emb_config = emb_config[1:]
 
             cmd = (
-                "./dlrm -ll:cpu 8 -ll:fsize 12000 -ll:zsize 20000 "
+                "./dlrm -ll:cpu 8 -ll:fsize 14000 -ll:zsize 20000 "
                 "--arch-sparse-feature-size 64 "
                 "--arch-embedding-size {emb_config} "
                 "--arch-mlp-bot 64-512-512-64 "
                 "--arch-mlp-top 576-1024-1024-1024-1 "
                 "--epochs 20 --batch-size {batch_size} "
+                "--data-size {data_size} "
                 "-dm:memorize -ll:gpu {gpus} -ll:util 12 -ll:dma 4 "
                 "--strategy {strategy}"
             ).format(
                 emb_config=emb_config,
-                batch_size=batch_size, 
+                batch_size=batch_size,
+                data_size=batch_size * 2,  # make sure we have data for 2 iterations
                 gpus=gpus,
                 strategy=strategy,
             )

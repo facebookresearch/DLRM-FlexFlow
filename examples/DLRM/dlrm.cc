@@ -254,6 +254,10 @@ void parse_input_args(char **argv, int argc, DLRMConfig& config)
       config.dataset_path = std::string(argv[++i]);
       continue;
     }
+    if (!strcmp(argv[i], "--data-size")) {
+      config.data_size = atoi(argv[++i]);
+      continue;
+    }
   }
 }
 
@@ -267,8 +271,11 @@ DataLoader::DataLoader(FFModel& ff,
   num_samples = 0;
   if (dlrm.dataset_path == "") {
     log_app.print("Use random dataset...");
-    num_samples = 256 * 4 * ff.config.workersPerNode * ff.config.numNodes;
-    //num_samples = 256 * 2 * 8 * 16;
+    if (dlrm.data_size) {
+      num_samples = dlrm.data_size;
+    } else {
+      num_samples = 256 * 4 * ff.config.workersPerNode * ff.config.numNodes;
+    }
     log_app.print("Number of random samples = %d\n", num_samples);
   } else {
     log_app.print("Start loading dataset from %s", dlrm.dataset_path.c_str());

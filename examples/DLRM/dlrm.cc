@@ -760,15 +760,11 @@ void top_level_task(const Task* task,
   // Data Loader
   DataLoader data_loader(ff, dlrmConfig);
 
-  // Warmup iterations
-  for (int iter = 0; iter < 1; iter++) {
-    data_loader.reset();
-      data_loader.next_random_batch(ff);
-      ff.forward();
-      ff.zero_gradients(); // initialize gradiance
-      ff.backward();
-  }
-
+  data_loader.reset();
+  // data_loader.next_random_batch(ff);
+  ff.forward();
+  // ff.zero_gradients(); // dont need to call this because there's no weights in batch_matmul
+  ff.backward();
 }
 
 

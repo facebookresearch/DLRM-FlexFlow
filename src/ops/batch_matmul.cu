@@ -27,13 +27,12 @@ BatchMatmul::BatchMatmul(
     task_is = model.get_or_create_task_is(pcname);
     Context ctx = model.config.lg_ctx;
     Runtime* runtime = model.config.lg_hlr;
-    Domain domain = runtime->get_index_space_domain(ctx, task_is);
     FieldSpace fs = model.config.field_space;
 
 
-    // because input dims[] passed to create_tensor<dims> is `d,m,k`
-    // the input.adim is reversed from the order of dims[] passed to create_tensor / create_weights layer
-
+    // dimension in tensor constructor is ordered by `d,m,k`
+    // but within the tensor object the dimensio is ordered by `k,m,d`
+    // where the outmost dimension is d
     int d = input1.adim[2];
     int m = input1.adim[1];
     int n = input2.adim[1];
@@ -47,7 +46,6 @@ BatchMatmul::BatchMatmul(
     transpose_1 = trans1 ? CUBLAS_OP_T : CUBLAS_OP_N;
     transpose_2 = trans2 ? CUBLAS_OP_T : CUBLAS_OP_N;
     const int tensor_obj_n_dim = 3;
-    Rect<tensor_obj_n_dim> part_rect = domain;
 
     // create output tensor for this layer to hold the results
     output = model.create_tensor<tensor_obj_n_dim>(dims, "batch_matmul", DT_FLOAT);
@@ -59,6 +57,8 @@ BatchMatmul::BatchMatmul(
     Rect<tensor_obj_n_dim> input2_rect = runtime->get_index_partition_color_space(
         ctx, input2.part.get_index_partition());
 
+    // Domain domain = runtime->get_index_space_domain(ctx, task_is);
+    // Rect<tensor_obj_n_dim> part_rect = domain;
     // if (input1_rect == part_rect) {
     //     input_lps[0] = input1.part;
     //     input_grad_lps[0] = input1.part_grad;

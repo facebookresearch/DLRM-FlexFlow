@@ -47,38 +47,40 @@ BatchMatmul::BatchMatmul(
     transpose_1 = trans1 ? CUBLAS_OP_T : CUBLAS_OP_N;
     transpose_2 = trans2 ? CUBLAS_OP_T : CUBLAS_OP_N;
     const int tensor_obj_n_dim = 3;
+    Rect<tensor_obj_n_dim> part_rect = domain;
 
     // create output tensor for this layer to hold the results
-    Rect<tensor_obj_n_dim> part_rect = domain;
     output = model.create_tensor<tensor_obj_n_dim>(dims, "batch_matmul", DT_FLOAT);
 
+    // Compute partition bound for input
     Rect<tensor_obj_n_dim> input1_rect = runtime->get_index_partition_color_space(
-      ctx, input1.part.get_index_partition());
-    if (input1_rect == part_rect) {
-        input_lps[0] = input1.part;
-        input_grad_lps[0] = input1.part_grad;
-    } else {
-        model.create_disjoint_partition<tensor_obj_n_dim>(
-            input1,
-            IndexSpaceT<3>(task_is),
-            input_lps[0],
-            input_grad_lps[0]
-        );
-    }
+        ctx, input1.part.get_index_partition());
 
     Rect<tensor_obj_n_dim> input2_rect = runtime->get_index_partition_color_space(
-      ctx, input2.part.get_index_partition());
-    if (input2_rect == part_rect) {
-        input_lps[1] = input2.part;
-        input_grad_lps[1] = input2.part_grad;
-    } else {
-        model.create_disjoint_partition<tensor_obj_n_dim>(
-            input2,
-            IndexSpaceT<3>(task_is),
-            input_lps[1],
-            input_grad_lps[1]
-        );
-    }
+        ctx, input2.part.get_index_partition());
+
+    // if (input1_rect == part_rect) {
+    //     input_lps[0] = input1.part;
+    //     input_grad_lps[0] = input1.part_grad;
+    // } else {
+    //     model.create_disjoint_partition<tensor_obj_n_dim>(
+    //         input1,
+    //         IndexSpaceT<3>(task_is),
+    //         input_lps[0],
+    //         input_grad_lps[0]
+    //     );
+    // }
+    // if (input2_rect == part_rect) {
+    //     input_lps[1] = input2.part;
+    //     input_grad_lps[1] = input2.part_grad;
+    // } else {
+    //     model.create_disjoint_partition<tensor_obj_n_dim>(
+    //         input2,
+    //         IndexSpaceT<3>(task_is),
+    //         input_lps[1],
+    //         input_grad_lps[1]
+    //     );
+    // }
 
 
 

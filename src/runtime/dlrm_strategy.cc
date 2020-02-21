@@ -144,9 +144,9 @@ bool FFStrategy::add_batch_matmul_config(const std::string& name,
   op->add_memory_types(to_memory_type(input1_memory_type));
   op->add_memory_types(to_memory_type(input2_memory_type));
   op->add_memory_types(to_memory_type(output_memory_type));
-  op->add_dims(1);
-  op->add_dims(1);
-  op->add_dims(num_parts_sample);
+  op->add_dims(1); // m
+  op->add_dims(1); // n
+  op->add_dims(num_parts_sample); // d
   assert(num_parts_sample == (int) device_ids.size());
   for (int i = 0; i < num_parts_sample; i++)
     op->add_device_ids(device_ids[i]);
@@ -168,8 +168,8 @@ bool FFStrategy::add_linear_config(const std::string& name,
   op->add_memory_types(to_memory_type(input_memory_type));
   op->add_memory_types(to_memory_type(weight_memory_type));
   op->add_memory_types(to_memory_type(output_memory_type));
-  op->add_dims(num_parts_channel);
-  op->add_dims(num_parts_sample);
+  op->add_dims(num_parts_channel); // m
+  op->add_dims(num_parts_sample); // n
   assert(num_parts_sample * num_parts_channel == (int) device_ids.size());
   for (int i = 0; i < num_parts_channel * num_parts_sample; i++)
     op->add_device_ids(device_ids[i]);

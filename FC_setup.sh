@@ -1,4 +1,4 @@
-git checkout dcr # We are using the dcr branch by default
+# git checkout dcr # We are using the dcr branch by default
 git submodule update --init --recursive
 source FC_env_setup.sh
 
@@ -16,7 +16,7 @@ cd ..
 
 cd src/runtime
 ../../protobuf/src/protoc --cpp_out=. strategy.proto
-./gen_strategy.sh 8 8 1 # for 8 gpu per node,  and 8 embeddings per node, and 1 node
+./gen_strategy.sh 2 1 1 # for 8 gpu per node,  and 8 embeddings per node, and 1 node
 cd ../..
 
 cd $LEGION

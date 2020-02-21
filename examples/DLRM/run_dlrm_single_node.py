@@ -7,8 +7,8 @@ import sys
 
 NUM_EMB_OPS = 8
 EMB_DIM = 64
-HASH_SIZE = 1000000
-NUM_INDICES = 1
+HASH_SIZE = 3000000
+POOLING_FACTOR = 100
 
 repeat = 1
 
@@ -34,19 +34,23 @@ with open("res_single_node.csv", "wb") as csvfile:
                 "./dlrm -ll:cpu 8 -ll:fsize 14000 -ll:zsize 20000 "
                 "--arch-sparse-feature-size 64 "
                 "--arch-embedding-size {emb_config} "
-                "--arch-mlp-bot 64-512-512-64 "
-                "--arch-mlp-top 576-1024-1024-1024-1 "
+                "--embedding-bag-size {pooling_factor} "
+                "--arch-mlp-bot 1024-1024-1024-64 "
+                "--arch-mlp-top 576-1024-1024-1024-1024-1024-1 "
                 "--epochs 20 --batch-size {batch_size} "
                 "--data-size {data_size} "
                 "-dm:memorize -ll:gpu {gpus} -ll:util 12 -ll:dma 4 "
                 "--strategy {strategy}"
             ).format(
                 emb_config=emb_config,
+                pooling_factor=POOLING_FACTOR,
                 batch_size=batch_size,
-                data_size=batch_size * 2,  # make sure we have data for 2 iterations
+                data_size=batch_size * 4,  # make sure we have data for 4 iterations
                 gpus=gpus,
                 strategy=strategy,
             )
+
+            print(cmd)
 
             try:
                 out = subprocess.check_output(cmd, stderr=subprocess.STDOUT, shell=True)

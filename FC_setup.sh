@@ -4,7 +4,7 @@ source FC_env_setup.sh
 
 cd $PROTOBUF
 git submodule update --init --recursive
-git checkout 6d4e7fd #still cannot get the strategy compile to use the local runtime. So need to checkout v 3.10.0
+# git checkout 6d4e7fd #still cannot get the strategy compile to use the local runtime. So need to checkout v 3.10.0
 ./autogen.sh
 ./configure
 make -j
@@ -25,4 +25,4 @@ cd -
 
 make app=examples/DLRM/dlrm -j
 cd examples/DLRM
-./run_random.sh 2
+./run_random.sh 2 1 1

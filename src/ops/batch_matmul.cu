@@ -46,43 +46,44 @@ BatchMatmul::BatchMatmul(
     transpose_1 = trans1 ? CUBLAS_OP_T : CUBLAS_OP_N;
     transpose_2 = trans2 ? CUBLAS_OP_T : CUBLAS_OP_N;
     const int tensor_obj_n_dim = 3;
-
-    // create output tensor for this layer to hold the results
+    // create 3-dimensional output tensor for this layer to hold the results
     output = model.create_tensor<tensor_obj_n_dim>(dims, "batch_matmul", DT_FLOAT);
 
     // Compute partition bound for input
+    // TODO the input partition check can be refactored into a helper function
+    Domain domain = runtime->get_index_space_domain(ctx, task_is);
+    Rect<tensor_obj_n_dim> part_rect = domain;
     Rect<tensor_obj_n_dim> input1_rect = runtime->get_index_partition_color_space(
         ctx, input1.part.get_index_partition());
-
+    if (input1_rect == part_rect) {
+        input_lps[0] = input1.part;
+        input_grad_lps[0] = input1.part_grad;
+    } else {
+        model.create_disjoint_partition<tensor_obj_n_dim>(
+            input1,
+            IndexSpaceT<3>(task_is),
+            input_lps[0],
+            input_grad_lps[0]
+        );
+    }
     Rect<tensor_obj_n_dim> input2_rect = runtime->get_index_partition_color_space(
         ctx, input2.part.get_index_partition());
-
-    // Domain domain = runtime->get_index_space_domain(ctx, task_is);
-    // Rect<tensor_obj_n_dim> part_rect = domain;
-    // if (input1_rect == part_rect) {
-    //     input_lps[0] = input1.part;
-    //     input_grad_lps[0] = input1.part_grad;
-    // } else {
-    //     model.create_disjoint_partition<tensor_obj_n_dim>(
-    //         input1,
-    //         IndexSpaceT<3>(task_is),
-    //         input_lps[0],
-    //         input_grad_lps[0]
-    //     );
-    // }
-    // if (input2_rect == part_rect) {
-    //     input_lps[1] = input2.part;
-    //     input_grad_lps[1] = input2.part_grad;
-    // } else {
-    //     model.create_disjoint_partition<tensor_obj_n_dim>(
-    //         input2,
-    //         IndexSpaceT<3>(task_is),
-    //         input_lps[1],
-    //         input_grad_lps[1]
-    //     );
-    // }
+    if (input2_rect == part_rect) {
+        input_lps[1] = input2.part;
+        input_grad_lps[1] = input2.part_grad;
+    } else {
+        model.create_disjoint_partition<tensor_obj_n_dim>(
+            input2,
+            IndexSpaceT<3>(task_is),
+            input_lps[1],
+            input_grad_lps[1]
+        );
+    }
 
 
+
+
+    // move this one outside the constructor and initialize the output tensor outisde the constructor with a dummy initializer
 
 
     // initialize the output gradients here temporarily , we dont have to do this once we connect the layer to a loss layer
@@ -94,8 +95,6 @@ BatchMatmul::BatchMatmul(
     for (PointInRectIterator<3> it(rect); it(); it++) {
         OpMeta* mp = meta[idx++];
         argmap.set_point(*it, TaskArgument(&mp, sizeof(OpMeta*)));
-        // FFHandler handle = ff.handlers[idx++];
-        // argmap.set_point(*it, TaskArgument(&handle, sizeof(FFHandler)));
     }
     Domain output_grad_domain = runtime->get_index_partition_color_space(
         ctx, output.part_grad.get_index_partition());
@@ -168,12 +167,12 @@ OpMeta* BatchMatmul::init_task(const Task *task,
     //TensorAccessorR<float, 2> acc_input(
     //    regions[0], task->regions[0], FID_DATA, ctx, runtime);
     TensorAccessorW<float, 3> acc_output(
-    regions[0], task->regions[0], FID_DATA, ctx, runtime,
-    false/*readOutput*/);
+        regions[0], task->regions[0], FID_DATA, ctx, runtime,
+        false/*readOutput*/);
     TensorAccessorR<float, 3> input1(
-    regions[1], task->regions[1], FID_DATA, ctx, runtime);
+        regions[1], task->regions[1], FID_DATA, ctx, runtime);
     TensorAccessorR<float, 3> input2(
-    regions[2], task->regions[2], FID_DATA, ctx, runtime);
+        regions[2], task->regions[2], FID_DATA, ctx, runtime);
 
 
     /*
@@ -214,8 +213,11 @@ void BatchMatmul::backward(const FFModel& ff){
         argmap.set_point(*it, TaskArgument(&mp, sizeof(OpMeta*)));
     }
 
+    /*
+    CHECK THIS LATERCHECK THIS LATERCHECK THIS LATERCHECK THIS LATERCHECK THIS LATERCHECK THIS LATER
+    */
   IndexLauncher launcher(BATCHMATMUL_BWD_TASK_ID, task_is,
-                         TaskArgument(this, sizeof(Concat)), argmap,
+                         TaskArgument(this, sizeof(BatchMatmul)), argmap,
                          Predicate::TRUE_PRED, false/*must*/, 0/*mapper_id*/,
                          FFConfig::get_hash_id(std::string(name)));
   launcher.add_region_requirement(
@@ -246,6 +248,112 @@ void BatchMatmul::backward(const FFModel& ff){
 
     runtime->execute_index_space(ctx, launcher);
 }
+
+
+
+/*
+  regions[0](O): output
+  regions[1](I): input1
+  regions[2](I): input2
+*/
+void BatchMatmul::forward_task(
+    const Task *task,
+    const std::vector<PhysicalRegion> &regions,
+    Context ctx, Runtime *runtime
+    )
+{
+    const BatchMatmul* bm = (BatchMatmul*) task->args;
+    float alpha = 1.0f, beta = 0.0f;
+    const BatchMatmulMeta* lm = *((BatchMatmulMeta**) task->local_args);
+    const int batch_tensor_dim = 3;
+    TensorAccessorW<float, batch_tensor_dim> acc_output(
+        regions[0], task->regions[0], FID_DATA, ctx, runtime,
+        false/*readOutput*/);
+    TensorAccessorR<float, batch_tensor_dim> acc_input1(
+        regions[1], task->regions[1], FID_DATA, ctx, runtime);
+
+    TensorAccessorR<float, batch_tensor_dim> acc_input2(
+        regions[2], task->regions[2], FID_DATA, ctx, runtime);
+
+
+    int k = acc_input1.rect.hi[0] - acc_input1.rect.lo[0] + 1;
+    int m = acc_output.rect.hi[1] - acc_output.rect.lo[1] + 1;
+    int n = acc_output.rect.hi[0] - acc_output.rect.lo[0] + 1;
+    int batch_stride_a = acc_input1.rect.hi[2] - acc_input1.rect.lo[2] + 1;
+    int batch_stride_b = acc_input2.rect.hi[2] - acc_input2.rect.lo[2] + 1;
+    int batch_stride_c = acc_output.rect.hi[2] - acc_output.rect.lo[2] + 1;
+    printf("k:%d m:%d n:%d batch_stride_a:%d batch_stride_b:%d batch_stride_c:%d\n", k, m,n,batch_stride_a, batch_stride_b, batch_stride_c);
+    printf("cuBLAS initializing...\n");
+    #ifndef DISABLE_LEGION_CUDA_HIJACK
+        cudaStream_t stream;
+        checkCUDA(cudaStreamCreate(&stream));
+        checkCUDA(cublasSetStream(lm->handle.blas, stream));
+        checkCUDNN(cudnnSetStream(lm->handle.dnn, stream));
+    #endif
+
+    // because cublas is row major ordering, so leading dimension is the reduction dimension
+    checkCUDA(
+        cublasSgemmStridedBatched(
+            lm->handle.blas,
+            bm->transpose_1,
+            bm->transpose_2,
+            m, n, k,
+            &alpha,
+            acc_input1.ptr, k,
+            m*k,
+            acc_input2.ptr, k,
+            k*n,
+            &beta,
+            acc_output.ptr, m,
+            m*n,
+            batch_stride_a)
+    );
+
+
+
+    print_tensor<3, float>(acc_input1.ptr, acc_input1.rect, "[BatchMatmul:forward:input1]");
+    print_tensor<3, float>(acc_input2.ptr, acc_input2.rect, "[BatchMatmul:forward:input2]");
+    print_tensor<3, float>(acc_output.ptr, acc_output.rect, "[BatchMatmul:forward:output]");
+}
+
+
+void BatchMatmul::forward(const FFModel& ff){
+
+    ArgumentMap argmap;
+    Context ctx = ff.config.lg_ctx;
+    Runtime* runtime = ff.config.lg_hlr;
+    // currently only support 3 dimensional batch matmul , outter dimension is sample dimension
+    Rect<3> rect = runtime->get_index_space_domain(ctx, task_is);
+    int idx = 0;
+    for (PointInRectIterator<3> it(rect); it(); it++) {
+        OpMeta* mp = meta[idx++];
+        argmap.set_point(*it, TaskArgument(&mp, sizeof(OpMeta*)));
+        // FFHandler handle = ff.handlers[idx++];
+        // argmap.set_point(*it, TaskArgument(&handle, sizeof(FFHandler)));
+    }
+
+    IndexLauncher launcher(BATCHMATMUL_FWD_TASK_ID, task_is,
+                           TaskArgument(this, sizeof(BatchMatmul)), argmap,
+                           Predicate::TRUE_PRED, false/*must*/, 0/*mapper_id*/,
+                           FFConfig::get_hash_id(std::string(name)));
+    launcher.add_region_requirement(
+        RegionRequirement(output.part, 0/*projection id*/,
+                          WRITE_ONLY, EXCLUSIVE, output.region));
+    launcher.add_field(0, FID_DATA);
+    for (int i = 0; i < 2; i++) {
+      launcher.add_region_requirement(
+          RegionRequirement(input_lps[i], 0/*projection id*/,
+            READ_ONLY, EXCLUSIVE, inputs[i].region));
+      launcher.add_field(i+1, FID_DATA);
+    }
+    runtime->execute_index_space(ctx, launcher);
+}
+
+
+
+
+
+
 
 /*
   regions[0](O): output_grad
@@ -286,23 +394,14 @@ void BatchMatmul::backward_task(
     int batch_stride_c = acc_output_grad.rect.hi[2] - acc_output_grad.rect.lo[2] + 1;
     printf("k:%d m:%d n:%d batch_stride_a:%d batch_stride_b:%d batch_stride_c:%d\n", k, m,n,batch_stride_a, batch_stride_b, batch_stride_c);
 
-
-
-    printf("trans A %d, trans B %d\n", bm->transpose_1_flag, bm->transpose_2_flag);
-    printf("cuBLAS initializing...\n");
-
     #ifndef DISABLE_LEGION_CUDA_HIJACK
     cudaStream_t stream;
     checkCUDA(cudaStreamCreate(&stream));
     checkCUDA(cublasSetStream(lm->handle.blas, stream));
     checkCUDNN(cudnnSetStream(lm->handle.dnn, stream));
     #endif
-    // because cublas is row major ordering, so leading dimension is the reduction dimension
-    // !QUESTION!: why bm object values are different from the one in the parent task
-    // if (bm->transpose_1_flag) {
-        // if (bm->transpose_2_flag) {
-    if (true) {
-        if (false) {
+    if (bm->transpose_1_flag) {
+        if (bm->transpose_2_flag) {
             // A'B':
             // dA = B'G', dB = G'A'
             // checkCUDA(cublasSgemmStridedBatched(lm->handle.blas,
@@ -385,112 +484,3 @@ void BatchMatmul::backward_task(
 }
 
 
-
-/*
-  regions[0](O): output
-  regions[1](I): input1
-  regions[2](I): input2
-*/
-void BatchMatmul::forward_task(
-    const Task *task,
-    const std::vector<PhysicalRegion> &regions,
-    Context ctx, Runtime *runtime
-    )
-{
-    /*
-    cublas function takes inputs and output in shape
-    op ( A [ i ] ) m × k , op ( B [ i ] ) k × n and C [ i ] m × n
-    so make sure op() outputs the correct shape,
-    for example if A is in shape (m,k), then we set transposeA=false
-    if A is in shape(k,m), we need to set transposeA=true in order to get
-    op(A) in shape (m,k)
-    */
-    const BatchMatmul* bm = (BatchMatmul*) task->args;
-    float alpha = 1.0f, beta = 0.0f;
-    const BatchMatmulMeta* lm = *((BatchMatmulMeta**) task->local_args);
-    const int batch_tensor_dim = 3;
-    TensorAccessorW<float, batch_tensor_dim> acc_output(
-        regions[0], task->regions[0], FID_DATA, ctx, runtime,
-        false/*readOutput*/);
-    TensorAccessorR<float, batch_tensor_dim> acc_input1(
-        regions[1], task->regions[1], FID_DATA, ctx, runtime);
-
-    TensorAccessorR<float, batch_tensor_dim> acc_input2(
-        regions[2], task->regions[2], FID_DATA, ctx, runtime);
-
-
-    int k = acc_input1.rect.hi[0] - acc_input1.rect.lo[0] + 1;
-    int m = acc_output.rect.hi[1] - acc_output.rect.lo[1] + 1;
-    int n = acc_output.rect.hi[0] - acc_output.rect.lo[0] + 1;
-    int batch_stride_a = acc_input1.rect.hi[2] - acc_input1.rect.lo[2] + 1;
-    int batch_stride_b = acc_input2.rect.hi[2] - acc_input2.rect.lo[2] + 1;
-    int batch_stride_c = acc_output.rect.hi[2] - acc_output.rect.lo[2] + 1;
-    printf("k:%d m:%d n:%d batch_stride_a:%d batch_stride_b:%d batch_stride_c:%d\n", k, m,n,batch_stride_a, batch_stride_b, batch_stride_c);
-    printf("cuBLAS initializing...\n");
-    /*
-        BUG HERE: SEGMENTATION FAULT
-    */
-    #ifndef DISABLE_LEGION_CUDA_HIJACK
-        cudaStream_t stream;
-        checkCUDA(cudaStreamCreate(&stream));
-        checkCUDA(cublasSetStream(lm->handle.blas, stream));
-        checkCUDNN(cudnnSetStream(lm->handle.dnn, stream));
-    #endif
-
-    // because cublas is row major ordering, so leading dimension is the reduction dimension
-    checkCUDA(
-        cublasSgemmStridedBatched(
-            lm->handle.blas,
-            bm->transpose_1,
-            bm->transpose_2,
-            m, n, k,
-            &alpha,
-            acc_input1.ptr, k,
-            m*k,
-            acc_input2.ptr, k,
-            k*n,
-            &beta,
-            acc_output.ptr, m,
-            m*n,
-            batch_stride_a)
-        );
-
-
-
-        print_tensor<3, float>(acc_input1.ptr, acc_input1.rect, "[BatchMatmul:forward:input1]");
-        print_tensor<3, float>(acc_input2.ptr, acc_input2.rect, "[BatchMatmul:forward:input2]");
-        print_tensor<3, float>(acc_output.ptr, acc_output.rect, "[BatchMatmul:forward:output]");
-}
-
-
-void BatchMatmul::forward(const FFModel& ff){
-
-    ArgumentMap argmap;
-    Context ctx = ff.config.lg_ctx;
-    Runtime* runtime = ff.config.lg_hlr;
-    // currently only support 3 dimensional batch matmul , outter dimension is sample dimension
-    Rect<3> rect = runtime->get_index_space_domain(ctx, task_is);
-    int idx = 0;
-    for (PointInRectIterator<3> it(rect); it(); it++) {
-        OpMeta* mp = meta[idx++];
-        argmap.set_point(*it, TaskArgument(&mp, sizeof(OpMeta*)));
-        // FFHandler handle = ff.handlers[idx++];
-        // argmap.set_point(*it, TaskArgument(&handle, sizeof(FFHandler)));
-    }
-
-    IndexLauncher launcher(BATCHMATMUL_FWD_TASK_ID, task_is,
-                           TaskArgument(this, sizeof(BatchMatmul)), argmap,
-                           Predicate::TRUE_PRED, false/*must*/, 0/*mapper_id*/,
-                           FFConfig::get_hash_id(std::string(name)));
-    launcher.add_region_requirement(
-        RegionRequirement(output.part, 0/*projection id*/,
-                          WRITE_ONLY, EXCLUSIVE, output.region));
-    launcher.add_field(0, FID_DATA);
-    for (int i = 0; i < 2; i++) {
-      launcher.add_region_requirement(
-          RegionRequirement(input_lps[i], 0/*projection id*/,
-            READ_ONLY, EXCLUSIVE, inputs[i].region));
-      launcher.add_field(i+1, FID_DATA);
-    }
-    runtime->execute_index_space(ctx, launcher);
-}

@@ -37,7 +37,7 @@ BatchMatmul::BatchMatmul(
     int m = input1.adim[1];
     int n = input2.adim[1];
     int k = input1.adim[0];
-    const int dims[] = {d,n,m};
+    const int dims[] = {d,m,n};
     printf("batch_matmul inputs:\n");
     printf("input 1 shape d(%d) k(%d) m(%d)\n", d,k,m);
     printf("input 2 shape d(%d) k(%d) n(%d)\n", d,k,n);
@@ -199,56 +199,6 @@ OpMeta* BatchMatmul::init_task(const Task *task,
                         batch_stride_a, 1, m, n));
     return bmm_meta;
 }
-
-
-void BatchMatmul::backward(const FFModel& ff){
-    ArgumentMap argmap;
-    Context ctx = ff.config.lg_ctx;
-    Runtime* runtime = ff.config.lg_hlr;
-    // currently only support 3 dimensional batch matmul , outter dimension is sample dimension
-    Rect<3> rect = runtime->get_index_space_domain(ctx, task_is);
-    int idx = 0;
-    for (PointInRectIterator<3> it(rect); it(); it++) {
-        OpMeta* mp = meta[idx++];
-        argmap.set_point(*it, TaskArgument(&mp, sizeof(OpMeta*)));
-    }
-
-    /*
-    CHECK THIS LATERCHECK THIS LATERCHECK THIS LATERCHECK THIS LATERCHECK THIS LATERCHECK THIS LATER
-    */
-  IndexLauncher launcher(BATCHMATMUL_BWD_TASK_ID, task_is,
-                         TaskArgument(this, sizeof(BatchMatmul)), argmap,
-                         Predicate::TRUE_PRED, false/*must*/, 0/*mapper_id*/,
-                         FFConfig::get_hash_id(std::string(name)));
-  launcher.add_region_requirement(
-      RegionRequirement(output.part_grad, 0/*projection id*/,
-                        READ_ONLY, EXCLUSIVE, output.region_grad));
-  launcher.add_field(0, FID_DATA);
-    // input1 grad
-    launcher.add_region_requirement(
-                        RegionRequirement(input_grad_lps[0], 0/*projection id*/,
-                        WRITE_ONLY, EXCLUSIVE, inputs[0].region_grad));
-    launcher.add_field(1, FID_DATA);
-    // input 2 grad
-    launcher.add_region_requirement(
-                        RegionRequirement(input_grad_lps[1], 0/*projection id*/,
-                        WRITE_ONLY, EXCLUSIVE, inputs[1].region_grad));
-    launcher.add_field(2, FID_DATA);
-    // input1
-    launcher.add_region_requirement(
-                        RegionRequirement(inputs[0].part, 0/*projection id*/,
-                        READ_ONLY, EXCLUSIVE, inputs[0].region));
-    launcher.add_field(3, FID_DATA);
-    // input2
-    launcher.add_region_requirement(
-                        RegionRequirement(inputs[1].part, 0/*projection id*/,
-                        READ_ONLY, EXCLUSIVE, inputs[1].region));
-    launcher.add_field(4, FID_DATA);
-
-
-    runtime->execute_index_space(ctx, launcher);
-}
-
 
 
 /*
@@ -483,4 +433,54 @@ void BatchMatmul::backward_task(
 
 }
 
+
+
+
+void BatchMatmul::backward(const FFModel& ff){
+    ArgumentMap argmap;
+    Context ctx = ff.config.lg_ctx;
+    Runtime* runtime = ff.config.lg_hlr;
+    // currently only support 3 dimensional batch matmul , outter dimension is sample dimension
+    Rect<3> rect = runtime->get_index_space_domain(ctx, task_is);
+    int idx = 0;
+    for (PointInRectIterator<3> it(rect); it(); it++) {
+        OpMeta* mp = meta[idx++];
+        argmap.set_point(*it, TaskArgument(&mp, sizeof(OpMeta*)));
+    }
+
+    /*
+    CHECK THIS LATERCHECK THIS LATERCHECK THIS LATERCHECK THIS LATERCHECK THIS LATERCHECK THIS LATER
+    */
+  IndexLauncher launcher(BATCHMATMUL_BWD_TASK_ID, task_is,
+                         TaskArgument(this, sizeof(BatchMatmul)), argmap,
+                         Predicate::TRUE_PRED, false/*must*/, 0/*mapper_id*/,
+                         FFConfig::get_hash_id(std::string(name)));
+  launcher.add_region_requirement(
+      RegionRequirement(output.part_grad, 0/*projection id*/,
+                        READ_ONLY, EXCLUSIVE, output.region_grad));
+  launcher.add_field(0, FID_DATA);
+    // input1 grad
+    launcher.add_region_requirement(
+                        RegionRequirement(input_grad_lps[0], 0/*projection id*/,
+                        WRITE_ONLY, EXCLUSIVE, inputs[0].region_grad));
+    launcher.add_field(1, FID_DATA);
+    // input 2 grad
+    launcher.add_region_requirement(
+                        RegionRequirement(input_grad_lps[1], 0/*projection id*/,
+                        WRITE_ONLY, EXCLUSIVE, inputs[1].region_grad));
+    launcher.add_field(2, FID_DATA);
+    // input1
+    launcher.add_region_requirement(
+                        RegionRequirement(inputs[0].part, 0/*projection id*/,
+                        READ_ONLY, EXCLUSIVE, inputs[0].region));
+    launcher.add_field(3, FID_DATA);
+    // input2
+    launcher.add_region_requirement(
+                        RegionRequirement(inputs[1].part, 0/*projection id*/,
+                        READ_ONLY, EXCLUSIVE, inputs[1].region));
+    launcher.add_field(4, FID_DATA);
+
+
+    runtime->execute_index_space(ctx, launcher);
+}
 

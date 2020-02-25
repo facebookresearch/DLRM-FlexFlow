@@ -250,8 +250,11 @@ Tensor FFModel::create_tensor(const int dims[],
   if (create_grad) {
     tensor.region_grad = runtime->create_logical_region(ctx, is, fs);
   }
+
   // Step 2: create partitions
+  // WARNING: default strategy only supports tensor dimension == 2
   Rect<NDIM> part_rect = runtime->get_index_space_domain(ctx, part_is);
+
   Transform<NDIM, NDIM> transform;
   Point<NDIM> ext_hi;
   for (int i = 0; i < NDIM; i++) {
@@ -286,7 +289,7 @@ void FFModel::create_disjoint_partition(const Tensor& tensor,
                                         const IndexSpaceT<NDIM>& part_is,
                                         LogicalPartition& part_fwd,
                                         LogicalPartition& part_bwd)
-{ 
+{
   // Current assume forward and grad share the same index space
   assert(tensor.region.get_index_space() == tensor.region_grad.get_index_space());
   Context ctx = config.lg_ctx;
@@ -472,7 +475,7 @@ IndexSpace FFModel::get_or_create_task_is(ParallelConfig pc)
       Rect<1> task_rect(Point<1>(0), Point<1>(pc.dim[0]-1));
       task_is = runtime->create_index_space(ctx, task_rect);
       break;
-    } 
+    }
     case 2:
     {
       Rect<2> task_rect(Point<2>(0, 0), Point<2>(pc.dim[0]-1, pc.dim[1]-1));
@@ -538,7 +541,7 @@ void FFModel::reset_metrics()
 }
 
 void FFModel::init_layers()
-{ 
+{
   for (size_t i = 0; i < layers.size(); i++)
     layers[i]->init(*this);
 }
@@ -662,7 +665,7 @@ DataLoader::DataLoader(std::string datasetPath)
       std::string sampleId(sp->d_name);
       if (sampleId == "." || sampleId == "..")
         continue;
-      
+
     }
     printf("%s/%s\n", trainPath.c_str(), labelId.c_str());
     closedir(labelDir);
@@ -1063,6 +1066,32 @@ int main(int argc, char** argv)
     Runtime::preregister_task_variant<Concat::backward_task>(
         registrar, "Concat Backward Task");
   }
+
+  // Batch matmul task
+  {
+    TaskVariantRegistrar registrar(BATCHMATMUL_INIT_TASK_ID, "batch_matmul_init_task");
+    registrar.add_constraint(ProcessorConstraint(Processor::TOC_PROC));
+    registrar.set_leaf();
+    Runtime::preregister_task_variant<OpMeta*, BatchMatmul::init_task>(
+        registrar, "batch_matmul_init_task");
+  }
+  {
+    TaskVariantRegistrar registrar(BATCHMATMUL_FWD_TASK_ID, "batch_matmul_fwd_task");
+    registrar.add_constraint(ProcessorConstraint(Processor::TOC_PROC));
+    registrar.set_leaf();
+    Runtime::preregister_task_variant<BatchMatmul::forward_task>(
+        registrar, "batch_matmul_fwd_task");
+  }
+  {
+    TaskVariantRegistrar registrar(BATCHMATMUL_BWD_TASK_ID, "batch_matmul_bwd_task");
+    registrar.add_constraint(ProcessorConstraint(Processor::TOC_PROC));
+    registrar.set_leaf();
+    Runtime::preregister_task_variant<BatchMatmul::backward_task>(
+        registrar, "batch_matmul_bwd_task");
+  }
+
+
+
   // Optimizer
   {
     TaskVariantRegistrar registrar(SGD_UPD_TASK_ID,
@@ -1142,6 +1171,7 @@ template Tensor FFModel::create_tensor<4>(const int* dims, const IndexSpaceT<4>&
 
 template void FFModel::create_disjoint_partition<1>(const Tensor& tensor, const IndexSpaceT<1>& part_is, LogicalPartition& part_fwd, LogicalPartition& part_bwd);
 template void FFModel::create_disjoint_partition<2>(const Tensor& tensor, const IndexSpaceT<2>& part_is, LogicalPartition& part_fwd, LogicalPartition& part_bwd);
+template void FFModel::create_disjoint_partition<3>(const Tensor& tensor, const IndexSpaceT<3>& part_is, LogicalPartition& part_fwd, LogicalPartition& part_bwd);
 
 template Tensor FFModel::create_weight<2>(const int* dims, const IndexSpaceT<2>& part_is, DataType data_type, Initializer* initializer, bool create_grad);
 template Tensor FFModel::create_weight<1>(const int* dims, const IndexSpaceT<2>& part_is, DataType data_type, Initializer* initializer, bool create_grad);

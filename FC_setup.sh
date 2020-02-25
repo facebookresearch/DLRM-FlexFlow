@@ -1,10 +1,10 @@
-git checkout dcr # We are using the dcr branch by default
+# git checkout dcr # We are using the dcr branch by default
 git submodule update --init --recursive
 source FC_env_setup.sh
 
 cd $PROTOBUF
 git submodule update --init --recursive
-git checkout 6d4e7fd #still cannot get the strategy compile to use the local runtime. So need to checkout v 3.10.0
+# git checkout 6d4e7fd #still cannot get the strategy compile to use the local runtime. So need to checkout v 3.10.0
 ./autogen.sh
 ./configure
 make -j

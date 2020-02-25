@@ -149,6 +149,7 @@ DataLoader::DataLoader(FFModel& ff, const DLRMConfig& dlrm){
   initializer->init(ctx, runtime, &batch_matmul_input1);
   initializer->init(ctx, runtime, &batch_matmul_input2);
   initializer->init(ctx, runtime, &batch_matmul_output);
+    // CUSTOM_GPU_TASK_ID_8 is random_3d_batch
   const int num_dim = 3;
   std::string pc_name = "batch_matmul";
   IndexSpaceT<num_dim> task_is = IndexSpaceT<3>(ff.get_or_create_task_is(pc_name));

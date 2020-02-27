@@ -112,7 +112,6 @@ void top_level_task(const Task* task,
     
     auto test_meta = get_test_meta("test_meta.txt");
     
-    printf("%d %d %d %d", test_meta.m, test_meta.k, test_meta.n, test_meta.d);
     
     
     
@@ -174,7 +173,9 @@ InitializeTensorFromFile(input2_file_path, dense_input2, ff);
   ff.forward();
   ff.backward();
   auto metrics = ff.current_metrics.get_result<PerfMetrics>();
-  std::cout << metrics.train_loss << std::endl;
+  float epsilon = 0.000001;
+  std::cout << "train loss: " << metrics.train_loss << std::endl;
+  assert(metrics.train_loss < epsilon);
 
 
 

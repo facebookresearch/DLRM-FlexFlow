@@ -9,10 +9,31 @@ using namespace Legion;
 
 LegionRuntime::Logger::Category log_app("DLRM");
 
-void register_custom_tasks()
-{
-  // dont need to register anything for this
+
+
+void LoadLabels(const std::string file_path, Tensor label) {
+
+    TaskLauncher launcher(CUSTOM_CPU_TASK_ID_1,
+      TaskArgument(&file_path, sizeof(file_path)));
+  // regions[0]: full_sparse_input
+  launcher.add_region_requirement(
+      RegionRequirement(label.region,
+                        WRITE_ONLY, EXCLUSIVE, label.region,
+                        MAP_TO_FB_MEMORY));
+  launcher.add_field(0, FID_DATA);
+  runtime->execute_task(ctx, launcher);
 }
+
+void load_label_task(const Task *task,
+                    const std::vector<PhysicalRegion> &regions,
+                    Context ctx,
+                    Runtime* runtime) {
+    const ArgsConfig dlrm = *((const ArgsConfig *)task->args);
+  const int emb_size = dlrm.embedding_size; 
+  std::string file_name((const char*)dlrm.dataset_path);
+
+}
+
 
 std::vector<float> read_numbers_from_file(const std::string file_path) {
     std::fstream myfile(file_path, std::ios_base::in);
@@ -40,7 +61,17 @@ BMMTestMeta get_test_meta(const std::string file_path) {
     return meta;
 }
 
-
+void register_custom_tasks()
+{
+    // Load entire dataset
+  {
+    TaskVariantRegistrar registrar(CUSTOM_CPU_TASK_ID_1, "Load Label");
+    registrar.add_constraint(ProcessorConstraint(Processor::LOC_PROC));
+    registrar.set_leaf();
+    Runtime::preregister_task_variant<load_label_task>(
+        registrar, "Load Label Task");
+  }
+}
 
 // ===================== Batch matmul
 
@@ -89,22 +120,33 @@ void top_level_task(const Task* task,
   Tensor dense_input1;
   {
 
-    const int dims[] = {d,m,k};
+    const int dims[] = {d,m,k}; // shape is (k,m,d)
     // sadly we have to pass batch_matmul 3-dimensional stretegy in this way for now to handle 3 dimensional tensor
     dense_input1 = ff.create_tensor<3>(dims, "batch_matmul", DT_FLOAT);
   }
   Tensor dense_input2;
   {
-    const int dims[] = {d,n,k};
+    const int dims[] = {d,n,k}; // shape (k,n,d)
     // sadly we have to pass batch_matmul 3-dimensional stretegy in this way for now to handle 3 dimensional tensor
     dense_input2 = ff.create_tensor<3>(dims, "batch_matmul", DT_FLOAT);
   }
+
+  Tensor label;
+  {
+    const int dims[] = {d,n,m}; // shape (m,n,d)
+    // sadly we have to pass batch_matmul 3-dimensional stretegy in this way for now to handle 3 dimensional tensor
+    label = ff.create_tensor<3>(dims, "batch_matmul", DT_FLOAT);
+  }
+
   // we can only use zero initializer because others don't support 3-dimensional tensor
   Initializer* initializer = new UniformInitializer(0, 0, 1);
   initializer->init(ffConfig.lg_ctx, runtime, &dense_input1);
   initializer->init(ffConfig.lg_ctx, runtime, &dense_input2);
+  initializer->init(ffConfig.lg_ctx, runtime, &label);
   Tensor batch_matmul_ret = ff.batch_matmul("batch_matmul", dense_input1, dense_input2, true, false);
 
+
+  ff.mse_loss("mse_loss"/*name*/, batch_matmul_ret, label, "average"/*reduction*/);
   ff.init_layers();
   // Data Loader
 
@@ -112,6 +154,12 @@ void top_level_task(const Task* task,
   ff.forward();
   // ff.zero_gradients(); // dont need to call this because there's no weights in batch_matmul
   ff.backward();
+  auto metrics = ff.current_metrics.get_result<PerfMetrics>();
+  std::cout << metrics.train_loss << std::endl;
+  // runtime->execute_task(ctx, launcher);
+
+
+
 }
 
 

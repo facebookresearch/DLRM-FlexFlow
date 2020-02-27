@@ -245,8 +245,8 @@ void BatchMatmul::forward_task(
     checkCUDA(
         cublasSgemmStridedBatched(
             lm->handle.blas,
-            bm->transpose_1,
-            bm->transpose_2,
+            CUBLAS_OP_T,
+            CUBLAS_OP_N,
             m, n, k,
             &alpha,
             acc_input1.ptr, k,

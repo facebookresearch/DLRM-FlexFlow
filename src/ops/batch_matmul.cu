@@ -30,13 +30,15 @@ BatchMatmul::BatchMatmul(
     FieldSpace fs = model.config.field_space;
 
 
-    // dimension in tensor constructor is ordered by `d,m,k`
-    // but within the tensor object the dimensio is ordered by `k,m,d`
-    // where the outmost dimension is d
+    /*
+    input1 (m,k,d)
+    input2 (n,k,d)
+    output (n,m,d)
+    */
     int d = input1.adim[2];
-    int m = input1.adim[1];
-    int n = input2.adim[1];
-    int k = input1.adim[0];
+    int m = input1.adim[0];
+    int n = input2.adim[0];
+    int k = input1.adim[1];
     const int dims[] = {d,m,n};
     printf("batch_matmul inputs:\n");
     printf("input 1 shape d(%d) k(%d) m(%d)\n", d,k,m);
@@ -176,11 +178,11 @@ OpMeta* BatchMatmul::init_task(const Task *task,
 
 
     /*
-    input1 (k,m,d)
-    input2 (k,n,d)
+    input1 (m,k,d)
+    input2 (n,k,d)
     output (n,m,d)
     */
-    int k = input1.rect.hi[0] - input1.rect.lo[0] + 1;
+    int k = input1.rect.hi[1] - input1.rect.lo[1] + 1;
     int m = acc_output.rect.hi[1] - acc_output.rect.lo[1] + 1;
     int n = acc_output.rect.hi[0] - acc_output.rect.lo[0] + 1;
     int batch_stride_a = input1.rect.hi[2] - input1.rect.lo[2] + 1;
@@ -212,7 +214,6 @@ void BatchMatmul::forward_task(
     Context ctx, Runtime *runtime
     )
 {
-    const BatchMatmul* bm = (BatchMatmul*) task->args;
     float alpha = 1.0f, beta = 0.0f;
     const BatchMatmulMeta* lm = *((BatchMatmulMeta**) task->local_args);
     const int batch_tensor_dim = 3;
@@ -225,8 +226,12 @@ void BatchMatmul::forward_task(
     TensorAccessorR<float, batch_tensor_dim> acc_input2(
         regions[2], task->regions[2], FID_DATA, ctx, runtime);
 
-
-    int k = acc_input1.rect.hi[0] - acc_input1.rect.lo[0] + 1;
+   /*
+    input1 (m,k,d) -> transpose -> (k,m,d)
+    input2 (n,k,d)
+    output (n,m,d)
+    */
+    int k = acc_input1.rect.hi[1] - acc_input1.rect.lo[1] + 1;
     int m = acc_output.rect.hi[1] - acc_output.rect.lo[1] + 1;
     int n = acc_output.rect.hi[0] - acc_output.rect.lo[0] + 1;
     int batch_stride_a = acc_input1.rect.hi[2] - acc_input1.rect.lo[2] + 1;
@@ -335,9 +340,13 @@ void BatchMatmul::backward_task(
     TensorAccessorR<float, batch_tensor_dim> acc_input2(
         regions[4], task->regions[4], FID_DATA, ctx, runtime);
 
-
-    int k = acc_input1_grad.rect.hi[0] - acc_input1_grad.rect.lo[0] + 1;
-    int m = acc_output_grad.rect.hi[1] - acc_output_grad.rect.lo[1] + 1;
+   /*
+    input1 (m,k,d)
+    input2 (n,k,d)
+    output (n,m,d)
+    */
+    int k = acc_input1_grad.rect.hi[1] - acc_input1_grad.rect.lo[1] + 1;
+    int m = acc_output_grad.rect.hi[0] - acc_output_grad.rect.lo[0] + 1;
     int n = acc_output_grad.rect.hi[0] - acc_output_grad.rect.lo[0] + 1;
     int batch_stride_a = acc_input1_grad.rect.hi[2] - acc_input1_grad.rect.lo[2] + 1;
     int batch_stride_b = acc_input2_grad.rect.hi[2] - acc_input2_grad.rect.lo[2] + 1;

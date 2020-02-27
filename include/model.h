@@ -69,6 +69,7 @@ enum TaskIDs {
   CONCAT_FWD_TASK_ID,
   CONCAT_BWD_TASK_ID,
   MSELOSS_BWD_TASK_ID,
+  MSELOSS3D_BWD_TASK_ID,
   UPDATE_METRICS_TASK_ID,
   DUMMY_TASK_ID,
   // Optimizer
@@ -265,6 +266,11 @@ public:
   Tensor softmax(std::string name, Tensor input);
 
   void mse_loss(const std::string& name,
+                const Tensor& logits,
+                const Tensor& labels,
+                const std::string& reduction);
+
+  void mse_loss3d(const std::string& name,
                 const Tensor& logits,
                 const Tensor& labels,
                 const std::string& reduction);
@@ -653,6 +659,33 @@ public:
   AggrMode aggr_mode;
   bool profiling;
 };
+
+class MSELoss3D : public Op {
+public:
+  MSELoss3D(FFModel& model,
+          const std::string& pc_name,
+          const Tensor& logit,
+          const Tensor& label,
+          AggrMode aggr);
+
+  void init(const FFModel& model);
+  void forward(const FFModel& model);
+  void backward(const FFModel& model);
+  //void update(const FFModel& model);
+
+  static PerfMetrics backward_task(const Task *task,
+                                   const std::vector<PhysicalRegion> &regions,
+                                   Context ctx, Runtime *runtime);
+public:
+  IndexSpaceT<3> task_is;
+  AggrMode aggr_mode;
+  bool profiling;
+};
+
+
+
+
+
 
 class UtilityTasks {
 public:

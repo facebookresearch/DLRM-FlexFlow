@@ -133,20 +133,37 @@ void top_level_task(const Task* task,
   Tensor dense_input1;
   {
 
-    const int dims[] = {test_meta.d,test_meta.k,test_meta.m}; // shape is (m,k,d)
+
+    /*
+    linear target {k,m} from {m,k}
+
+
+    if target shape is (d,k,m) from {m,k,d}
+    and make sure the partition stratey partitions on d dimension
+    linear output target shape {m,n} from {n,m}
+    batch_matmul target shape {d,m,n} from {n,m,d}
+
+
+    make the changes
+    {test_meta.d,test_meta.k,test_meta.m} to
+    {test_meta.m,test_meta.k,test_meta.d}
+    */
+
+    const int dims[3] = {test_meta.d,test_meta.k,test_meta.m}; // target shape (d,k,m)
     // sadly we have to pass batch_matmul 3-dimensional stretegy in this way for now to handle 3 dimensional tensor
     dense_input1 = ff.create_tensor<3>(dims, "batch_matmul", DT_FLOAT);
   }
   Tensor dense_input2;
   {
-    const int dims[] = {test_meta.d,test_meta.k,test_meta.n}; // shape (n,k,d)
+    const int dims[3] = {test_meta.d,test_meta.k,test_meta.n}; // shape (n,k,d)
     // sadly we have to pass batch_matmul 3-dimensional stretegy in this way for now to handle 3 dimensional tensor
     dense_input2 = ff.create_tensor<3>(dims, "batch_matmul", DT_FLOAT);
   }
 
   Tensor label;
   {
-    const int dims[] = {test_meta.d,test_meta.m,test_meta.n}; // shape (n,m,d)
+    
+    const int dims[3] = {test_meta.d,test_meta.m,test_meta.n}; // shape (n,m,d)
     // sadly we have to pass batch_matmul 3-dimensional stretegy in this way for now to handle 3 dimensional tensor
     label = ff.create_tensor<3>(dims, "batch_matmul", DT_FLOAT);
   }
@@ -166,6 +183,11 @@ InitializeTensorFromFile(input2_file_path, dense_input2, ff);
 
 
 
+  // TODO
+  /*
+  1. problem shape m=2 k=3 n=1 d=2 is wrong
+  2. calculate loss, change to arbitrary dimension
+  */
 
 
   ff.mse_loss3d("mse_loss3d"/*name*/, batch_matmul_ret, label, "average"/*reduction*/);

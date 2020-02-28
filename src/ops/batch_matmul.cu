@@ -175,8 +175,6 @@ OpMeta* BatchMatmul::init_task(const Task *task,
         regions[1], task->regions[1], FID_DATA, ctx, runtime);
     TensorAccessorR<float, 3> input2(
         regions[2], task->regions[2], FID_DATA, ctx, runtime);
-
-
     /*
     input1 (m,k,d)
     input2 (n,k,d)
@@ -226,8 +224,8 @@ void BatchMatmul::forward_task(
     TensorAccessorR<float, batch_tensor_dim> acc_input2(
         regions[2], task->regions[2], FID_DATA, ctx, runtime);
 
-   /*
-    input1 (m,k,d) -> transpose -> (k,m,d)
+    /*  
+    input1 (m,k,d)
     input2 (n,k,d)
     output (n,m,d)
     */
@@ -237,6 +235,8 @@ void BatchMatmul::forward_task(
     int batch_stride_a = acc_input1.rect.hi[2] - acc_input1.rect.lo[2] + 1;
     int batch_stride_b = acc_input2.rect.hi[2] - acc_input2.rect.lo[2] + 1;
     int batch_stride_c = acc_output.rect.hi[2] - acc_output.rect.lo[2] + 1;
+
+
     printf("k:%d m:%d n:%d batch_stride_a:%d batch_stride_b:%d batch_stride_c:%d\n", k, m,n,batch_stride_a, batch_stride_b, batch_stride_c);
     printf("cuBLAS initializing...\n");
     #ifndef DISABLE_LEGION_CUDA_HIJACK
@@ -340,13 +340,14 @@ void BatchMatmul::backward_task(
     TensorAccessorR<float, batch_tensor_dim> acc_input2(
         regions[4], task->regions[4], FID_DATA, ctx, runtime);
 
-   /*
+
+    /*  
     input1 (m,k,d)
     input2 (n,k,d)
     output (n,m,d)
     */
     int k = acc_input1_grad.rect.hi[1] - acc_input1_grad.rect.lo[1] + 1;
-    int m = acc_output_grad.rect.hi[0] - acc_output_grad.rect.lo[0] + 1;
+    int m = acc_output_grad.rect.hi[1] - acc_output_grad.rect.lo[1] + 1;
     int n = acc_output_grad.rect.hi[0] - acc_output_grad.rect.lo[0] + 1;
     int batch_stride_a = acc_input1_grad.rect.hi[2] - acc_input1_grad.rect.lo[2] + 1;
     int batch_stride_b = acc_input2_grad.rect.hi[2] - acc_input2_grad.rect.lo[2] + 1;

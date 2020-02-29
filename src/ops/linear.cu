@@ -136,7 +136,8 @@ Linear::Linear(FFModel& model,
       replica.part = runtime->get_logical_partition(
           ctx, replica.region_grad, ip);
     }
-  } else {
+  } 
+  else {
     if (input_rect == part_rect) {
       input_lps[0] = inputs[0].part;
       input_grad_lps[0] = inputs[0].part_grad;

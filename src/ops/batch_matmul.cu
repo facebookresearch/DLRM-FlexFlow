@@ -192,11 +192,11 @@ OpMeta* BatchMatmul::init_task(const Task *task,
     BatchMatmulMeta* bmm_meta = new BatchMatmulMeta(handle);
     printf("init batch_matmul (input): batdh_dim(%d) k(%d) m(%d) n(%d)\n", batch_stride_a, k, m, n);
 
-    checkCUDNN(cudnnCreateTensorDescriptor(&bmm_meta->outputTensor));
-    checkCUDNN(cudnnSetTensor4dDescriptor(bmm_meta->outputTensor,
-                        CUDNN_TENSOR_NCHW,
-                        CUDNN_DATA_FLOAT,
-                        batch_stride_a, 1, m, n));
+    // checkCUDNN(cudnnCreateTensorDescriptor(&bmm_meta->outputTensor));
+    // checkCUDNN(cudnnSetTensor4dDescriptor(bmm_meta->outputTensor,
+    //                     CUDNN_TENSOR_NCHW,
+    //                     CUDNN_DATA_FLOAT,
+    //                     batch_stride_a, 1, m, n));
     return bmm_meta;
 }
 
@@ -224,7 +224,7 @@ void BatchMatmul::forward_task(
     TensorAccessorR<float, batch_tensor_dim> acc_input2(
         regions[2], task->regions[2], FID_DATA, ctx, runtime);
 
-    /*  
+    /*
     input1 (m,k,d)
     input2 (n,k,d)
     output (n,m,d)
@@ -246,28 +246,37 @@ void BatchMatmul::forward_task(
         checkCUDNN(cudnnSetStream(lm->handle.dnn, stream));
     #endif
 
-    // because cublas is row major ordering, so leading dimension is the reduction dimension
+
+
+    /*
+    A (d,k,m) 
+    B (d,k,n) -> T -> (d,n,k)
+    Matmul(A,B) = (d,n,m)
+    C (d,m,n)
+    */
+    // because cublas is column major ordering
     checkCUDA(
         cublasSgemmStridedBatched(
             lm->handle.blas,
-            CUBLAS_OP_T,
             CUBLAS_OP_N,
-            m, n, k,
+            CUBLAS_OP_T,
+            n, m,  k,
             &alpha,
-            acc_input1.ptr, k,
-            m*k,
-            acc_input2.ptr, k,
+            acc_input2.ptr, n,
             k*n,
+            acc_input1.ptr, m,
+            m*k,
             &beta,
-            acc_output.ptr, m,
+            acc_output.ptr, n,
             m*n,
             batch_stride_a)
     );
 
-
-
+    printf("input1 d:%d k:%d m:%d\n", batch_stride_a, k, m );
     print_tensor<3, float>(acc_input1.ptr, acc_input1.rect, "[BatchMatmul:forward:input1]");
+    printf("input1 d:%d k:%d n:%d\n", batch_stride_a, k, n );
     print_tensor<3, float>(acc_input2.ptr, acc_input2.rect, "[BatchMatmul:forward:input2]");
+    printf("input1 d:%d m:%d n:%d\n", batch_stride_a, m, n );
     print_tensor<3, float>(acc_output.ptr, acc_output.rect, "[BatchMatmul:forward:output]");
 }
 
@@ -341,7 +350,7 @@ void BatchMatmul::backward_task(
         regions[4], task->regions[4], FID_DATA, ctx, runtime);
 
 
-    /*  
+    /*
     input1 (m,k,d)
     input2 (n,k,d)
     output (n,m,d)

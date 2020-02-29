@@ -250,11 +250,11 @@ void BatchMatmul::forward_task(
 
     /*
     A (d,k,m) 
-    B (d,k,n) -> T -> (d,n,k)
-    Matmul(A,B) = (d,n,m)
-    C (d,m,n)
+    B (d,k,n) 
+    Matmul(B,A) = (d,k,n) * (d,m,k) = (d,m,n)
+    In cublas, the reduce dimension is outter in left operator and inner in right operator
+    because cublas is column major ordering
     */
-    // because cublas is column major ordering
     checkCUDA(
         cublasSgemmStridedBatched(
             lm->handle.blas,

@@ -212,6 +212,7 @@ void BatchMatmul::forward_task(
     Context ctx, Runtime *runtime
     )
 {
+    const BatchMatmul* bm = (BatchMatmul*) task->args;
     float alpha = 1.0f, beta = 0.0f;
     const BatchMatmulMeta* lm = *((BatchMatmulMeta**) task->local_args);
     const int batch_tensor_dim = 3;
@@ -225,9 +226,13 @@ void BatchMatmul::forward_task(
         regions[2], task->regions[2], FID_DATA, ctx, runtime);
 
     /*
-    input1 (m,k,d)
-    input2 (n,k,d)
-    output (n,m,d)
+    shape d,k,m
+    order d(2),k(1),m(0)
+    axis  m,k,d
+    index   2 1 0
+    input1 (d,k,m)
+    input2 (d,k,n)
+    output (d,m,n)
     */
     int k = acc_input1.rect.hi[1] - acc_input1.rect.lo[1] + 1;
     int m = acc_output.rect.hi[1] - acc_output.rect.lo[1] + 1;
@@ -246,31 +251,73 @@ void BatchMatmul::forward_task(
         checkCUDNN(cudnnSetStream(lm->handle.dnn, stream));
     #endif
 
-
-
     /*
-    A (d,k,m) 
-    B (d,k,n) 
-    Matmul(B,A) = (d,k,n) * (d,m,k) = (d,m,n)
-    In cublas, the reduce dimension is outter in left operator and inner in right operator
-    because cublas is column major ordering
+
+        TODO @CHARLES
+        This scenario assumes the input layout is 
+                    A (d,k,m) 
+                    B (d,k,n) 
+                    C (d,m,n)
+        but if we provide the transpose_A and transpose_B flag, if we define this scenario is transpose1=True and transposeB=False
+        then the default layout should be
+                    A (d,m,k) 
+                    B (d,k,n) 
+                    C (d,m,n)
+        So the forward and backward implementation are for transposeA=True & tranposeB=False
+        add this condition to all later       
+
     */
-    checkCUDA(
-        cublasSgemmStridedBatched(
-            lm->handle.blas,
-            CUBLAS_OP_N,
-            CUBLAS_OP_T,
-            n, m,  k,
-            &alpha,
-            acc_input2.ptr, n,
-            k*n,
-            acc_input1.ptr, m,
-            m*k,
-            &beta,
-            acc_output.ptr, n,
-            m*n,
-            batch_stride_a)
-    );
+    if (bm->transpose_1_flag) {
+        if (bm->transpose_2_flag) {
+            // not implemented
+            throw 255;
+        }
+        else{
+            /*
+            Leading dimension
+                |
+                \/ 
+            A (d,k,m) 
+            B (d,k,n) 
+            C (d,m,n)
+            cuda representation:
+            Matmul(B,A) = (d,m,n) = (d,k,n) * (d,m,k) 
+            explain: becaise cuda is column major ordering, above is equivalent to the row major order 
+            in most literatures
+            (d,m,n) = (d,m,k) * (d,k,n)
+            C = B * A^T
+            In cublas, the reduce dimension is outter in left operator and inner in right operator
+            because cublas is column major ordering
+            */
+            checkCUDA(
+                cublasSgemmStridedBatched(
+                    lm->handle.blas,
+                    CUBLAS_OP_N,
+                    CUBLAS_OP_T,
+                    n, m,  k,
+                    &alpha,
+                    acc_input2.ptr, n,
+                    k*n,
+                    acc_input1.ptr, m,
+                    m*k,
+                    &beta,
+                    acc_output.ptr, n,
+                    m*n,
+                    batch_stride_a)
+            );
+
+        }
+    }
+    else {
+        if (bm->transpose_2_flag) {
+            // not implemented
+            throw 255;
+        }
+        else{
+            // not implemented
+            throw 255;
+        }
+    }
 
     printf("input1 d:%d k:%d m:%d\n", batch_stride_a, k, m );
     print_tensor<3, float>(acc_input1.ptr, acc_input1.rect, "[BatchMatmul:forward:input1]");
@@ -351,9 +398,17 @@ void BatchMatmul::backward_task(
 
 
     /*
-    input1 (m,k,d)
-    input2 (n,k,d)
-    output (n,m,d)
+    cuda representation:
+    (d,k,m) = (d,n,m) * (d,k,n)
+    input1_grad = output_grad^T*input2
+    (d,k,n) = (d,m,n) * (d,k,m)
+    input2_grad = output*input1
+
+    (k,m) = (n,m) * (k,n)  
+    index   2 1 0
+    input1 (d,k,m)
+    input2 (d,k,n)
+    output (d,m,n)
     */
     int k = acc_input1_grad.rect.hi[1] - acc_input1_grad.rect.lo[1] + 1;
     int m = acc_output_grad.rect.hi[1] - acc_output_grad.rect.lo[1] + 1;
@@ -371,60 +426,44 @@ void BatchMatmul::backward_task(
     #endif
     if (bm->transpose_1_flag) {
         if (bm->transpose_2_flag) {
-            // A'B':
-            // dA = B'G', dB = G'A'
-            // checkCUDA(cublasSgemmStridedBatched(lm->handle.blas,
-            //                 CUBLAS_OP_T, CUBLAS_OP_T,
-            //                 k,m,n,
-            //                 &alpha,
-            //                 acc_input2.ptr, k,
-            //                 k*n,
-            //                 acc_output_grad.ptr, m,
-            //                 m*n,
-            //                 &beta,
-            //                 acc_input1_grad.ptr, k,
-            //                 m*k,
-            //                 batch_stride_a));
-            // checkCUDA(cublasSgemmStridedBatched(lm->handle.blas,
-            //                 CUBLAS_OP_T, CUBLAS_OP_T,
-            //                 n,k,m,
-            //                 &alpha,
-            //                 acc_output_grad.ptr, m,
-            //                 m*n,
-            //                 acc_input1.ptr, k,
-            //                 m*k,
-            //                 &beta,
-            //                 acc_input2_grad.ptr, k,
-            //                 k*n,
-            //                 batch_stride_a));
             // not implemented
             throw 255;
         }
         else {
             // A'B:
             // dA = BG', dB = AG
+            // cuda representation:
+            // m=n,n=m,k=k
+            // Matmul(B,A) = (d,m,n) = (d,k,n) * (d,m,k) 
+            // input1 (d,k,m)
+            // input2 (d,k,n)
+            // output (d,m,n)
+            // (d,k,m) = (d,n,m) * (d,k,n)
+            // input1_grad = output_grad^T * input2
             checkCUDA(cublasSgemmStridedBatched(lm->handle.blas,
-                                        CUBLAS_OP_N, CUBLAS_OP_T,
-                                        k,m,n,
+                                        CUBLAS_OP_T, CUBLAS_OP_N,
+                                        m,k,n,
                                         &alpha,
-                                        acc_input2.ptr, k,
-                                        k*n,
-                                        acc_output_grad.ptr, m,
+                                        acc_output_grad.ptr, n,
                                         m*n,
+                                        acc_input2.ptr, n,
+                                        k*n,
                                         &beta,
-                                        acc_input1_grad.ptr, k,
+                                        acc_input1_grad.ptr, m,
                                         m*k,
                                         batch_stride_a));
+            // (d,k,n) = (d,m,n) * (d,k,m)
+            // input2_grad = output_grad * input1
             checkCUDA(cublasSgemmStridedBatched(lm->handle.blas,
                                         CUBLAS_OP_N, CUBLAS_OP_N,
-                                        k,n,m,
+                                        n,k,m,
                                         &alpha,
-                                        acc_input1.ptr, k,
-                                        m*k,
-                                        acc_output_grad.ptr, m,
+                                        acc_output_grad.ptr, n,
                                         m*n,
+                                        acc_input1.ptr, m,
+                                        m*k,
                                         &beta,
-                                        acc_input2_grad.ptr, k,
+                                        acc_input2_grad.ptr, n,
                                         k*n,
                                         batch_stride_a));
         }

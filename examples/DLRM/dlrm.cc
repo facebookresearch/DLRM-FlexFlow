@@ -254,10 +254,6 @@ void parse_input_args(char **argv, int argc, DLRMConfig& config)
       config.dataset_path = std::string(argv[++i]);
       continue;
     }
-    if (!strcmp(argv[i], "--data-size")) {
-      config.data_size = atoi(argv[++i]);
-      continue;
-    }
   }
 }
 
@@ -271,11 +267,8 @@ DataLoader::DataLoader(FFModel& ff,
   num_samples = 0;
   if (dlrm.dataset_path == "") {
     log_app.print("Use random dataset...");
-    if (dlrm.data_size) {
-      num_samples = dlrm.data_size;
-    } else {
-      num_samples = 256 * 4 * ff.config.workersPerNode * ff.config.numNodes;
-    }
+    num_samples = 256 * 4 * ff.config.workersPerNode * ff.config.numNodes;
+    //num_samples = 256 * 2 * 8 * 16;
     log_app.print("Number of random samples = %d\n", num_samples);
   } else {
     log_app.print("Start loading dataset from %s", dlrm.dataset_path.c_str());
@@ -409,7 +402,7 @@ void DataLoader::load_entire_dataset(const Task *task,
   assert(num_samples == rect_label_input.hi[1] - rect_label_input.lo[1] + 1);
   assert(rect_label_input.hi[0] == rect_label_input.lo[0]);
   const ArgsConfig dlrm = *((const ArgsConfig *)task->args);
-  const int emb_size = dlrm.embedding_size; 
+  const int emb_size = dlrm.embedding_size;
   std::string file_name((const char*)dlrm.dataset_path);
   if (file_name.length() == 0) {
     log_app.print("Start generating random input samples");
@@ -518,9 +511,9 @@ void DataLoader::next_batch(FFModel& ff)
         RegionRequirement(batch_sparse_inputs[i].part, 0/*projection id*/,
                           WRITE_ONLY, EXCLUSIVE, batch_sparse_inputs[i].region));
     launcher.add_field(1, FID_DATA);
-    //std::cout << "CUSTOM_CPU_TASK_ID_2" << std::endl; 
+    //std::cout << "CUSTOM_CPU_TASK_ID_2" << std::endl;
     runtime->execute_index_space(ctx, launcher);
-    //std::cout << "Done CUSTOM_CPU_TASK_ID_2" << std::endl; 
+    //std::cout << "Done CUSTOM_CPU_TASK_ID_2" << std::endl;
   }
   // Load Dense Input
   {

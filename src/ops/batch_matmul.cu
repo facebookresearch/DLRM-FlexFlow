@@ -20,7 +20,8 @@ BatchMatmul::BatchMatmul(
     const Tensor& input1,
     const Tensor& input2,
     const bool trans1,
-    const bool trans2
+    const bool trans2,
+    const bool profiling
 ): Op(pcname, input1, input2){
     ArgumentMap argmap;
     // Retrive the task indexspace for the op
@@ -28,7 +29,7 @@ BatchMatmul::BatchMatmul(
     Context ctx = model.config.lg_ctx;
     Runtime* runtime = model.config.lg_hlr;
     FieldSpace fs = model.config.field_space;
-
+    this->profiling = profiling;
 
     /*
     input1 (m,k,d)
@@ -40,9 +41,11 @@ BatchMatmul::BatchMatmul(
     int n = input2.adim[0];
     int k = input1.adim[1];
     const int dims[] = {d,m,n};
-    printf("batch_matmul inputs:\n");
-    printf("input 1 shape d(%d) k(%d) m(%d)\n", d,k,m);
-    printf("input 2 shape d(%d) k(%d) n(%d)\n", d,k,n);
+    if (profiling){ 
+        printf("batch_matmul inputs:\n");
+        printf("input 1 shape d(%d) k(%d) m(%d)\n", d,k,m);
+        printf("input 2 shape d(%d) k(%d) n(%d)\n", d,k,n);
+    }
     transpose_1_flag = trans1;
     transpose_2_flag = trans2;
     transpose_1 = trans1 ? CUBLAS_OP_T : CUBLAS_OP_N;
@@ -85,15 +88,15 @@ BatchMatmul::BatchMatmul(
 
 
 
-    // move this one outside the constructor and initialize the output tensor outisde the constructor with a dummy initializer
-
-
-    // initialize the output gradients here temporarily , we dont have to do this once we connect the layer to a loss layer
-    // or receive the gradients from previous layer (in this case the gradients will be initialized/handled by previous layer)
-    // current impl only supports 3 dimensional batch matmul , outter dimension is sample dimension
+    /*
+    HACK: We zero-init the gradience of the output tensor inside the layer
+    DISCUSSION AND QUESTION:
+    It doesn't hurt to zero init the output gradients here, but is it the best way to do it?
+    What's the performance downside? 
+    What's the design downside?
+    */
     Rect<3> rect = runtime->get_index_space_domain(ctx, task_is);
     int idx = 0;
-    // seems like there are 2 ways to construct argument maps
     for (PointInRectIterator<3> it(rect); it(); it++) {
         OpMeta* mp = meta[idx++];
         argmap.set_point(*it, TaskArgument(&mp, sizeof(OpMeta*)));
@@ -101,8 +104,6 @@ BatchMatmul::BatchMatmul(
     Domain output_grad_domain = runtime->get_index_partition_color_space(
         ctx, output.part_grad.get_index_partition());
     IndexSpace output_grad_task_is = model.get_or_create_task_is(output_grad_domain);
-    // HACK: launch intialize gradients task, this one is used in weights gradients, we are not supposed to
-    // initialize non-weights gradients in the layer (should receive it from parent layer)
     IndexLauncher launcher(ZERO_INIT_TASK_ID, output_grad_task_is,
                            TaskArgument(NULL, 0), argmap,
                            Predicate::TRUE_PRED, false/*must*/, 0/*mapper_id*/,
@@ -165,9 +166,8 @@ OpMeta* BatchMatmul::init_task(const Task *task,
 {
     assert(regions.size() == 3);
     assert(task->regions.size() == 3);
+    const BatchMatmul* bm = (BatchMatmul*) task->args;
     FFHandler handle = *((const FFHandler*) task->local_args);
-    //TensorAccessorR<float, 2> acc_input(
-    //    regions[0], task->regions[0], FID_DATA, ctx, runtime);
     TensorAccessorW<float, 3> acc_output(
         regions[0], task->regions[0], FID_DATA, ctx, runtime,
         false/*readOutput*/);
@@ -190,13 +190,9 @@ OpMeta* BatchMatmul::init_task(const Task *task,
 
 
     BatchMatmulMeta* bmm_meta = new BatchMatmulMeta(handle);
-    printf("init batch_matmul (input): batdh_dim(%d) k(%d) m(%d) n(%d)\n", batch_stride_a, k, m, n);
-
-    // checkCUDNN(cudnnCreateTensorDescriptor(&bmm_meta->outputTensor));
-    // checkCUDNN(cudnnSetTensor4dDescriptor(bmm_meta->outputTensor,
-    //                     CUDNN_TENSOR_NCHW,
-    //                     CUDNN_DATA_FLOAT,
-    //                     batch_stride_a, 1, m, n));
+    if (bm->profiling){ 
+        printf("init batch_matmul (input): batdh_dim(%d) k(%d) m(%d) n(%d)\n", batch_stride_a, k, m, n);
+    }
     return bmm_meta;
 }
 
@@ -241,9 +237,11 @@ void BatchMatmul::forward_task(
     int batch_stride_b = acc_input2.rect.hi[2] - acc_input2.rect.lo[2] + 1;
     int batch_stride_c = acc_output.rect.hi[2] - acc_output.rect.lo[2] + 1;
 
+    if (bm->profiling){ 
+        printf("k:%d m:%d n:%d batch_stride_a:%d batch_stride_b:%d batch_stride_c:%d\n", k, m,n,batch_stride_a, batch_stride_b, batch_stride_c);
+        printf("cuBLAS initializing...\n");
+    }
 
-    printf("k:%d m:%d n:%d batch_stride_a:%d batch_stride_b:%d batch_stride_c:%d\n", k, m,n,batch_stride_a, batch_stride_b, batch_stride_c);
-    printf("cuBLAS initializing...\n");
     #ifndef DISABLE_LEGION_CUDA_HIJACK
         cudaStream_t stream;
         checkCUDA(cudaStreamCreate(&stream));
@@ -252,20 +250,18 @@ void BatchMatmul::forward_task(
     #endif
 
     /*
-
-        TODO @CHARLES
-        This scenario assumes the input layout is 
-                    A (d,k,m) 
-                    B (d,k,n) 
-                    C (d,m,n)
-        but if we provide the transpose_A and transpose_B flag, if we define this scenario is transpose1=True and transposeB=False
-        then the default layout should be
+        This scenario assumes the default input layout is 
                     A (d,m,k) 
                     B (d,k,n) 
                     C (d,m,n)
+        but the scenario we implement here is
+                    A (d,k,m) 
+                    B (d,k,n) 
+                    C (d,m,n)
+        in order to map to default layout, we provide two flags (transposeA and tranposeB), in order to match the input shapes to default layout,
+        we need to set transposeA=True and tranposeB=False
         So the forward and backward implementation are for transposeA=True & tranposeB=False
-        add this condition to all later       
-
+        other configurations are not implemented
     */
     if (bm->transpose_1_flag) {
         if (bm->transpose_2_flag) {
@@ -275,8 +271,8 @@ void BatchMatmul::forward_task(
         else{
             /*
             Leading dimension
-                |
-                \/ 
+                   ||
+                   \/ 
             A (d,k,m) 
             B (d,k,n) 
             C (d,m,n)
@@ -285,9 +281,13 @@ void BatchMatmul::forward_task(
             explain: becaise cuda is column major ordering, above is equivalent to the row major order 
             in most literatures
             (d,m,n) = (d,m,k) * (d,k,n)
+            proof:
+            in cuda 
+            C^T = A^T*B^T
+            in our scenario A is A^T, so
+            C^T = A * B^T
+            transpose C we get:
             C = B * A^T
-            In cublas, the reduce dimension is outter in left operator and inner in right operator
-            because cublas is column major ordering
             */
             checkCUDA(
                 cublasSgemmStridedBatched(
@@ -318,13 +318,14 @@ void BatchMatmul::forward_task(
             throw 255;
         }
     }
-
-    printf("input1 d:%d k:%d m:%d\n", batch_stride_a, k, m );
-    print_tensor<3, float>(acc_input1.ptr, acc_input1.rect, "[BatchMatmul:forward:input1]");
-    printf("input1 d:%d k:%d n:%d\n", batch_stride_a, k, n );
-    print_tensor<3, float>(acc_input2.ptr, acc_input2.rect, "[BatchMatmul:forward:input2]");
-    printf("input1 d:%d m:%d n:%d\n", batch_stride_a, m, n );
-    print_tensor<3, float>(acc_output.ptr, acc_output.rect, "[BatchMatmul:forward:output]");
+    if (bm->profiling){ 
+        printf("input1 d:%d k:%d m:%d\n", batch_stride_a, k, m );
+        print_tensor<3, float>(acc_input1.ptr, acc_input1.rect, "[BatchMatmul:forward:input1]");
+        printf("input2 d:%d k:%d n:%d\n", batch_stride_a, k, n );
+        print_tensor<3, float>(acc_input2.ptr, acc_input2.rect, "[BatchMatmul:forward:input2]");
+        printf("output d:%d m:%d n:%d\n", batch_stride_a, m, n );
+        print_tensor<3, float>(acc_output.ptr, acc_output.rect, "[BatchMatmul:forward:output]");
+    }
 }
 
 
@@ -339,8 +340,6 @@ void BatchMatmul::forward(const FFModel& ff){
     for (PointInRectIterator<3> it(rect); it(); it++) {
         OpMeta* mp = meta[idx++];
         argmap.set_point(*it, TaskArgument(&mp, sizeof(OpMeta*)));
-        // FFHandler handle = ff.handlers[idx++];
-        // argmap.set_point(*it, TaskArgument(&handle, sizeof(FFHandler)));
     }
 
     IndexLauncher launcher(BATCHMATMUL_FWD_TASK_ID, task_is,
@@ -399,12 +398,11 @@ void BatchMatmul::backward_task(
 
     /*
     cuda representation:
-    (d,k,m) = (d,n,m) * (d,k,n)
     input1_grad = output_grad^T*input2
-    (d,k,n) = (d,m,n) * (d,k,m)
+    (d,k,m) = (d,n,m) * (d,k,n)
     input2_grad = output*input1
-
-    (k,m) = (n,m) * (k,n)  
+    (d,k,n) = (d,m,n) * (d,k,m)
+    for proof please check forward
     index   2 1 0
     input1 (d,k,m)
     input2 (d,k,n)
@@ -416,7 +414,9 @@ void BatchMatmul::backward_task(
     int batch_stride_a = acc_input1_grad.rect.hi[2] - acc_input1_grad.rect.lo[2] + 1;
     int batch_stride_b = acc_input2_grad.rect.hi[2] - acc_input2_grad.rect.lo[2] + 1;
     int batch_stride_c = acc_output_grad.rect.hi[2] - acc_output_grad.rect.lo[2] + 1;
-    printf("k:%d m:%d n:%d batch_stride_a:%d batch_stride_b:%d batch_stride_c:%d\n", k, m,n,batch_stride_a, batch_stride_b, batch_stride_c);
+    if (bm->profiling){ 
+        printf("k:%d m:%d n:%d batch_stride_a:%d batch_stride_b:%d batch_stride_c:%d\n", k, m,n,batch_stride_a, batch_stride_b, batch_stride_c);
+    }
 
     #ifndef DISABLE_LEGION_CUDA_HIJACK
     cudaStream_t stream;
@@ -426,13 +426,14 @@ void BatchMatmul::backward_task(
     #endif
     if (bm->transpose_1_flag) {
         if (bm->transpose_2_flag) {
+            // AB
             // not implemented
             throw 255;
         }
         else {
-            // A'B:
+            // A'B
             // dA = BG', dB = AG
-            // cuda representation:
+            // cuda (column major) representation:
             // m=n,n=m,k=k
             // input1 (d,k,m)
             // input2 (d,k,n)
@@ -468,25 +469,23 @@ void BatchMatmul::backward_task(
         }
     } else {
         if (bm->transpose_2_flag) {
-            // AB':
-            // dA = GB, dB = G'A
+            // AB'
             // not implemented
             throw 255;
 
         }
         else {
-            // AB:
-            // dA = GB', dB = A'G
+            // AB
             // not implemented
             throw 255;
         }
     }
 
-
-    print_tensor<3, float>(acc_output_grad.ptr, acc_output_grad.rect, "[BatchMatmul:backward:acc_output_grad]");
-    print_tensor<3, float>(acc_input1_grad.ptr, acc_input1_grad.rect, "[BatchMatmul:backward:input1_gard]");
-    print_tensor<3, float>(acc_input1_grad.ptr, acc_input1_grad.rect, "[BatchMatmul:backward:input2_gard]");
-
+    if (bm->profiling){ 
+        print_tensor<3, float>(acc_output_grad.ptr, acc_output_grad.rect, "[BatchMatmul:backward:acc_output_grad]");
+        print_tensor<3, float>(acc_input1_grad.ptr, acc_input1_grad.rect, "[BatchMatmul:backward:input1_gard]");
+        print_tensor<3, float>(acc_input2_grad.ptr, acc_input2_grad.rect, "[BatchMatmul:backward:input2_gard]");
+    }
 
 }
 
@@ -504,18 +503,14 @@ void BatchMatmul::backward(const FFModel& ff){
         OpMeta* mp = meta[idx++];
         argmap.set_point(*it, TaskArgument(&mp, sizeof(OpMeta*)));
     }
-
-    /*
-    CHECK THIS LATERCHECK THIS LATERCHECK THIS LATERCHECK THIS LATERCHECK THIS LATERCHECK THIS LATER
-    */
-  IndexLauncher launcher(BATCHMATMUL_BWD_TASK_ID, task_is,
-                         TaskArgument(this, sizeof(BatchMatmul)), argmap,
-                         Predicate::TRUE_PRED, false/*must*/, 0/*mapper_id*/,
-                         FFConfig::get_hash_id(std::string(name)));
-  launcher.add_region_requirement(
-      RegionRequirement(output.part_grad, 0/*projection id*/,
-                        READ_ONLY, EXCLUSIVE, output.region_grad));
-  launcher.add_field(0, FID_DATA);
+    IndexLauncher launcher(BATCHMATMUL_BWD_TASK_ID, task_is,
+                            TaskArgument(this, sizeof(BatchMatmul)), argmap,
+                            Predicate::TRUE_PRED, false/*must*/, 0/*mapper_id*/,
+                            FFConfig::get_hash_id(std::string(name)));
+    launcher.add_region_requirement(
+        RegionRequirement(output.part_grad, 0/*projection id*/,
+                            READ_ONLY, EXCLUSIVE, output.region_grad));
+    launcher.add_field(0, FID_DATA);
     // input1 grad
     launcher.add_region_requirement(
                         RegionRequirement(input_grad_lps[0], 0/*projection id*/,

@@ -38,7 +38,7 @@ void InitializeTensorFromFile(const std::string file_path, Tensor label, const F
 
     ArgsConfig args_config;
     strcpy(args_config.dataset_path, file_path.c_str());
-    TaskLauncher launcher(CUSTOM_CPU_TASK_ID_1,
+    TaskLauncher launcher(INIT_TENSOR_FORM_FILE_CPU_TASK,
       TaskArgument(&args_config, sizeof(args_config)));
   // regions[0]: full_sparse_input
   launcher.add_region_requirement(
@@ -49,6 +49,28 @@ void InitializeTensorFromFile(const std::string file_path, Tensor label, const F
 
   runtime->execute_task(ctx, launcher);
 }
+
+void InitializeTensorGradientFromFile(const std::string file_path, Tensor label, const FFModel& ff) {
+    Context ctx = ff.config.lg_ctx;
+    Runtime* runtime = ff.config.lg_hlr;
+
+    ArgsConfig args_config;
+    strcpy(args_config.dataset_path, file_path.c_str());
+    TaskLauncher launcher(INIT_TENSOR_FORM_FILE_CPU_TASK,
+      TaskArgument(&args_config, sizeof(args_config)));
+  launcher.add_region_requirement(
+      RegionRequirement(label.region_grad,
+                        WRITE_ONLY, EXCLUSIVE, label.region_grad,
+                        MAP_TO_FB_MEMORY));
+
+
+
+  launcher.add_field(0, FID_DATA);
+
+  runtime->execute_task(ctx, launcher);
+}
+
+
 
 void initialize_tensor_from_file_task(const Task *task,
                     const std::vector<PhysicalRegion> &regions,
@@ -70,55 +92,49 @@ void initialize_tensor_from_file_task(const Task *task,
 }
 
 
-bool is_equal(FFModel &ff, Tensor &t1, Tensor &t2)
+void dump_region_to_file(FFModel &ff, LogicalRegion &region, std::string file_path)
 {
   Context ctx = ff.config.lg_ctx;
   Runtime *runtime = ff.config.lg_hlr;
-
-  TaskLauncher launcher(COMPARE_TENSOR_TASK, TaskArgument(NULL, 0));
+  ArgsConfig args_config;
+  strcpy(args_config.dataset_path, file_path.c_str());
+  TaskLauncher launcher(DUMP_TENSOR_CPU_TASK, 
+                        TaskArgument(&args_config, sizeof(args_config)));
   launcher.add_region_requirement(
     RegionRequirement(
-      t1.region, READ_ONLY, EXCLUSIVE, t1.region, MAP_TO_ZC_MEMORY)
+      region, READ_WRITE, EXCLUSIVE, region, MAP_TO_ZC_MEMORY)
   );
   launcher.add_field(0, FID_DATA);
-  launcher.add_region_requirement(
-    RegionRequirement(
-      t2.region, READ_ONLY, EXCLUSIVE, t2.region, MAP_TO_ZC_MEMORY)
-  );
-  launcher.add_field(1, FID_DATA);
-
-  bool result = runtime->execute_task(ctx, launcher).get_result<bool>();
-  return result;
+  runtime->execute_task(ctx, launcher);
 }
 
-bool compare_tensor_task(const Task* task,
+void dump_tensor_task(const Task* task,
                       const std::vector<PhysicalRegion>& regions,
                       Context ctx, Runtime* runtime)
 {
-  assert(task->regions.size() == 2);
-  assert(regions.size() == 2);
-
-  const AccessorRO<float, 3> t1(regions[0], FID_DATA);
+  assert(task->regions.size() == 1);
+  assert(regions.size() == 1);
+  const ArgsConfig args_config = *((const ArgsConfig *)task->args);
+  std::string file_path((const char*)args_config.dataset_path);
+  const AccessorRO<float, 3> acc_tensor(regions[0], FID_DATA);
   Rect<3> rect_fb = runtime->get_index_space_domain(
     ctx, task->regions[0].region.get_index_space());
+  assert(acc_tensor.accessor.is_dense_arbitrary(rect_fb));
 
-  const AccessorRO<float, 3> t2(regions[1], FID_DATA);
-  Rect<3> rect_fb2 = runtime->get_index_space_domain(
-    ctx, task->regions[0].region.get_index_space());
-  assert(t1.accessor.is_dense_arbitrary(rect_fb));
-  assert(t2.accessor.is_dense_arbitrary(rect_fb2));
+  const float* tensor_ptr = acc_tensor.ptr(rect_fb.lo);
 
-  const float* t1_ptr = t1.ptr(rect_fb.lo);
-  const float* t2_ptr = t2.ptr(rect_fb2.lo);
-  float eplison = 0.000001;
-
+  // for (size_t i = 0; i < rect_fb.volume(); ++i) {
+  //   printf("%.6lf ", (float)tensor_ptr[i]);
+  // }
+  std::ofstream myfile;
+  myfile.open (file_path);
   for (size_t i = 0; i < rect_fb.volume(); ++i) {
-    if (t1_ptr[i] - t2_ptr[i] > eplison || t1_ptr[i] - t2_ptr[i] < -eplison ) {
-      return false;
-    }
+    // printf("%.6lf ", (float)tensor_ptr[i]);
+    myfile << (float)tensor_ptr[i] << " ";
   }
-  return true;
+  myfile.close();
 }
+
 
 BMMTestMeta get_test_meta(const std::string file_path) {
     std::fstream myfile(file_path, std::ios_base::in);
@@ -131,17 +147,17 @@ void register_custom_tasks()
 {
     // Load entire dataset
   {
-    TaskVariantRegistrar registrar(CUSTOM_CPU_TASK_ID_1, "Load Label");
+    TaskVariantRegistrar registrar(INIT_TENSOR_FORM_FILE_CPU_TASK, "Load Label");
     registrar.add_constraint(ProcessorConstraint(Processor::LOC_PROC));
     registrar.set_leaf();
     Runtime::preregister_task_variant<initialize_tensor_from_file_task>(
         registrar, "Load Label Task");
   }
   {      
-    TaskVariantRegistrar registrar(COMPARE_TENSOR_TASK, "Compare Tensor");
+    TaskVariantRegistrar registrar(DUMP_TENSOR_CPU_TASK, "Compare Tensor");
     registrar.add_constraint(ProcessorConstraint(Processor::LOC_PROC));
     registrar.set_leaf();
-    Runtime::preregister_task_variant<bool, compare_tensor_task>(
+    Runtime::preregister_task_variant<dump_tensor_task>(
         registrar, "Compare Tensor Task");
   }
 }
@@ -212,20 +228,24 @@ void top_level_task(const Task* task,
   Tensor batch_matmul_ret = ff.batch_matmul("batch_matmul", dense_input1, dense_input2, true, false);
 
 
-auto output_file_path = "test_output.txt";
-InitializeTensorFromFile(output_file_path, label, ff);
+// auto output_file_path = "test_output.txt";
+// InitializeTensorFromFile(output_file_path, label, ff);
 auto input1_file_path = "test_input1.txt";
 auto input2_file_path = "test_input2.txt";
+auto output_grad_file_path = "test_output_grad.txt";
 InitializeTensorFromFile(input1_file_path, dense_input1, ff);
 InitializeTensorFromFile(input2_file_path, dense_input2, ff);
-
+InitializeTensorGradientFromFile(output_grad_file_path, batch_matmul_ret, ff);
 
   ff.init_layers();
   ff.forward();
   ff.backward();
-  bool ret = is_equal(ff, batch_matmul_ret, label);
-  std::cout << "result:" << ret << std::endl;
-  assert(ret == true);
+  dump_region_to_file(ff, batch_matmul_ret.region, "output.txt");
+  dump_region_to_file(ff, dense_input1.region_grad, "input1_grad.txt");
+  dump_region_to_file(ff, dense_input2.region_grad, "input2_grad.txt");
+  // bool ret = is_equal(ff, batch_matmul_ret, label);
+  // std::cout << "result:" << ret << std::endl;
+  // assert(ret == true);
 
 }
 

@@ -81,6 +81,8 @@ enum TaskIDs {
   NORMAL_INIT_TASK_ID,
   // tensor helper tasks
   COMPARE_TENSOR_TASK,
+  INIT_TENSOR_FORM_FILE_CPU_TASK,
+  DUMP_TENSOR_CPU_TASK,
   // Custom tasks
   CUSTOM_GPU_TASK_ID_FIRST,
   CUSTOM_GPU_TASK_ID_1,
@@ -761,7 +763,8 @@ public:
          const Tensor& input1,
          const Tensor& input2,
          const bool trans1=true, // default matmul is C=A^T*B
-         const bool trans2=false);
+         const bool trans2=false,
+         const bool profiling=false);
   void init(const FFModel&);
   void forward(const FFModel&);
     // Need to implement the skeleton for backward
@@ -790,6 +793,7 @@ public:
   Tensor output, input1, input2;
   cublasOperation_t transpose_1, transpose_2;
   bool transpose_1_flag, transpose_2_flag;
+  bool profiling;
 };
 
 class BatchMatmulMeta : public OpMeta {
@@ -798,6 +802,7 @@ public:
   cudnnTensorDescriptor_t outputTensor;
   cudnnActivationDescriptor_t actiDesc;
   const float *one_ptr;
+  
 };
 
 

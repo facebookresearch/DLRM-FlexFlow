@@ -1,13 +1,11 @@
 #include "model.h"
-#include "hdf5.h"
 #include <sstream>
 #include <fstream>
 #include <iostream>
 #define MAX_DATASET_PATH_LEN 1023
-#define MAX_NUM_SAMPLES 65536
 using namespace Legion;
 
-LegionRuntime::Logger::Category log_app("DLRM");
+LegionRuntime::Logger::Category log_app("bmm_test");
 
 std::vector<float> read_numbers_from_file(const std::string file_path) {
     std::fstream myfile(file_path, std::ios_base::in);
@@ -83,11 +81,18 @@ void initialize_tensor_from_file_task(const Task *task,
   Rect<3> rect_label_tensor = runtime->get_index_space_domain(
       ctx, task->regions[0].region.get_index_space());
   float* label_tensor_ptr = acc_label_tensor.ptr(rect_label_tensor.lo);
-
-  auto label_value = read_numbers_from_file(file_path);
-  for (size_t i = 0; i < rect_label_tensor.volume(); i++) {
-    label_tensor_ptr[i] = label_value[i];
+  std::fstream myfile(file_path, std::ios_base::in);
+  // auto label_value = read_numbers_from_file(file_path);
+  float a;
+  int i = 0;
+  while (myfile >> a)
+  {
+    label_tensor_ptr[i] = a;
+    i++;
   }
+  // for (size_t i = 0; i < rect_label_tensor.volume(); i++) {
+  //   label_tensor_ptr[i] = label_value[i];
+  // }
       
 }
 
@@ -168,8 +173,6 @@ void top_level_task(const Task* task,
                     Context ctx, Runtime* runtime)
 {
   std::cout<< "test framework launched" << std::endl;
-  auto input1_data = read_numbers_from_file("test_input.txt");
-  auto input2_data = read_numbers_from_file("test_input.txt");
   auto test_meta = get_test_meta("test_meta.txt");
   FFConfig ffConfig;
   // Parse input arguments

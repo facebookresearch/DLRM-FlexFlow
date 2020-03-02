@@ -162,31 +162,21 @@ void register_custom_tasks()
   }
 }
 
-// ===================== Batch matmul
 
 void top_level_task(const Task* task,
                     const std::vector<PhysicalRegion>& regions,
                     Context ctx, Runtime* runtime)
 {
-
-  // int m = 265;
-  // int k = 64;
-  // int n = 15;
-  // int d = 145;
-
-  // simple problem for testing and debugging
-
-
-    std::cout<< "test framework launched" << std::endl;
-    auto input1_data = read_numbers_from_file("test_input.txt");
-    auto input2_data = read_numbers_from_file("test_input.txt");
-    
-    auto test_meta = get_test_meta("test_meta.txt");
+  std::cout<< "test framework launched" << std::endl;
+  auto input1_data = read_numbers_from_file("test_input.txt");
+  auto input2_data = read_numbers_from_file("test_input.txt");
+  
+  auto test_meta = get_test_meta("test_meta.txt");
+  
     
     
     
-    
-    FFConfig ffConfig;
+  FFConfig ffConfig;
   // Parse input arguments
   {
     const InputArgs &command_args = HighLevelRuntime::get_input_args();

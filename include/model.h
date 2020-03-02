@@ -49,10 +49,6 @@ enum TaskIDs {
   BATCHNORM_INIT_PARA_TASK_ID,
   BATCHNORM_FWD_TASK_ID,
   BATCHNORM_BWD_TASK_ID,
-  BATCHMATMUL_INIT_TASK_ID,
-  BATCHMATMUL_INI_PARA_TASK_ID,
-  BATCHMATMUL_FWD_TASK_ID,
-  BATCHMATMUL_BWD_TASK_ID,
   LINEAR_INIT_TASK_ID,
   LINEAR_INIT_PARA_TASK_ID,
   LINEAR_FWD_TASK_ID,
@@ -69,7 +65,6 @@ enum TaskIDs {
   CONCAT_FWD_TASK_ID,
   CONCAT_BWD_TASK_ID,
   MSELOSS_BWD_TASK_ID,
-  MSELOSS3D_BWD_TASK_ID,
   UPDATE_METRICS_TASK_ID,
   DUMMY_TASK_ID,
   // Optimizer
@@ -79,10 +74,6 @@ enum TaskIDs {
   ZERO_INIT_TASK_ID,
   UNIFORM_INIT_TASK_ID,
   NORMAL_INIT_TASK_ID,
-  // tensor helper tasks
-  COMPARE_TENSOR_TASK,
-  INIT_TENSOR_FORM_FILE_CPU_TASK,
-  DUMP_TENSOR_CPU_TASK,
   // Custom tasks
   CUSTOM_GPU_TASK_ID_FIRST,
   CUSTOM_GPU_TASK_ID_1,
@@ -92,7 +83,6 @@ enum TaskIDs {
   CUSTOM_GPU_TASK_ID_5,
   CUSTOM_GPU_TASK_ID_6,
   CUSTOM_GPU_TASK_ID_7,
-  CUSTOM_GPU_TASK_ID_8,
   CUSTOM_GPU_TASK_ID_LAST,
   CUSTOM_CPU_TASK_ID_FIRST,
   CUSTOM_CPU_TASK_ID_1,
@@ -212,7 +202,7 @@ class FFModel {
 public:
   FFModel(FFConfig &config);
 
-  // Add a 2D convolutional layer
+  // Add a 2D convolutional layer 
   Tensor conv2d(std::string name,
                 Tensor input, int outChannels,
                 int kernelH, int kernelW,
@@ -252,14 +242,6 @@ public:
                 bool use_bias = true,
                 Initializer* kernel_initializer = NULL,
                 Initializer* bias_initializer = NULL);
-
-  // Add a batch matmul layer
-  Tensor batch_matmul(std::string name,
-                      const Tensor& input1,
-                      const Tensor& input2,
-                      const bool trans1=true,
-                      const bool trans2=false);
-
   // Add a concat layer
   Tensor concat(std::string name,
                 int n, const Tensor* tensors,
@@ -270,11 +252,6 @@ public:
   Tensor softmax(std::string name, Tensor input);
 
   void mse_loss(const std::string& name,
-                const Tensor& logits,
-                const Tensor& labels,
-                const std::string& reduction);
-
-  void mse_loss3d(const std::string& name,
                 const Tensor& logits,
                 const Tensor& labels,
                 const std::string& reduction);
@@ -664,33 +641,6 @@ public:
   bool profiling;
 };
 
-class MSELoss3D : public Op {
-public:
-  MSELoss3D(FFModel& model,
-          const std::string& pc_name,
-          const Tensor& logit,
-          const Tensor& label,
-          AggrMode aggr);
-
-  void init(const FFModel& model);
-  void forward(const FFModel& model);
-  void backward(const FFModel& model);
-  //void update(const FFModel& model);
-
-  static PerfMetrics backward_task(const Task *task,
-                                   const std::vector<PhysicalRegion> &regions,
-                                   Context ctx, Runtime *runtime);
-public:
-  IndexSpaceT<3> task_is;
-  AggrMode aggr_mode;
-  bool profiling;
-};
-
-
-
-
-
-
 class UtilityTasks {
 public:
   static FFHandler init_cuda_task(const Task *task,
@@ -745,79 +695,5 @@ void data_load_task(const Task* task,
                     Context ctx, Runtime* runtime);
 
 void register_custom_tasks();
-
-
-
-
-
-
-
-
-
-
-
-class BatchMatmul : public Op {
-public:
-  BatchMatmul(FFModel& model,
-         const std::string& pcname,
-         const Tensor& input1,
-         const Tensor& input2,
-         const bool trans1=true, // default matmul is C=A^T*B
-         const bool trans2=false,
-         const bool profiling=false);
-  void init(const FFModel&);
-  void forward(const FFModel&);
-    // Need to implement the skeleton for backward
-  void backward(const FFModel&);
-  //void update(const FFModel&);
-
-  static OpMeta* init_task(const Task *task,
-                           const std::vector<PhysicalRegion> &regions,
-                           Context ctx, Runtime *runtime);
-  //static void init_para_task(const Task *task,
-  //                           const std::vector<PhysicalRegion> &regions,
-  //                           Context ctx, Runtime *runtime);
-  static void forward_task(const Task *task,
-                           const std::vector<PhysicalRegion> &regions,
-                           Context ctx, Runtime *runtime);
-  static void backward_task(
-                          const Task *task,
-                          const std::vector<PhysicalRegion> &regions,
-                          Context ctx, Runtime *runtime
-                          );
-  //static void update_task(const Task *task,
-  //                        const std::vector<PhysicalRegion> &regions,
-  //                        Context ctx, Runtime *runtime);
-public:
-  IndexSpaceT<2> task_is;
-  Tensor output, input1, input2;
-  cublasOperation_t transpose_1, transpose_2;
-  bool transpose_1_flag, transpose_2_flag;
-  bool profiling;
-};
-
-class BatchMatmulMeta : public OpMeta {
-public:
-  BatchMatmulMeta(FFHandler handle) : OpMeta(handle) {};
-  cudnnTensorDescriptor_t outputTensor;
-  cudnnActivationDescriptor_t actiDesc;
-  const float *one_ptr;
-  
-};
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 #endif//_FLEXFLOW_RUNTIME_H_
+

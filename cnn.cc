@@ -65,7 +65,7 @@ void top_level_task(const Task *task,
     char **argv = command_args.argv;
     int argc = command_args.argc;
     parse_input_args(argv, argc, config);
-
+    
     log_ff.print("batchSize(%d) inputHeight(%d) inputWdith(%d)",
                  config.batchSize, config.inputHeight, config.inputWidth);
     log_ff.print("workersPerNode(%d) loadersPerNode(%d) numNodes(%d)",
@@ -235,7 +235,7 @@ void top_level_task(const Task *task,
   t = model.add_linear_layer(t, 1000, false/*relu*/);
   t = model.add_softmax_layer(t);
 #endif
-
+  
   // Construct model (Resnet101)
 #ifdef USE_RESNET
   Tensor t = model.add_conv_layer(model.input_image, 64, 7, 7, 2, 2, 3, 3);
@@ -525,31 +525,6 @@ int main(int argc, char **argv)
     Runtime::preregister_task_variant<Concat::backward_task>(
         registrar, "concat_bwd_task");
   }
-
-  // Batch matmul task
-  {
-    TaskVariantRegistrar registrar(BATCHMATMUL_INIT_TASK_ID, "batch_matmul_init_task");
-    registrar.add_constraint(ProcessorConstraint(Processor::TOC_PROC));
-    registrar.set_leaf();
-    Runtime::preregister_task_variant<OpMeta*, BatchMatmul::init_task>(
-        registrar, "batch_matmul_init_task");
-  }
-  {
-    TaskVariantRegistrar registrar(BATCHMATMUL_FWD_TASK_ID, "batch_matmul_fwd_task");
-    registrar.add_constraint(ProcessorConstraint(Processor::TOC_PROC));
-    registrar.set_leaf();
-    Runtime::preregister_task_variant<BatchMatmul::forward_task>(
-        registrar, "batch_matmul_fwd_task");
-  }
-  {
-    TaskVariantRegistrar registrar(BATCHMATMUL_BWD_TASK_ID, "batch_matmul_bwd_task");
-    registrar.add_constraint(ProcessorConstraint(Processor::TOC_PROC));
-    registrar.set_leaf();
-    Runtime::preregister_task_variant<BatchMatmul::backward_task>(
-        registrar, "batch_matmul_bwd_task");
-  }
-
-
   // DUMMY task
   {
     TaskVariantRegistrar registrar(DUMMY_TASK_ID, "dummy_task");
@@ -606,3 +581,4 @@ void parse_input_args(char **argv, int argc, FFConfig& config)
     }
   }
 }
+

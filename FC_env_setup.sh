@@ -4,7 +4,6 @@ export GASNET=${PWD}/GASNet-2019.9.0
 export LEGION=${PWD}/legion
 export PROTOBUF=${PWD}/protobuf
 
-module unload cuda cudnn NCCL
 
 #cuda v10
 #module load cuda/10.0
@@ -25,5 +24,5 @@ export NCCL=/public/apps/NCCL/2.2.13-1
 module load cmake/3.15.3/gcc.7.3.0
 module load anaconda3/2019.07
 
-export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$PROTOBUF/src/.libs
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$PROTOBUF/.libs
 export PATH=$PATH:$PROTOBUF

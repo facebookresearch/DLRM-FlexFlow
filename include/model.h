@@ -50,7 +50,6 @@ enum TaskIDs {
   BATCHNORM_FWD_TASK_ID,
   BATCHNORM_BWD_TASK_ID,
   BATCHMATMUL_INIT_TASK_ID,
-  BATCHMATMUL_INI_PARA_TASK_ID,
   BATCHMATMUL_FWD_TASK_ID,
   BATCHMATMUL_BWD_TASK_ID,
   LINEAR_INIT_TASK_ID,
@@ -80,7 +79,6 @@ enum TaskIDs {
   UNIFORM_INIT_TASK_ID,
   NORMAL_INIT_TASK_ID,
   // tensor helper tasks
-  COMPARE_TENSOR_TASK,
   INIT_TENSOR_FORM_FILE_CPU_TASK,
   DUMP_TENSOR_CPU_TASK,
   // Custom tasks
@@ -664,6 +662,7 @@ public:
   bool profiling;
 };
 
+// TODO remove this operator
 class MSELoss3D : public Op {
 public:
   MSELoss3D(FFModel& model,
@@ -685,11 +684,6 @@ public:
   AggrMode aggr_mode;
   bool profiling;
 };
-
-
-
-
-
 
 class UtilityTasks {
 public:
@@ -747,36 +741,21 @@ void data_load_task(const Task* task,
 void register_custom_tasks();
 
 
-
-
-
-
-
-
-
-
-
-class BatchMatmul : public Op {
+class Transpose : public Op {
 public:
-  BatchMatmul(FFModel& model,
-         const std::string& pcname,
-         const Tensor& input1,
-         const Tensor& input2,
-         const bool trans1=true, // default matmul is C=A^T*B
-         const bool trans2=false,
-         const bool profiling=false);
+  // this transpose only transpose the inner most 2 dimensions
+  Transpose(
+        FFModel& model,
+        const std::string& pcname,
+        const Tensor& input,
+        const bool profiling=false
+  );
   void init(const FFModel&);
   void forward(const FFModel&);
-    // Need to implement the skeleton for backward
   void backward(const FFModel&);
-  //void update(const FFModel&);
-
   static OpMeta* init_task(const Task *task,
                            const std::vector<PhysicalRegion> &regions,
                            Context ctx, Runtime *runtime);
-  //static void init_para_task(const Task *task,
-  //                           const std::vector<PhysicalRegion> &regions,
-  //                           Context ctx, Runtime *runtime);
   static void forward_task(const Task *task,
                            const std::vector<PhysicalRegion> &regions,
                            Context ctx, Runtime *runtime);
@@ -785,11 +764,39 @@ public:
                           const std::vector<PhysicalRegion> &regions,
                           Context ctx, Runtime *runtime
                           );
-  //static void update_task(const Task *task,
-  //                        const std::vector<PhysicalRegion> &regions,
-  //                        Context ctx, Runtime *runtime);
 public:
-  IndexSpaceT<2> task_is;
+  IndexSpaceT<3> task_is;
+  Tensor output, input;
+  bool profiling;
+}
+
+
+class BatchMatmul : public Op {
+public:
+  BatchMatmul(FFModel& model,
+         const std::string& pcname,
+         const Tensor& input1,
+         const Tensor& input2,
+         const bool trans1=true, // default matmul is C=A^T*B , where assume input layout are (d,k,m) , (d,k,n) and (d,m,n)
+         const bool trans2=false,
+         const bool profiling=false);
+  void init(const FFModel&);
+  void forward(const FFModel&);
+  void backward(const FFModel&);
+
+  static OpMeta* init_task(const Task *task,
+                           const std::vector<PhysicalRegion> &regions,
+                           Context ctx, Runtime *runtime);
+  static void forward_task(const Task *task,
+                           const std::vector<PhysicalRegion> &regions,
+                           Context ctx, Runtime *runtime);
+  static void backward_task(
+                          const Task *task,
+                          const std::vector<PhysicalRegion> &regions,
+                          Context ctx, Runtime *runtime
+                          );
+public:
+  IndexSpaceT<3> task_is;
   Tensor output, input1, input2;
   cublasOperation_t transpose_1, transpose_2;
   bool transpose_1_flag, transpose_2_flag;
@@ -804,20 +811,4 @@ public:
   const float *one_ptr;
   
 };
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 #endif//_FLEXFLOW_RUNTIME_H_

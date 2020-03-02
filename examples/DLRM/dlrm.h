@@ -79,15 +79,11 @@ public:
                          const std::vector<PhysicalRegion> &regions,
                          Context ctx,
                          Runtime* runtime);
-  static void random_3d_batch(const Task *task,
-                              const std::vector<PhysicalRegion> &regions,
-                              Context ctx,
-                              Runtime* runtime);
 public:
   int num_samples, next_index;
 private:
   std::vector<Tensor> batch_sparse_inputs;
-  Tensor full_sparse_input, full_dense_input, batch_dense_input, full_label, batch_label, batch_matmul_output, batch_matmul_input1, batch_matmul_input2;
+  Tensor full_sparse_input, full_dense_input, batch_dense_input, full_label, batch_label;
 };
 
 struct SampleIdxs {

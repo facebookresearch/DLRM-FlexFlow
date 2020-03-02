@@ -170,12 +170,7 @@ void top_level_task(const Task* task,
   std::cout<< "test framework launched" << std::endl;
   auto input1_data = read_numbers_from_file("test_input.txt");
   auto input2_data = read_numbers_from_file("test_input.txt");
-  
   auto test_meta = get_test_meta("test_meta.txt");
-  
-    
-    
-    
   FFConfig ffConfig;
   // Parse input arguments
   {
@@ -184,58 +179,42 @@ void top_level_task(const Task* task,
     int argc = command_args.argc;
     ffConfig.parse_args(argv, argc);
   }
-
   ffConfig.lg_ctx = ctx;
   ffConfig.lg_hlr = runtime;
   ffConfig.field_space = runtime->create_field_space(ctx);
+  // create ff model object
   FFModel ff(ffConfig);
-
-
+  // create input tensor
   Tensor dense_input1;
   {
-
-
     const int dims[3] = {test_meta.d,test_meta.k,test_meta.m}; // target shape (d,k,m)
-    // sadly we have to pass batch_matmul 3-dimensional stretegy in this way for now to handle 3 dimensional tensor
+    // HACK: have to pass "batch_matmul" 3-dimensional stretegy string id to tell FF to distribute this tensor correctly 
     dense_input1 = ff.create_tensor<3>(dims, "batch_matmul", DT_FLOAT);
   }
   Tensor dense_input2;
   {
 
     const int dims[3] = {test_meta.d,test_meta.k,test_meta.n}; // shape (n,k,d)
-    // sadly we have to pass batch_matmul 3-dimensional stretegy in this way for now to handle 3 dimensional tensor
+    // HACK: have to pass "batch_matmul" 3-dimensional stretegy string id to tell FF to distribute this tensor correctly 
     dense_input2 = ff.create_tensor<3>(dims, "batch_matmul", DT_FLOAT);
   }
-
-  Tensor label;
-  {
-    const int dims[3] = {test_meta.d,test_meta.m,test_meta.n}; // shape (n,m,d)
-    // sadly we have to pass batch_matmul 3-dimensional stretegy in this way for now to handle 3 dimensional tensor
-    label = ff.create_tensor<3>(dims, "batch_matmul", DT_FLOAT);
-  }
-
-
+  // build batch matmul layer
   Tensor batch_matmul_ret = ff.batch_matmul("batch_matmul", dense_input1, dense_input2, true, false);
-
-
-// auto output_file_path = "test_output.txt";
-// InitializeTensorFromFile(output_file_path, label, ff);
-auto input1_file_path = "test_input1.txt";
-auto input2_file_path = "test_input2.txt";
-auto output_grad_file_path = "test_output_grad.txt";
-InitializeTensorFromFile(input1_file_path, dense_input1, ff);
-InitializeTensorFromFile(input2_file_path, dense_input2, ff);
-InitializeTensorGradientFromFile(output_grad_file_path, batch_matmul_ret, ff);
-
+  // load inputs tensors and output gradients tensors for testing
+  auto input1_file_path = "test_input1.txt";
+  auto input2_file_path = "test_input2.txt";
+  auto output_grad_file_path = "test_output_grad.txt";
+  InitializeTensorFromFile(input1_file_path, dense_input1, ff);
+  InitializeTensorFromFile(input2_file_path, dense_input2, ff);
+  InitializeTensorGradientFromFile(output_grad_file_path, batch_matmul_ret, ff);
+  // run forward and backward to produce results
   ff.init_layers();
   ff.forward();
   ff.backward();
+  // dump results to file for python validation
   dump_region_to_file(ff, batch_matmul_ret.region, "output.txt");
   dump_region_to_file(ff, dense_input1.region_grad, "input1_grad.txt");
   dump_region_to_file(ff, dense_input2.region_grad, "input2_grad.txt");
-  // bool ret = is_equal(ff, batch_matmul_ret, label);
-  // std::cout << "result:" << ret << std::endl;
-  // assert(ret == true);
 
 }
 

@@ -70,7 +70,55 @@ void initialize_tensor_from_file_task(const Task *task,
 }
 
 
+bool is_equal(FFModel &ff, Tensor &t1, Tensor &t2)
+{
+  Context ctx = ff.config.lg_ctx;
+  Runtime *runtime = ff.config.lg_hlr;
 
+  TaskLauncher launcher(COMPARE_TENSOR_TASK, TaskArgument(NULL, 0));
+  launcher.add_region_requirement(
+    RegionRequirement(
+      t1.region, READ_ONLY, EXCLUSIVE, t1.region, MAP_TO_ZC_MEMORY)
+  );
+  launcher.add_field(0, FID_DATA);
+  launcher.add_region_requirement(
+    RegionRequirement(
+      t2.region, READ_ONLY, EXCLUSIVE, t2.region, MAP_TO_ZC_MEMORY)
+  );
+  launcher.add_field(1, FID_DATA);
+
+  bool result = runtime->execute_task(ctx, launcher).get_result<bool>();
+  return result;
+}
+
+bool compare_tensor_task(const Task* task,
+                      const std::vector<PhysicalRegion>& regions,
+                      Context ctx, Runtime* runtime)
+{
+  assert(task->regions.size() == 2);
+  assert(regions.size() == 2);
+
+  const AccessorRO<float, 3> t1(regions[0], FID_DATA);
+  Rect<3> rect_fb = runtime->get_index_space_domain(
+    ctx, task->regions[0].region.get_index_space());
+
+  const AccessorRO<float, 3> t2(regions[1], FID_DATA);
+  Rect<3> rect_fb2 = runtime->get_index_space_domain(
+    ctx, task->regions[0].region.get_index_space());
+  assert(t1.accessor.is_dense_arbitrary(rect_fb));
+  assert(t2.accessor.is_dense_arbitrary(rect_fb2));
+
+  const float* t1_ptr = t1.ptr(rect_fb.lo);
+  const float* t2_ptr = t2.ptr(rect_fb2.lo);
+  float eplison = 0.000001;
+
+  for (size_t i = 0; i < rect_fb.volume(); ++i) {
+    if (t1_ptr[i] - t2_ptr[i] > eplison || t1_ptr[i] - t2_ptr[i] < -eplison ) {
+      return false;
+    }
+  }
+  return true;
+}
 
 BMMTestMeta get_test_meta(const std::string file_path) {
     std::fstream myfile(file_path, std::ios_base::in);
@@ -88,6 +136,13 @@ void register_custom_tasks()
     registrar.set_leaf();
     Runtime::preregister_task_variant<initialize_tensor_from_file_task>(
         registrar, "Load Label Task");
+  }
+  {      
+    TaskVariantRegistrar registrar(COMPARE_TENSOR_TASK, "Compare Tensor");
+    registrar.add_constraint(ProcessorConstraint(Processor::LOC_PROC));
+    registrar.set_leaf();
+    Runtime::preregister_task_variant<bool, compare_tensor_task>(
+        registrar, "Compare Tensor Task");
   }
 }
 
@@ -165,26 +220,12 @@ InitializeTensorFromFile(input1_file_path, dense_input1, ff);
 InitializeTensorFromFile(input2_file_path, dense_input2, ff);
 
 
-
-
-
-  // TODO
-  /*
-  1. problem shape m=2 k=3 n=1 d=2 is wrong
-  2. calculate loss, change to arbitrary dimension
-  */
-
-
-  ff.mse_loss3d("mse_loss3d"/*name*/, batch_matmul_ret, label, "average"/*reduction*/);
   ff.init_layers();
   ff.forward();
   ff.backward();
-  auto metrics = ff.current_metrics.get_result<PerfMetrics>();
-  float epsilon = 0.000001;
-  std::cout << "train loss: " << metrics.train_loss << std::endl;
-  assert(metrics.train_loss < epsilon);
-
-
+  bool ret = is_equal(ff, batch_matmul_ret, label);
+  std::cout << "result:" << ret << std::endl;
+  assert(ret == true);
 
 }
 

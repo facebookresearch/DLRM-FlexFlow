@@ -79,6 +79,8 @@ enum TaskIDs {
   ZERO_INIT_TASK_ID,
   UNIFORM_INIT_TASK_ID,
   NORMAL_INIT_TASK_ID,
+  // tensor helper tasks
+  COMPARE_TENSOR_TASK,
   // Custom tasks
   CUSTOM_GPU_TASK_ID_FIRST,
   CUSTOM_GPU_TASK_ID_1,

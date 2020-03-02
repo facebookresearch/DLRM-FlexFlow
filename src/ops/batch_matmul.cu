@@ -434,7 +434,6 @@ void BatchMatmul::backward_task(
             // dA = BG', dB = AG
             // cuda representation:
             // m=n,n=m,k=k
-            // Matmul(B,A) = (d,m,n) = (d,k,n) * (d,m,k) 
             // input1 (d,k,m)
             // input2 (d,k,n)
             // output (d,m,n)

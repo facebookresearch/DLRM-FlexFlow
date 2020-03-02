@@ -43,6 +43,8 @@ MSELoss::MSELoss(FFModel& model,
 aggr_mode(_aggr)
 {
   task_is = model.get_or_create_task_is(pcname);
+  // since we are using this in operator unit test, so the loss should support arbitrary
+  // n dimensional tensor  
   // Current assume 2D logit and label
   assert(_logit.numDim == 2);
   assert(_label.numDim == 2);
@@ -131,12 +133,14 @@ PerfMetrics MSELoss::backward_task(const Task *task,
 {
   assert(regions.size() == 3);
   assert(task->regions.size() == 3);
+  // temporary flag to control tensor dimensions
+  const int tensor_dim = 2;
   const MSELoss* op = (MSELoss*) task->args;
-  TensorAccessorR<float, 2> accLogits(
+  TensorAccessorR<float, tensor_dim> accLogits(
       regions[0], task->regions[0], FID_DATA, ctx, runtime);
-  TensorAccessorR<float, 2> accLabels(
+  TensorAccessorR<float, tensor_dim> accLabels(
       regions[1], task->regions[1], FID_DATA, ctx, runtime);
-  TensorAccessorW<float, 2> accLogitsGrad(
+  TensorAccessorW<float, tensor_dim> accLogitsGrad(
       regions[2], task->regions[2], FID_DATA, ctx, runtime, false/*readOutput*/);
   assert(accLogits.rect == accLabels.rect);
   assert(accLogits.rect == accLogitsGrad.rect);
@@ -154,7 +158,6 @@ PerfMetrics MSELoss::backward_task(const Task *task,
     default:
       assert(false);
   }
-
   // Calculate loss
   PerfMetrics* perf;
   PerfMetrics perf_zc;
@@ -162,7 +165,6 @@ PerfMetrics MSELoss::backward_task(const Task *task,
   perf_zc.train_correct = perf_zc.train_all = 0;
   perf_zc.test_correct = perf_zc.test_all = 0;
   perf_zc.val_correct = perf_zc.val_all = 0;
-  
   checkCUDA(cudaMalloc(&perf, sizeof(PerfMetrics)));
   checkCUDA(cudaMemcpy(perf, &perf_zc, sizeof(PerfMetrics), cudaMemcpyHostToDevice));
   if (out_dim == 1) {
@@ -180,9 +182,9 @@ PerfMetrics MSELoss::backward_task(const Task *task,
       scale, accLogits.rect.volume());
   checkCUDA(cudaDeviceSynchronize());
   if (op->profiling) {
-    print_tensor<2, float>(accLabels.ptr, accLabels.rect, "[MSELoss:label]");
-    print_tensor<2, float>(accLogits.ptr, accLogits.rect, "[MSELoss:logit]");
-    print_tensor<2, float>(accLogitsGrad.ptr, accLogitsGrad.rect, "[MSELoss:logit_grad]");
+    print_tensor<tensor_dim, float>(accLabels.ptr, accLabels.rect, "[MSELoss:label]");
+    print_tensor<tensor_dim, float>(accLogits.ptr, accLogits.rect, "[MSELoss:logit]");
+    print_tensor<tensor_dim, float>(accLogitsGrad.ptr, accLogitsGrad.rect, "[MSELoss:logit_grad]");
   }
   return perf_zc;
 }
@@ -192,31 +194,38 @@ void MSELoss::backward(const FFModel& model)
   ArgumentMap argmap;
   Context ctx = model.config.lg_ctx;
   Runtime* runtime = model.config.lg_hlr;
+
   IndexLauncher launcher(MSELOSS_BWD_TASK_ID, task_is,
                          TaskArgument(this, sizeof(MSELoss)), argmap,
                          Predicate::TRUE_PRED, false/*must*/, 0/*mapper_id*/,
                          FFConfig::get_hash_id(std::string(name)));
+
   // regions[0]: _logit
   launcher.add_region_requirement(
       RegionRequirement(inputs[0].part, 0/*projection*/,
                         READ_ONLY, EXCLUSIVE, inputs[0].region));
   launcher.add_field(0, FID_DATA);
+
   // regions[1]: _label
   launcher.add_region_requirement(
       RegionRequirement(inputs[1].part, 0/*projection*/,
                         READ_ONLY, EXCLUSIVE, inputs[1].region));
   launcher.add_field(1, FID_DATA);
+
   // regions[2]: logit_grad
   launcher.add_region_requirement(
       RegionRequirement(inputs[0].part_grad, 0/*projection*/,
                         WRITE_ONLY, EXCLUSIVE, inputs[0].region_grad));
   launcher.add_field(2, FID_DATA);
+
   FutureMap new_metrics = runtime->execute_index_space(ctx, launcher);
   // Update metrics
   TaskLauncher metrics_task(UPDATE_METRICS_TASK_ID, TaskArgument(NULL, 0));
   metrics_task.add_future(model.current_metrics);
-  Rect<2> part_rect = runtime->get_index_space_domain(ctx, task_is);
-  for (PointInRectIterator<2> it(part_rect); it(); it++) {
+
+  const int n_dim = 2;
+  Rect<n_dim> part_rect = runtime->get_index_space_domain(ctx, task_is);
+  for (PointInRectIterator<n_dim> it(part_rect); it(); it++) {
     metrics_task.add_future(new_metrics[*it]);
   }
   ((FFModel*)(&model))->current_metrics = runtime->execute_task(ctx, metrics_task);

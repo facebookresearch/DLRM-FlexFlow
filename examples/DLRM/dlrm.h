@@ -52,7 +52,11 @@ public:
   DataLoader(FFModel& ff, const DLRMConfig& dlrm,
              const std::vector<Tensor>& _sparse_inputs,
              Tensor _dense_input, Tensor _label);
+
+  // Dummy loader for test purpose
+  DataLoader(FFModel& ff, const DLRMConfig& dlrm);
   void next_batch(FFModel& ff);
+  void next_random_batch(FFModel& ff);
   void shuffle();
   void reset();
   static void load_entire_dataset(const Task *task,

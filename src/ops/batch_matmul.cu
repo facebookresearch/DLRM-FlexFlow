@@ -6,9 +6,10 @@
 Tensor FFModel::batch_matmul(std::string name,
              const Tensor& input1, const Tensor& input2,
              const bool trans1,
-             const bool trans2)
+             const bool trans2,
+             const bool profiling)
 {
-  BatchMatmul *bmm = new BatchMatmul(*this, name, input1, input2, trans1, trans2);
+  BatchMatmul *bmm = new BatchMatmul(*this, name, input1, input2, trans1, trans2, profiling);
   layers.push_back(bmm);
   return bmm->output;
 }

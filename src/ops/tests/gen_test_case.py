@@ -4,7 +4,7 @@ np.random.seed(0)
 m = 3
 k = 4
 n = 5
-d = 2
+d = 5
 
 input1 = np.random.uniform(0, 1, (d,k,m))
 input2 = np.random.uniform(0, 1, (d,k,n))
@@ -51,10 +51,10 @@ for batch in input2_grad:
 
 input1_buffer = [str(x) for x in input1_buffer]
 input2_buffer = [str(x) for x in input2_buffer]
-output_buffer = [str(x) for x in output_buffer]
+output_buffer = ["%.5f"%x for x in output_buffer]
 output_grad_buffer = [str(x) for x in output_grad_buffer]
-input1_grad_buffer = [str(x) for x in input1_grad_buffer]
-input2_grad_buffer = [str(x) for x in input2_grad_buffer]
+input1_grad_buffer = ["%.6f"%x for x in input1_grad_buffer]
+input2_grad_buffer = ["%.6f"%x for x in input2_grad_buffer]
 with open('test_input1.txt', 'w+') as f:
     f.write(' '.join(input1_buffer))
 with open('test_input2.txt', 'w+') as f:

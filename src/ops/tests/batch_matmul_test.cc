@@ -7,16 +7,6 @@ using namespace Legion;
 
 LegionRuntime::Logger::Category log_app("bmm_test");
 
-std::vector<float> read_numbers_from_file(const std::string file_path) {
-    std::fstream myfile(file_path, std::ios_base::in);
-    std::vector<float> buffer;
-    float a;
-    while (myfile >> a)
-    {
-        buffer.push_back(a);
-    }
-    return buffer;
-}
 
 struct BMMTestMeta {
     int m,k,n,d;
@@ -89,11 +79,7 @@ void initialize_tensor_from_file_task(const Task *task,
   {
     label_tensor_ptr[i] = a;
     i++;
-  }
-  // for (size_t i = 0; i < rect_label_tensor.volume(); i++) {
-  //   label_tensor_ptr[i] = label_value[i];
-  // }
-      
+  }   
 }
 
 
@@ -202,7 +188,7 @@ void top_level_task(const Task* task,
     dense_input2 = ff.create_tensor<3>(dims, "batch_matmul", DT_FLOAT);
   }
   // build batch matmul layer
-  Tensor batch_matmul_ret = ff.batch_matmul("batch_matmul", dense_input1, dense_input2, true, false);
+  Tensor batch_matmul_ret = ff.batch_matmul("batch_matmul", dense_input1, dense_input2, true, false, false);
   // load inputs tensors and output gradients tensors for testing
   auto input1_file_path = "test_input1.txt";
   auto input2_file_path = "test_input2.txt";

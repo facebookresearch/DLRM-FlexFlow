@@ -256,7 +256,8 @@ public:
                       const Tensor& input1,
                       const Tensor& input2,
                       const bool trans1=true,
-                      const bool trans2=false);
+                      const bool trans2=false,
+                      const bool profiling=false);
 
   // Add a concat layer
   Tensor concat(std::string name,

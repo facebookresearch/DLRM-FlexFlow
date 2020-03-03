@@ -1,10 +1,13 @@
 import numpy as np
+import sys
 
+if len(sys.argv) != 5:
+    raise Exception('need 4 arguments for m,k,n,d, example python gen_test_case.py 3 4 5 7')
 np.random.seed(0)
-m = 3
-k = 4
-n = 5
-d = 5
+m = int(sys.argv[1])
+k = int(sys.argv[2])
+n = int(sys.argv[3])
+d = int(sys.argv[4])
 
 input1 = np.random.uniform(0, 1, (d,k,m))
 input2 = np.random.uniform(0, 1, (d,k,n))

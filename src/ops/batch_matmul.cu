@@ -146,8 +146,6 @@ void BatchMatmul::init(const FFModel& ff){
   for (PointInRectIterator<3> it(rect); it(); it++) {
     meta[idx++] = fm.get_result<OpMeta*>(*it);
   }
-
-
 }
 
 
@@ -182,9 +180,6 @@ OpMeta* BatchMatmul::init_task(const Task *task,
   int batch_stride_a = input1.rect.hi[2] - input1.rect.lo[2] + 1;
   int batch_stride_b = input2.rect.hi[2] - input2.rect.lo[2] + 1;
   int batch_stride_c = acc_output.rect.hi[2] - acc_output.rect.lo[2] + 1;
-
-
-
   BatchMatmulMeta* bmm_meta = new BatchMatmulMeta(handle);
   if (bm->profiling){ 
     printf("init batch_matmul (input): batdh_dim(%d) k(%d) m(%d) n(%d)\n", batch_stride_a, k, m, n);
@@ -213,10 +208,8 @@ void BatchMatmul::forward_task(
     false/*readOutput*/);
   TensorAccessorR<float, batch_tensor_dim> acc_input1(
     regions[1], task->regions[1], FID_DATA, ctx, runtime);
-
   TensorAccessorR<float, batch_tensor_dim> acc_input2(
     regions[2], task->regions[2], FID_DATA, ctx, runtime);
-
   /*
   shape d,k,m
   order d(2),k(1),m(0)
@@ -232,19 +225,16 @@ void BatchMatmul::forward_task(
   int batch_stride_a = acc_input1.rect.hi[2] - acc_input1.rect.lo[2] + 1;
   int batch_stride_b = acc_input2.rect.hi[2] - acc_input2.rect.lo[2] + 1;
   int batch_stride_c = acc_output.rect.hi[2] - acc_output.rect.lo[2] + 1;
-
   if (bm->profiling){ 
     printf("k:%d m:%d n:%d batch_stride_a:%d batch_stride_b:%d batch_stride_c:%d\n", k, m,n,batch_stride_a, batch_stride_b, batch_stride_c);
     printf("cuBLAS initializing...\n");
   }
-
-  #ifndef DISABLE_LEGION_CUDA_HIJACK
-    cudaStream_t stream;
-    checkCUDA(cudaStreamCreate(&stream));
-    checkCUDA(cublasSetStream(lm->handle.blas, stream));
-    checkCUDNN(cudnnSetStream(lm->handle.dnn, stream));
-  #endif
-
+#ifndef DISABLE_LEGION_CUDA_HIJACK
+  cudaStream_t stream;
+  checkCUDA(cudaStreamCreate(&stream));
+  checkCUDA(cublasSetStream(lm->handle.blas, stream));
+  checkCUDNN(cudnnSetStream(lm->handle.dnn, stream));
+#endif
   /*
     This scenario assumes the default input layout is 
           A (d,m,k) 
@@ -326,7 +316,6 @@ void BatchMatmul::forward_task(
 
 
 void BatchMatmul::forward(const FFModel& ff){
-
   ArgumentMap argmap;
   Context ctx = ff.config.lg_ctx;
   Runtime* runtime = ff.config.lg_hlr;
@@ -337,7 +326,6 @@ void BatchMatmul::forward(const FFModel& ff){
     OpMeta* mp = meta[idx++];
     argmap.set_point(*it, TaskArgument(&mp, sizeof(OpMeta*)));
   }
-
   IndexLauncher launcher(BATCHMATMUL_FWD_TASK_ID, task_is,
                TaskArgument(this, sizeof(BatchMatmul)), argmap,
                Predicate::TRUE_PRED, false/*must*/, 0/*mapper_id*/,
@@ -354,11 +342,6 @@ void BatchMatmul::forward(const FFModel& ff){
   }
   runtime->execute_index_space(ctx, launcher);
 }
-
-
-
-
-
 
 
 /*
@@ -390,8 +373,6 @@ void BatchMatmul::backward_task(
 
   TensorAccessorR<float, batch_tensor_dim> acc_input2(
     regions[4], task->regions[4], FID_DATA, ctx, runtime);
-
-
   /*
   cuda representation:
   input1_grad = output_grad^T*input2
@@ -486,8 +467,6 @@ void BatchMatmul::backward_task(
 }
 
 
-
-
 void BatchMatmul::backward(const FFModel& ff){
   ArgumentMap argmap;
   Context ctx = ff.config.lg_ctx;
@@ -527,8 +506,6 @@ void BatchMatmul::backward(const FFModel& ff){
             RegionRequirement(inputs[1].part, 0/*projection id*/,
             READ_ONLY, EXCLUSIVE, inputs[1].region));
   launcher.add_field(4, FID_DATA);
-
-
   runtime->execute_index_space(ctx, launcher);
 }
 

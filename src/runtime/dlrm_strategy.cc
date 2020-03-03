@@ -113,9 +113,6 @@ bool FFStrategy::add_embed_config(const std::string& name,
   return true;
 }
 
-
-
-
 bool FFStrategy::add_concat_config(const std::string& name,
                                    const std::string& device_type,
                                    const std::string& input_memory_type,
@@ -285,7 +282,7 @@ int main(int argc, char **argv)
     strategy.add_mse_config("mse_loss", "GPU", "FBM"/*input*/,
         num_nodes*gpus_per_node, device_ids);
   }
-    {
+  {
     std::vector<int> device_ids;
     for (int i = 0; i < num_nodes * gpus_per_node; i++)
       device_ids.push_back(i);

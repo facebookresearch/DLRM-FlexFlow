@@ -76,30 +76,7 @@ void UniformInitializer::init_task(const Task* task,
     checkCUDA(curandGenerateUniform(gen, w, domain.get_volume()));
     scale_kernel<<<GET_BLOCKS(domain.get_volume()), CUDA_NUM_THREADS>>>(
         w, domain.get_volume(), initializer->min_val, initializer->max_val);
-
-
-
   }
-
-
-
-
-
-  // assert(regions.size() == 1);
-  // assert(task->regions.size() == 1);
-  // TensorAccessorW<float, 2> accW(regions[0], task->regions[0],
-  //     FID_DATA, ctx, runtime, false/*readOutput*/);
-  // int inputDim = accW.rect.hi[0] - accW.rect.lo[0] + 1;
-  // int outputDim = accW.rect.hi[1] - accW.rect.lo[1] + 1;
-  // UniformInitializer* initializer = (UniformInitializer*) task->args;
-  // curandGenerator_t gen;
-  // curandCreateGenerator(&gen, CURAND_RNG_PSEUDO_DEFAULT);
-  // //fprintf(stderr, "seed = %d\n", initializer->seed);
-
-  // curandSetPseudoRandomGeneratorSeed(gen, initializer->seed);
-  // checkCUDA(curandGenerateUniform(gen, accW.ptr, accW.rect.volume()));
-  // scale_kernel<<<GET_BLOCKS(accW.rect.volume()), CUDA_NUM_THREADS>>>(
-  //     accW.ptr, accW.rect.volume(), initializer->min_val, initializer->max_val);
   checkCUDA(cudaDeviceSynchronize());
   curandDestroyGenerator(gen);
 }

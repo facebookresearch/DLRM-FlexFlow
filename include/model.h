@@ -780,4 +780,37 @@ public:
   cudnnActivationDescriptor_t actiDesc;
   const float *one_ptr;
 };
+
+
+class Transpose : public Op {
+public:
+  Transpose(FFModel& model,
+         const std::string& pcname,
+         const Tensor& input);
+  void init(const FFModel&);
+  void forward(const FFModel&);
+  void backward(const FFModel&);
+
+  static OpMeta* init_task(const Task *task,
+                           const std::vector<PhysicalRegion> &regions,
+                           Context ctx, Runtime *runtime);
+  static void forward_task(const Task *task,
+                           const std::vector<PhysicalRegion> &regions,
+                           Context ctx, Runtime *runtime);
+  static void backward_task(
+                          const Task *task,
+                          const std::vector<PhysicalRegion> &regions,
+                          Context ctx, Runtime *runtime
+                          );
+public:
+  IndexSpaceT<3> task_is;
+  Tensor output, input;
+  bool profiling;
+};
+
+class TransposeMeta : public OpMeta {
+public:
+  TransposeMeta(FFHandler handle) : OpMeta(handle) {};
+};
+
 #endif//_FLEXFLOW_RUNTIME_H_

@@ -114,9 +114,6 @@ void dump_tensor_task(const Task* task,
 
   const float* tensor_ptr = acc_tensor.ptr(rect_fb.lo);
 
-  // for (size_t i = 0; i < rect_fb.volume(); ++i) {
-  //   printf("%.6lf ", (float)tensor_ptr[i]);
-  // }
   std::ofstream myfile;
   myfile.open (file_path);
   for (size_t i = 0; i < rect_fb.volume(); ++i) {

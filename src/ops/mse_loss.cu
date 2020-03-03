@@ -131,7 +131,6 @@ PerfMetrics MSELoss::backward_task(const Task *task,
 {
   assert(regions.size() == 3);
   assert(task->regions.size() == 3);
-  // temporary flag to control tensor dimensions
   const MSELoss* op = (MSELoss*) task->args;
   TensorAccessorR<float, 2> accLogits(
       regions[0], task->regions[0], FID_DATA, ctx, runtime);

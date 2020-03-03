@@ -25,8 +25,8 @@ void initialize_tensor_from_file(const std::string file_path, Tensor label, cons
   ArgsConfig args_config;
   strcpy(args_config.dataset_path, file_path.c_str());
   TaskLauncher launcher(
-    INIT_TENSOR_FORM_FILE_CPU_TASK,
-    TaskArgument(&args_config, sizeof(args_config)));
+      INIT_TENSOR_FORM_FILE_CPU_TASK,
+      TaskArgument(&args_config, sizeof(args_config)));
   // regions[0]: full_sparse_input
   launcher.add_region_requirement(
       RegionRequirement(label.region,
@@ -42,8 +42,8 @@ void initialize_tensor_gradient_from_file(const std::string file_path, Tensor la
   ArgsConfig args_config;
   strcpy(args_config.dataset_path, file_path.c_str());
   TaskLauncher launcher(
-    INIT_TENSOR_FORM_FILE_CPU_TASK,
-    TaskArgument(&args_config, sizeof(args_config)));
+      INIT_TENSOR_FORM_FILE_CPU_TASK,
+      TaskArgument(&args_config, sizeof(args_config)));
   launcher.add_region_requirement(
       RegionRequirement(
         label.region_grad,
@@ -62,8 +62,7 @@ void initialize_tensor_from_file_task(const Task *task,
   const ArgsConfig args_config = *((const ArgsConfig *)task->args);
   std::string file_path((const char*)args_config.dataset_path);
   Rect<3> rect_label_tensor = runtime->get_index_space_domain(
-                                ctx, 
-                                task->regions[0].region.get_index_space());
+      ctx, task->regions[0].region.get_index_space());
   float* label_tensor_ptr = acc_label_tensor.ptr(rect_label_tensor.lo);
   std::fstream myfile(file_path, std::ios_base::in);
   float a;
@@ -171,7 +170,12 @@ void top_level_task(const Task* task,
     dense_input2 = ff.create_tensor<3>(dims, "batch_matmul", DT_FLOAT);
   }
   // build batch matmul layer
-  Tensor batch_matmul_ret = ff.batch_matmul("batch_matmul", dense_input1, dense_input2, true, false, false);
+  Tensor batch_matmul_ret = ff.batch_matmul(
+      "batch_matmul", 
+      dense_input1, 
+      dense_input2, 
+      true /* trans_a */, 
+      false /* trans_b */);
   // load inputs tensors and output gradients tensors for testing
   auto input1_file_path = "test_input1.txt";
   auto input2_file_path = "test_input2.txt";

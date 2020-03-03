@@ -6,10 +6,9 @@
 Tensor FFModel::batch_matmul(std::string name,
              const Tensor& input1, const Tensor& input2,
              const bool trans1,
-             const bool trans2,
-             const bool profiling)
+             const bool trans2)
 {
-  BatchMatmul *bmm = new BatchMatmul(*this, name, input1, input2, trans1, trans2, profiling);
+  BatchMatmul *bmm = new BatchMatmul(*this, name, input1, input2, trans1, trans2);
   layers.push_back(bmm);
   return bmm->output;
 }
@@ -21,17 +20,14 @@ BatchMatmul::BatchMatmul(
   const Tensor& input1,
   const Tensor& input2,
   const bool trans1,
-  const bool trans2,
-  const bool profiling
-): Op(pcname, input1, input2){
+  const bool trans2
+): Op(pcname, input1, input2), profiling(model.config.profiling){
   ArgumentMap argmap;
   // Retrive the task indexspace for the op
   task_is = model.get_or_create_task_is(pcname);
   Context ctx = model.config.lg_ctx;
   Runtime* runtime = model.config.lg_hlr;
   FieldSpace fs = model.config.field_space;
-  this->profiling = profiling;
-
   /*
   input1 (m,k,d)
   input2 (n,k,d)

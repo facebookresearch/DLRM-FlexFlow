@@ -256,15 +256,16 @@ public:
                       const Tensor& input1,
                       const Tensor& input2,
                       const bool trans1=true,
-                      const bool trans2=false,
-                      const bool profiling=false);
+                      const bool trans2=false);
 
   // Add a concat layer
   Tensor concat(std::string name,
                 int n, const Tensor* tensors,
                 int axis);
+
   // Add a flat layer
   Tensor flat(std::string name, Tensor input);
+
   // Add a softmax layer
   Tensor softmax(std::string name, Tensor input);
 
@@ -748,8 +749,7 @@ public:
          const Tensor& input1,
          const Tensor& input2,
          const bool trans1=true, // default matmul is C=A^T*B , where assume input layout are (d,k,m) , (d,k,n) and (d,m,n)
-         const bool trans2=false,
-         const bool profiling=false);
+         const bool trans2=false);
   void init(const FFModel&);
   void forward(const FFModel&);
   void backward(const FFModel&);
@@ -779,6 +779,5 @@ public:
   cudnnTensorDescriptor_t outputTensor;
   cudnnActivationDescriptor_t actiDesc;
   const float *one_ptr;
-  
 };
 #endif//_FLEXFLOW_RUNTIME_H_

@@ -523,28 +523,6 @@ int main(int argc, char **argv)
     Runtime::preregister_task_variant<Concat::backward_task>(
         registrar, "concat_bwd_task");
   }
-  // Batch matmul task
-  {
-    TaskVariantRegistrar registrar(BATCHMATMUL_INIT_TASK_ID, "batch_matmul_init_task");
-    registrar.add_constraint(ProcessorConstraint(Processor::TOC_PROC));
-    registrar.set_leaf();
-    Runtime::preregister_task_variant<OpMeta*, BatchMatmul::init_task>(
-        registrar, "batch_matmul_init_task");
-  }
-  {
-    TaskVariantRegistrar registrar(BATCHMATMUL_FWD_TASK_ID, "batch_matmul_fwd_task");
-    registrar.add_constraint(ProcessorConstraint(Processor::TOC_PROC));
-    registrar.set_leaf();
-    Runtime::preregister_task_variant<BatchMatmul::forward_task>(
-        registrar, "batch_matmul_fwd_task");
-  }
-  {
-    TaskVariantRegistrar registrar(BATCHMATMUL_BWD_TASK_ID, "batch_matmul_bwd_task");
-    registrar.add_constraint(ProcessorConstraint(Processor::TOC_PROC));
-    registrar.set_leaf();
-    Runtime::preregister_task_variant<BatchMatmul::backward_task>(
-        registrar, "batch_matmul_bwd_task");
-  }
   // DUMMY task
   {
     TaskVariantRegistrar registrar(DUMMY_TASK_ID, "dummy_task");

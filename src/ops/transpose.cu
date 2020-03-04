@@ -50,7 +50,7 @@ Transpose::Transpose(
 
   /*
   We zero-init the gradience of the output tensor 
-  in constructor to bypass Legion tensor unitialized warning
+  in constructor to bypass Legion tensor unitialized runtime error
   */
   Rect<3> rect = runtime->get_index_space_domain(ctx, task_is);
   int idx = 0;

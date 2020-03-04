@@ -142,8 +142,7 @@ void Transpose::forward_task(const Task *task,
   checkCUDA(cublasSetStream(lm->handle.blas, stream));
   checkCUDNN(cudnnSetStream(lm->handle.dnn, stream));
 #endif
-  for(int i = 0; i < batch_stride_a; i++) {
-    int batch_count = i+1;
+  for(int batch_count = 0; batch_count < batch_stride_a; batch_count++) {
     int batch_stride = m*k;
     int offset = batch_count * batch_stride;
     checkCUDA(
@@ -233,8 +232,7 @@ void Transpose::backward_task(
   checkCUDA(cublasSetStream(lm->handle.blas, stream));
   checkCUDNN(cudnnSetStream(lm->handle.dnn, stream));
 #endif
-  for(int i = 0; i < batch_stride_a; i++) {
-    int batch_count = i+1;
+  for(int batch_count = 0; batch_count < batch_stride_a; batch_count++) {
     int batch_stride = m*k;
     int offset = batch_count * batch_stride;
     checkCUDA(

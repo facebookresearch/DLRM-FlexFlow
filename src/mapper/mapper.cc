@@ -294,7 +294,7 @@ void update_mappers(Machine machine, Runtime *runtime,
   std::map<MappingTagID, ParallelConfig>* strategies = new std::map<MappingTagID, ParallelConfig>();
 
   if (strategyFile == "") {
-    log_mapper.print("No strategy file provided. Use default data parallelism.");
+    // log_mapper.print("No strategy file provided. Use default data parallelism.");
     // No strategy file provided, use data parallelism
     // TODO: the decault data parallelsim only apply to 2D operators
     ParallelConfig pc;
@@ -306,8 +306,8 @@ void update_mappers(Machine machine, Runtime *runtime,
       pc.device_ids[i] = i;
     (*strategies)[FFConfig::DataParallelismID] = pc;
   } else {
-    log_mapper.print("Load parallelization strategy from file %s",
-                     strategyFile.c_str());
+    // log_mapper.print("Load parallelization strategy from file %s",
+    //                  strategyFile.c_str());
     load_strategies_from_file(strategyFile, *strategies);
     // TODO: the decault data parallelsim only apply to 2D operators
     ParallelConfig pc;

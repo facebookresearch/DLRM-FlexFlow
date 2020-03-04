@@ -76,7 +76,7 @@ bool load_strategies_from_file(const std::string& filename,
     assert(strategies.find(hash) == strategies.end());
     strategies[hash] = config;
   }
-  printf("strategies.size() = %zu\n", strategies.size());
+  // printf("strategies.size() = %zu\n", strategies.size());
   return true;
 }
 

@@ -21,8 +21,6 @@ def calculate_difference(file_1, file_2, label=''):
 file1 = 'output.txt'
 file2 = 'test_output.txt'
 calculate_difference(file1, file2, 'output')
-
-
 file1 = 'test_input1_grad.txt'
 file2 = 'input1_grad.txt'
 calculate_difference(file1, file2, 'input 1 grad')

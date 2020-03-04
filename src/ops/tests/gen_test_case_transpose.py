@@ -2,7 +2,7 @@ import numpy as np
 import sys
 
 if len(sys.argv) != 4:
-    raise Exception('need 3 arguments for m,k,d, example python gen_test_case.py 3 4 7')
+    raise Exception('need 3 arguments for m,k,d, for example python gen_test_case.py 3 4 7')
 np.random.seed(0)
 m = int(sys.argv[1])
 k = int(sys.argv[2])

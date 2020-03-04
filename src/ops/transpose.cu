@@ -9,7 +9,6 @@ Tensor FFModel::transpose(std::string name, Tensor input) {
   return trans->output;
 }
 
-
 Transpose::Transpose(
     FFModel& model,
     const std::string& pcname,
@@ -63,9 +62,9 @@ Transpose::Transpose(
     ctx, output.part_grad.get_index_partition());
   IndexSpace output_grad_task_is = model.get_or_create_task_is(output_grad_domain);
   IndexLauncher launcher(ZERO_INIT_TASK_ID, output_grad_task_is,
-               TaskArgument(NULL, 0), argmap,
-               Predicate::TRUE_PRED, false/*must*/, 0/*mapper_id*/,
-               FFConfig::get_hash_id(std::string("init output gradients")));
+              TaskArgument(NULL, 0), argmap,
+              Predicate::TRUE_PRED, false/*must*/, 0/*mapper_id*/,
+              FFConfig::get_hash_id(std::string("init output gradients")));
   launcher.add_region_requirement(
     RegionRequirement(output.part_grad, 0/*projection*/,
               WRITE_ONLY, EXCLUSIVE, output.region_grad));

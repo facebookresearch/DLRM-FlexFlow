@@ -250,8 +250,8 @@ void BatchMatmul::forward_task(
     else{
       /*
       Leading dimension
-           ||
-           \/ 
+            ||
+            \/ 
       A (d,k,m) 
       B (d,k,n) 
       C (d,m,n)

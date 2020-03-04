@@ -1,3 +1,5 @@
+epsilon = 0.00001
+
 def calculate_difference(file_1, file_2, label=''):
     with open(file_1, 'r') as f:
         input1 = f.readline()
@@ -12,8 +14,12 @@ def calculate_difference(file_1, file_2, label=''):
     diff = 0
     for i in range(len(input1_flat)):
         diff += abs(input1_flat[i] - input2_flat[i])
-
-    print('average %s difference:' % label, diff/float(len(input1_flat)))
+    avg_diff = diff/float(len(input1_flat))
+    if avg_diff < epsilon:
+      print('OK')
+    else:
+      print('diff too significant: %.6f' % avg_diff)
+    # print('average %s difference:' % label, avg_diff)
 
 file1 = 'output.txt'
 file2 = 'test_output.txt'

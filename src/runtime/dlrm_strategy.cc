@@ -72,6 +72,12 @@ public:
                       const std::string& input_memory_type,
                       int num_parts_batch,
                       const std::vector<int>& device_ids);
+  bool add_transpose_config(const std::string& name,
+                            const std::string& device_type,
+                            const std::string& input_memory_type,
+                            const std::string& output_memory_type,
+                            int num_parts_sample,
+                            const std::vector<int>& device_ids);
   bool add_mse3d_config(const std::string& name,
                       const std::string& device_type,
                       const std::string& input_memory_type,
@@ -148,6 +154,26 @@ bool FFStrategy::add_batch_matmul_config(const std::string& name,
   op->add_memory_types(to_memory_type(output_memory_type));
   op->add_dims(1); // m
   op->add_dims(1); // n
+  op->add_dims(num_parts_sample); // d
+  assert(num_parts_sample == (int) device_ids.size());
+  for (int i = 0; i < num_parts_sample; i++)
+    op->add_device_ids(device_ids[i]);
+}
+
+bool FFStrategy::add_transpose_config(const std::string& name,
+                                   const std::string& device_type,
+                                   const std::string& input_memory_type,
+                                   const std::string& output_memory_type,
+                                   int num_parts_sample,
+                                   const std::vector<int>& device_ids)
+{
+  FFProtoBuf::Op* op = strategy.add_ops();
+  op->set_name(name);
+  op->set_device_type(to_device_type(device_type));
+  op->add_memory_types(to_memory_type(input_memory_type));
+  op->add_memory_types(to_memory_type(output_memory_type));
+  op->add_dims(1); // k
+  op->add_dims(1); // m
   op->add_dims(num_parts_sample); // d
   assert(num_parts_sample == (int) device_ids.size());
   for (int i = 0; i < num_parts_sample; i++)
@@ -257,36 +283,42 @@ int main(int argc, char **argv)
     std::vector<int> device_ids;
     for (int i = 0; i < num_nodes; i++)
       device_ids.push_back(i * gpus_per_node);
-    strategy.add_concat_config("concat", "GPU", "FBM"/*input*/,
+      strategy.add_concat_config("concat", "GPU", "FBM"/*input*/,
         "FBM"/*output*/, num_nodes, device_ids);
   }
   {
     std::vector<int> device_ids;
     for (int i = 0; i < num_nodes * gpus_per_node; i++)
       device_ids.push_back(i);
-      // todo @charles we may need to add another "FBM" for 2nd input
-    strategy.add_batch_matmul_config("batch_matmul", "GPU", "FBM"/*input1*/, "FBM"/*input2*/,
+      strategy.add_batch_matmul_config("batch_matmul", "GPU", "FBM"/*input1*/, "FBM"/*input2*/,
         "FBM"/*output*/, num_nodes * gpus_per_node, device_ids);
   }
   {
     std::vector<int> device_ids;
     for (int i = 0; i < num_nodes * gpus_per_node; i++)
       device_ids.push_back(i);
-    strategy.add_linear_config("linear", "GPU", "FBM"/*input*/, "FBM"/*weight*/,
+      strategy.add_transpose_config("transpose", "GPU", "FBM"/*input*/, 
+        "FBM"/*output*/, num_nodes * gpus_per_node, device_ids);
+  }
+  {
+    std::vector<int> device_ids;
+    for (int i = 0; i < num_nodes * gpus_per_node; i++)
+      device_ids.push_back(i);
+      strategy.add_linear_config("linear", "GPU", "FBM"/*input*/, "FBM"/*weight*/,
         "FBM"/*output*/, 1, num_nodes * gpus_per_node, device_ids);
   }
   {
     std::vector<int> device_ids;
     for (int i = 0; i < num_nodes * gpus_per_node; i++)
       device_ids.push_back(i);
-    strategy.add_mse_config("mse_loss", "GPU", "FBM"/*input*/,
+      strategy.add_mse_config("mse_loss", "GPU", "FBM"/*input*/,
         num_nodes*gpus_per_node, device_ids);
   }
   {
     std::vector<int> device_ids;
     for (int i = 0; i < num_nodes * gpus_per_node; i++)
       device_ids.push_back(i);
-    strategy.add_mse3d_config("mse_loss3d", "GPU", "FBM"/*input*/,
+      strategy.add_mse3d_config("mse_loss3d", "GPU", "FBM"/*input*/,
         num_nodes*gpus_per_node, device_ids);
   }
   std::string output = "dlrm_strategy_emb_" + std::to_string(embs_per_node) + "_gpu_" + std::to_string(gpus_per_node) + "_node_" + std::to_string(num_nodes) + ".pb";

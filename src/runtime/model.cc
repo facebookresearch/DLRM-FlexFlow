@@ -1097,8 +1097,28 @@ int main(int argc, char** argv)
         registrar, "batch_matmul_bwd_task");
   }
 
-
-
+  // Transpose task
+  {
+    TaskVariantRegistrar registrar(TRANSPOSE_INIT_TASK_ID, "transpose_init_task");
+    registrar.add_constraint(ProcessorConstraint(Processor::TOC_PROC));
+    registrar.set_leaf();
+    Runtime::preregister_task_variant<OpMeta*, Transpose::init_task>(
+        registrar, "transpose_init_task");
+  }
+  {
+    TaskVariantRegistrar registrar(TRANSPOSE_FWD_TASK_ID, "transpose_fwd_task");
+    registrar.add_constraint(ProcessorConstraint(Processor::TOC_PROC));
+    registrar.set_leaf();
+    Runtime::preregister_task_variant<Transpose::forward_task>(
+        registrar, "transpose_fwd_task");
+  }
+  {
+    TaskVariantRegistrar registrar(TRANSPOSE_BWD_TASK_ID, "transpose_bwd_task");
+    registrar.add_constraint(ProcessorConstraint(Processor::TOC_PROC));
+    registrar.set_leaf();
+    Runtime::preregister_task_variant<Transpose::backward_task>(
+        registrar, "transpose_bwd_task");
+  }
   // Optimizer
   {
     TaskVariantRegistrar registrar(SGD_UPD_TASK_ID,

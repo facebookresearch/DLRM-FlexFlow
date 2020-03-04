@@ -52,6 +52,7 @@ enum TaskIDs {
   BATCHMATMUL_INIT_TASK_ID,
   BATCHMATMUL_FWD_TASK_ID,
   BATCHMATMUL_BWD_TASK_ID,
+  TRANSPOSE_INIT_TASK_ID,
   TRANSPOSE_FWD_TASK_ID,
   TRANSPOSE_BWD_TASK_ID,
   LINEAR_INIT_TASK_ID,
@@ -791,11 +792,13 @@ class Transpose : public Op {
 public:
   Transpose(FFModel& model,
          const std::string& pcname,
-         const Tensor& input);
+         const Tensor& _input);
   void init(const FFModel&);
   void forward(const FFModel&);
   void backward(const FFModel&);
-
+  static OpMeta* init_task(const Task *task,
+                           const std::vector<PhysicalRegion> &regions,
+                           Context ctx, Runtime *runtime);
   static void forward_task(const Task *task,
                            const std::vector<PhysicalRegion> &regions,
                            Context ctx, Runtime *runtime);

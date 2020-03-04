@@ -205,12 +205,12 @@ void Transpose::forward_task(const Task *task,
       cublasSgeam(
         lm->handle.blas,
         CUBLAS_OP_T,
-        CUBLAS_OP_N, /*this one doesn't matter since beta=0*/
+        CUBLAS_OP_N, /*although we are not using this but still have to pass in correct shape*/
         m,k,
         &alpha,
         acc_input.ptr+offset, k,
         &beta,
-        acc_input.ptr+offset, k, /*this one doesn't matter since beta=0*/
+        acc_input.ptr+offset, m, /*although we are not using this but still have to pass in correct shape*/
         acc_output.ptr+offset, m
       )
     );

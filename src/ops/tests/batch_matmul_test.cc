@@ -141,7 +141,7 @@ void top_level_task(const Task* task,
                     const std::vector<PhysicalRegion>& regions,
                     Context ctx, Runtime* runtime)
 {
-  std::cout<< "test framework launched" << std::endl;
+  // std::cout<< "test framework launched" << std::endl;
   auto test_meta = get_test_meta("test_meta.txt");
   FFConfig ffConfig;
   // Parse input arguments

@@ -68,8 +68,8 @@ class BatchMatmulTest(unittest.TestCase):
     test_target = 'batch_matmul_test'
     @staticmethod
     def dump_meta(m,k,n,d):
-      with open('test_meta.txt', 'w+') as f:
-        f.write(' '.join([str(m), str(k), str(n), str(d)]))
+        with open('test_meta.txt', 'w+') as f:
+          f.write(' '.join([str(m), str(k), str(n), str(d)]))
 
     # TODO change this to static method to prevent racing condition on file I/O
     def batch_matmul_test_pipeline(self, num_gpu, d, m, n, k, epsilon=0.00001):
@@ -151,8 +151,8 @@ class TransposeTest(unittest.TestCase):
     test_target = 'transpose_test'
     @staticmethod
     def dump_meta(m,k,d):
-      with open('test_meta.txt', 'w+') as f:
-        f.write(' '.join([str(m), str(k), str(d)]))
+        with open('test_meta.txt', 'w+') as f:
+          f.write(' '.join([str(m), str(k), str(d)]))
 
     def test_single_gpu_single_batch(self):
         # generate test payload

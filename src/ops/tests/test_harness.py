@@ -71,6 +71,7 @@ class BatchMatmulTest(unittest.TestCase):
       with open('test_meta.txt', 'w+') as f:
         f.write(' '.join([str(m), str(k), str(n), str(d)]))
 
+    # TODO change this to static method to prevent racing condition on file I/O
     def batch_matmul_test_pipeline(self, num_gpu, d, m, n, k, epsilon=0.00001):
         # generate python reference and input payload
         input1_tensor = np.random.uniform(0, 1, (d,k,m))
@@ -203,6 +204,7 @@ class TransposeTest(unittest.TestCase):
     #     ret = self.transpose_test_pipeline(num_gpu, d, m, k)
     #     assert ret == False
 
+    # TODO change this to static method to prevent racing condition on file I/O
     def transpose_test_pipeline(self, num_gpu, d, m, k, epsilon=0.00001):
         # generate python reference and input payload
         input_tensor = np.random.uniform(0, 1, (d,m,k))

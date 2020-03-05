@@ -4,10 +4,6 @@ import unittest
 
 def dump_tensor_3d_to_file(tensor, file_name):
     buffer = []
-    # for batch in tensor:
-    #     for row in batch:
-    #         for entry in row:
-    #             buffer.append(entry)
     for entry in tensor.flatten():
       buffer.append(entry)
     buffer = ["%.16f"%x for x in buffer]

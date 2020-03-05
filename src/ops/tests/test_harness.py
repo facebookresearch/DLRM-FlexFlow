@@ -60,8 +60,13 @@ class BatchMatmulTest(unittest.TestCase):
     TEST_TARGET = 'batch_matmul_test'
     @staticmethod
     def dump_meta(m,k,n,d):
-          with open('test_meta.txt', 'w+') as f:
-            f.write(' '.join([str(m), str(k), str(n), str(d)]))
+        global is_file_locked
+        while is_file_locked:
+          time.sleep(0.1)
+        is_file_locked = True
+        with open('test_meta.txt', 'w+') as f:
+          f.write(' '.join([str(m), str(k), str(n), str(d)]))
+        is_file_locked = False
 
     @staticmethod
     def batch_matmul_test_pipeline(num_gpu, d, m, n, k, epsilon=0.00001):

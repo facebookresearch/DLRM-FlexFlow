@@ -1,6 +1,6 @@
 import subprocess, time, unittest
 import numpy as np
-global is_file_locked
+is_file_locked = False
 
 def dump_tensor_3d_to_file(tensor, file_name):
     buffer = []
@@ -161,12 +161,13 @@ class TransposeTest(unittest.TestCase):
     TEST_TARGET = 'transpose_test'
     @staticmethod
     def dump_meta(m,k,d):
+        global is_file_locked
         while is_file_locked:
           time.sleep(0.1)
         is_file_locked = True
         with open('test_meta.txt', 'w+') as f:
           f.write(' '.join([str(m), str(k), str(d)]))
-        if_file_locked = False
+        is_file_locked = False
 
     def test_single_gpu_single_batch(self):
         # generate test payload

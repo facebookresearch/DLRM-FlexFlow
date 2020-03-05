@@ -1,7 +1,7 @@
 import subprocess, time, unittest
 import numpy as np
 global is_file_locked
-time
+
 def dump_tensor_3d_to_file(tensor, file_name):
     buffer = []
     for entry in tensor.flatten():

@@ -204,7 +204,6 @@ class TransposeTest(unittest.TestCase):
     #     ret = self.transpose_test_pipeline(num_gpu, d, m, k)
     #     assert ret == False
 
-    # TODO change this to static method to prevent racing condition on file I/O
     @staticmethod
     def transpose_test_pipeline(num_gpu, d, m, k, epsilon=0.00001):
         # generate python reference and input payload

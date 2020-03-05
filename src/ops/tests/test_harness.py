@@ -1,45 +1,41 @@
 import subprocess
 import numpy as np
-
-
-
+import unittest
 
 def dump_tensor_3d_to_file(tensor, file_name):
-  buffer = []
-  # for batch in tensor:
-  #     for row in batch:
-  #         for entry in row:
-  #             buffer.append(entry)
-  for entry in tensor.flatten():
-    buffer.append(entry)
-  buffer = ["%.16f"%x for x in buffer]
-  with open(file_name, 'w+') as f:
-    f.write(' '.join(buffer))
-
-
+    buffer = []
+    # for batch in tensor:
+    #     for row in batch:
+    #         for entry in row:
+    #             buffer.append(entry)
+    for entry in tensor.flatten():
+      buffer.append(entry)
+    buffer = ["%.16f"%x for x in buffer]
+    with open(file_name, 'w+') as f:
+      f.write(' '.join(buffer))
 
 def batch_matmul_3d_reference(input1, input2, trans1, trans2):
-  '''
-  Input layout:
-  input1 (d,k,m)
-  input2 (d,k,n)
-  output (d,m,n)
-  '''
-  input1 = input1.transpose((0,2,1)) if trans1 else input1
-  input2 = input2.transpose((0,2,1)) if trans2 else input2
-  return np.matmul(input1, input2)
+    '''
+    Input layout:
+    input1 (d,k,m)
+    input2 (d,k,n)
+    output (d,m,n)
+    '''
+    input1 = input1.transpose((0,2,1)) if trans1 else input1
+    input2 = input2.transpose((0,2,1)) if trans2 else input2
+    return np.matmul(input1, input2)
 
 def batch_transpose_3d_reference(input):
-  '''
-  This operation transposes the inner 2 dimensions (flip inner two)
-  and assume all outter dimensions are sample dimension
-  '''
-  return input.transpose((0,2,1))
+    '''
+    This operation transposes the inner 2 dimensions (flip inner two)
+    and assume all outter dimensions are sample dimension
+    '''
+    return input.transpose((0,2,1))
 
 def gen_FF_result(test_target, num_gpu):
-  command = 'cd ~/DLRM_FlexFlow/src/ops/tests/ && ./run_FF_test_target.sh %s %s' % (test_target, str(num_gpu))
-  test_process = subprocess.Popen([command], shell=True)
-  test_process.wait()
+    command = 'cd ~/DLRM_FlexFlow/src/ops/tests/ && ./run_FF_test_target.sh %s %s' % (test_target, str(num_gpu))
+    test_process = subprocess.Popen([command], shell=True)
+    test_process.wait()
 
 def is_equal_tensor_from_file(file_1, file_2, label='', epsilon=0.00001):
     with open(file_1, 'r') as f:
@@ -59,7 +55,6 @@ def is_equal_tensor_from_file(file_1, file_2, label='', epsilon=0.00001):
     else:
       print('diff too significant: %.6f' % avg_diff)
       return False
-import unittest
 
 class BatchMatmulTest(unittest.TestCase):
     '''
@@ -152,8 +147,6 @@ class BatchMatmulTest(unittest.TestCase):
         ret = self.batch_matmul_test_pipeline(num_gpu, d, m, n, k, epsilon=0.0001)
         assert ret == True
 
-
-
 class TransposeTest(unittest.TestCase):
     '''
     Transpose shape (d,m,k)
@@ -235,8 +228,6 @@ class TransposeTest(unittest.TestCase):
         file2 = 'input1_grad.txt'
         ret2 = is_equal_tensor_from_file(file1, file2, 'input_grad', epsilon=epsilon)
         return (ret1 and ret2)
-
-
 
 if __name__ == '__main__':
     unittest.main()

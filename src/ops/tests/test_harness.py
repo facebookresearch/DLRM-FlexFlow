@@ -123,17 +123,34 @@ class BatchMatmulTest(unittest.TestCase):
         ret = BatchMatmulTest.batch_matmul_test_pipeline(num_gpu, d, m, n, k)
         assert ret == True
 
+    def test_8_gpus_small_problem(self):
+        # generate test payload
+        # need to make sure each gpu have assigned some workload, the assignment uses
+        # round robin fashion to assign gpus, if we ask for 14 batches to distribute on 8 gpus
+        # each gpu will get 2 batches, so the last gpu will have no data to allocate
+        d,m,n,k = 15,2,3,4
+        num_gpu = 8
+        ret = BatchMatmulTest.batch_matmul_test_pipeline(num_gpu, d, m, n, k)
+        assert ret == True
+
     def test_unit_size_matrix(self):
         # generate test payload
         d,m,n,k = 1,1,1,1
         num_gpu = 1
         ret = BatchMatmulTest.batch_matmul_test_pipeline(num_gpu, d, m, n, k)
         assert ret == True
+    
+    def test_unit_size_matrix(self):
+        # generate test payload
+        d,m,n,k = 2,1,1,1
+        num_gpu = 2
+        ret = BatchMatmulTest.batch_matmul_test_pipeline(num_gpu, d, m, n, k)
+        assert ret == True
 
     def test_multi_gpus_ads_team_target_model_shape(self):
         # generate test payload
         d,m,n,k = 145,265,15,64
-        num_gpu = 2
+        num_gpu = 8
         ret = BatchMatmulTest.batch_matmul_test_pipeline(num_gpu, d, m, n, k, epsilon=0.0001)
         assert ret == True
 
@@ -175,7 +192,7 @@ class TransposeTest(unittest.TestCase):
       
     def test_multi_gpus_ads_team_target_shape(self):
         d,m,k = 145, 265, 64
-        num_gpu = 2
+        num_gpu = 8
         ret = TransposeTest.transpose_test_pipeline(num_gpu, d, m, k)
         assert ret == True
 

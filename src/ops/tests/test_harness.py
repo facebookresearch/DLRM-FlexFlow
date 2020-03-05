@@ -68,11 +68,11 @@ class BatchMatmulTest(unittest.TestCase):
     test_target = 'batch_matmul_test'
     @staticmethod
     def dump_meta(m,k,n,d):
-        with open('test_meta.txt', 'w+') as f:
-          f.write(' '.join([str(m), str(k), str(n), str(d)]))
+          with open('test_meta.txt', 'w+') as f:
+            f.write(' '.join([str(m), str(k), str(n), str(d)]))
 
-    # TODO change this to static method to prevent racing condition on file I/O
-    def batch_matmul_test_pipeline(self, num_gpu, d, m, n, k, epsilon=0.00001):
+    @staticmethod
+    def batch_matmul_test_pipeline(num_gpu, d, m, n, k, epsilon=0.00001):
         # generate python reference and input payload
         input1_tensor = np.random.uniform(0, 1, (d,k,m))
         dump_tensor_3d_to_file(input1_tensor, "test_input1.txt")
@@ -106,42 +106,42 @@ class BatchMatmulTest(unittest.TestCase):
         # generate test payload
         d,m,n,k = 1,2,3,4
         num_gpu = 1
-        ret = self.batch_matmul_test_pipeline(num_gpu, d, m, n, k)
+        ret = BatchMatmulTest.batch_matmul_test_pipeline(num_gpu, d, m, n, k)
         assert ret == True
     
     def test_single_gpu_multi_batches(self):
         # generate test payload
         d,m,n,k = 5,2,3,4
         num_gpu = 1
-        ret = self.batch_matmul_test_pipeline(num_gpu, d, m, n, k)
+        ret = BatchMatmulTest.batch_matmul_test_pipeline(num_gpu, d, m, n, k)
         assert ret == True
 
     def test_multi_gpus_multi_batches(self):
         # generate test payload
         d,m,n,k = 5,2,3,4
         num_gpu = 2
-        ret = self.batch_matmul_test_pipeline(num_gpu, d, m, n, k)
+        ret = BatchMatmulTest.batch_matmul_test_pipeline(num_gpu, d, m, n, k)
         assert ret == True
 
     def test_unit_size_matrix(self):
         # generate test payload
         d,m,n,k = 1,1,1,1
         num_gpu = 1
-        ret = self.batch_matmul_test_pipeline(num_gpu, d, m, n, k)
+        ret = BatchMatmulTest.batch_matmul_test_pipeline(num_gpu, d, m, n, k)
         assert ret == True
 
     def test_multi_gpus_ads_team_target_model_shape(self):
         # generate test payload
         d,m,n,k = 145,265,15,64
         num_gpu = 2
-        ret = self.batch_matmul_test_pipeline(num_gpu, d, m, n, k, epsilon=0.0001)
+        ret = BatchMatmulTest.batch_matmul_test_pipeline(num_gpu, d, m, n, k, epsilon=0.0001)
         assert ret == True
 
     def test_single_gpu_ads_team_target_model_shape(self):
         # generate test payload
         d,m,n,k = 145,265,15,64
         num_gpu = 1
-        ret = self.batch_matmul_test_pipeline(num_gpu, d, m, n, k, epsilon=0.0001)
+        ret = BatchMatmulTest.batch_matmul_test_pipeline(num_gpu, d, m, n, k, epsilon=0.0001)
         assert ret == True
 
 class TransposeTest(unittest.TestCase):
@@ -158,43 +158,43 @@ class TransposeTest(unittest.TestCase):
         # generate test payload
         d,m,k = 1,2,3
         num_gpu = 1
-        ret = self.transpose_test_pipeline(num_gpu, d, m, k)
+        ret = TransposeTest.transpose_test_pipeline(num_gpu, d, m, k)
         assert ret == True
 
     def test_single_gpu_multi_batches(self):
         d,m,k = 9,2,3
         num_gpu = 1
-        ret = self.transpose_test_pipeline(num_gpu, d, m, k)
+        ret = TransposeTest.transpose_test_pipeline(num_gpu, d, m, k)
         assert ret == True
     
     def test_unit_batch_matrix(self):
         d,m,k = 1,1,1
         num_gpu = 1
-        ret = self.transpose_test_pipeline(num_gpu, d, m, k)
+        ret = TransposeTest.transpose_test_pipeline(num_gpu, d, m, k)
         assert ret == True
       
     def test_multi_gpus_ads_team_target_shape(self):
         d,m,k = 145, 265, 64
         num_gpu = 2
-        ret = self.transpose_test_pipeline(num_gpu, d, m, k)
+        ret = TransposeTest.transpose_test_pipeline(num_gpu, d, m, k)
         assert ret == True
 
     def test_single_gpu_ads_team_target_shape(self):
         d,m,k = 145, 265, 64
         num_gpu = 1
-        ret = self.transpose_test_pipeline(num_gpu, d, m, k)
+        ret = TransposeTest.transpose_test_pipeline(num_gpu, d, m, k)
         assert ret == True
 
     def test_multi_gpus_small_problem(self):
         d,m,k = 2,3,4
         num_gpu = 2
-        ret = self.transpose_test_pipeline(num_gpu, d, m, k)
+        ret = TransposeTest.transpose_test_pipeline(num_gpu, d, m, k)
         assert ret == True
     
     def uneven_split_multi_gpus_multi_batch(self):
         d,m,k = 3,4,5
         num_gpu = 2
-        ret = self.transpose_test_pipeline(num_gpu, d, m, k)
+        ret = TransposeTest.transpose_test_pipeline(num_gpu, d, m, k)
         assert ret == True        
 
     # if number_gpu * number_node > batch_size will throw exception
@@ -205,7 +205,8 @@ class TransposeTest(unittest.TestCase):
     #     assert ret == False
 
     # TODO change this to static method to prevent racing condition on file I/O
-    def transpose_test_pipeline(self, num_gpu, d, m, k, epsilon=0.00001):
+    @staticmethod
+    def transpose_test_pipeline(num_gpu, d, m, k, epsilon=0.00001):
         # generate python reference and input payload
         input_tensor = np.random.uniform(0, 1, (d,m,k))
         dump_tensor_3d_to_file(input_tensor, "test_input1.txt")

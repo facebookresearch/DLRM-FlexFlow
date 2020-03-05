@@ -28,7 +28,6 @@ void initialize_tensor_from_file(const std::string file_path, Tensor label, cons
   TaskLauncher launcher(
       INIT_TENSOR_FORM_FILE_CPU_TASK,
       TaskArgument(&args_config, sizeof(args_config)));
-  // regions[0]: full_sparse_input
   launcher.add_region_requirement(
       RegionRequirement(label.region,
                         WRITE_ONLY, EXCLUSIVE, label.region,

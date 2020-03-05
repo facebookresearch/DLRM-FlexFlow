@@ -1,14 +1,20 @@
 import subprocess, time, unittest
 import numpy as np
-is_file_locked = False
+META_FILE_LOCK = False
+TENSOR_FILE_LOCK = False
 
 def dump_tensor_3d_to_file(tensor, file_name):
     buffer = []
     for entry in tensor.flatten():
       buffer.append(entry)
     buffer = ["%.16f"%x for x in buffer]
+    global TENSOR_FILE_LOCK
+    while TENSOR_FILE_LOCK:
+      time.sleep(0.5)
+    TENSOR_FILE_LOCK = True
     with open(file_name, 'w+') as f:
       f.write(' '.join(buffer))
+    TENSOR_FILE_LOCK = False
 
 def batch_matmul_3d_reference(input1, input2, trans1, trans2):
     '''
@@ -60,16 +66,15 @@ class BatchMatmulTest(unittest.TestCase):
     TEST_TARGET = 'batch_matmul_test'
     @staticmethod
     def dump_meta(m,k,n,d):
-        global is_file_locked
-        while is_file_locked:
+        global META_FILE_LOCK
+        while META_FILE_LOCK:
           time.sleep(0.1)
-        is_file_locked = True
+        META_FILE_LOCK = True
         with open('test_meta.txt', 'w+') as f:
           f.write(' '.join([str(m), str(k), str(n), str(d)]))
-        is_file_locked = False
+        META_FILE_LOCK = False
 
-    @staticmethod
-    def batch_matmul_test_pipeline(num_gpu, d, m, n, k, epsilon=0.00001):
+    def _run_gpu_test(self, num_gpu, d, m, n, k, epsilon=0.00001):
         # generate python reference and input payload
         input1_tensor = np.random.uniform(0, 1, (d,k,m))
         dump_tensor_3d_to_file(input1_tensor, "test_input1.txt")
@@ -102,19 +107,19 @@ class BatchMatmulTest(unittest.TestCase):
         # generate test payload
         d,m,n,k = 1,2,3,4
         num_gpu = 1
-        BatchMatmulTest.batch_matmul_test_pipeline(num_gpu, d, m, n, k)
+        self._run_gpu_test(num_gpu, d, m, n, k)
     
     def test_single_gpu_multi_batches(self):
         # generate test payload
         d,m,n,k = 5,2,3,4
         num_gpu = 1
-        BatchMatmulTest.batch_matmul_test_pipeline(num_gpu, d, m, n, k)
+        self._run_gpu_test(num_gpu, d, m, n, k)
 
     def test_multi_gpus_multi_batches(self):
         # generate test payload
         d,m,n,k = 5,2,3,4
         num_gpu = 2
-        BatchMatmulTest.batch_matmul_test_pipeline(num_gpu, d, m, n, k)
+        self._run_gpu_test(num_gpu, d, m, n, k)
 
     def test_8_gpus_small_problem(self):
         # generate test payload
@@ -123,7 +128,7 @@ class BatchMatmulTest(unittest.TestCase):
         # each gpu will get 2 batches, so the last gpu will have no data to allocate
         d,m,n,k = 15,2,3,4
         num_gpu = 8
-        BatchMatmulTest.batch_matmul_test_pipeline(num_gpu, d, m, n, k)
+        self._run_gpu_test(num_gpu, d, m, n, k)
 
     # def uneven_distribute_test(self):
     #     # for this configuration we can't distribute payload to each GPU because
@@ -133,31 +138,31 @@ class BatchMatmulTest(unittest.TestCase):
     #     # and throw proper exception - so this test should expect a exception
     #     d,m,n,k = 9,2,3,4
     #     num_gpu = 8
-    #     BatchMatmulTest.batch_matmul_test_pipeline(num_gpu, d, m, n, k)
+    #     self._run_gpu_test(num_gpu, d, m, n, k)
 
     def test_unit_size_matrix(self):
         # generate test payload
         d,m,n,k = 1,1,1,1
         num_gpu = 1
-        BatchMatmulTest.batch_matmul_test_pipeline(num_gpu, d, m, n, k)
+        self._run_gpu_test(num_gpu, d, m, n, k)
     
     def test_unit_size_matrix(self):
         # generate test payload
         d,m,n,k = 2,1,1,1
         num_gpu = 2
-        BatchMatmulTest.batch_matmul_test_pipeline(num_gpu, d, m, n, k)
+        self._run_gpu_test(num_gpu, d, m, n, k)
 
     def test_multi_gpus_ads_team_target_model_shape(self):
         # generate test payload
         d,m,n,k = 145,265,15,64
         num_gpu = 8
-        ret = BatchMatmulTest.batch_matmul_test_pipeline(num_gpu, d, m, n, k, epsilon=0.0001)
+        ret = self._run_gpu_test(num_gpu, d, m, n, k, epsilon=0.0001)
 
     def test_single_gpu_ads_team_target_model_shape(self):
         # generate test payload
         d,m,n,k = 145,265,15,64
         num_gpu = 1
-        ret = BatchMatmulTest.batch_matmul_test_pipeline(num_gpu, d, m, n, k, epsilon=0.0001)
+        ret = self._run_gpu_test(num_gpu, d, m, n, k, epsilon=0.0001)
 
 class TransposeTest(unittest.TestCase):
     '''
@@ -166,49 +171,49 @@ class TransposeTest(unittest.TestCase):
     TEST_TARGET = 'transpose_test'
     @staticmethod
     def dump_meta(m,k,d):
-        global is_file_locked
-        while is_file_locked:
+        global META_FILE_LOCK
+        while META_FILE_LOCK:
           time.sleep(0.1)
-        is_file_locked = True
+        META_FILE_LOCK = True
         with open('test_meta.txt', 'w+') as f:
           f.write(' '.join([str(m), str(k), str(d)]))
-        is_file_locked = False
+        META_FILE_LOCK = False
 
     def test_single_gpu_single_batch(self):
         # generate test payload
         d,m,k = 1,2,3
         num_gpu = 1
-        TransposeTest.transpose_test_pipeline(num_gpu, d, m, k)
+        self._run_gpu_test(num_gpu, d, m, k)
 
     def test_single_gpu_multi_batches(self):
         d,m,k = 9,2,3
         num_gpu = 1
-        TransposeTest.transpose_test_pipeline(num_gpu, d, m, k)
+        self._run_gpu_test(num_gpu, d, m, k)
     
     def test_unit_batch_matrix(self):
         d,m,k = 1,1,1
         num_gpu = 1
-        TransposeTest.transpose_test_pipeline(num_gpu, d, m, k)
+        self._run_gpu_test(num_gpu, d, m, k)
       
     def test_multi_gpus_ads_team_target_shape(self):
         d,m,k = 145, 265, 64
         num_gpu = 8
-        TransposeTest.transpose_test_pipeline(num_gpu, d, m, k)
+        self._run_gpu_test(num_gpu, d, m, k)
 
     def test_single_gpu_ads_team_target_shape(self):
         d,m,k = 145, 265, 64
         num_gpu = 1
-        TransposeTest.transpose_test_pipeline(num_gpu, d, m, k)
+        self._run_gpu_test(num_gpu, d, m, k)
 
     def test_multi_gpus_small_problem(self):
         d,m,k = 2,3,4
         num_gpu = 2
-        TransposeTest.transpose_test_pipeline(num_gpu, d, m, k)
+        self._run_gpu_test(num_gpu, d, m, k)
     
     def uneven_split_multi_gpus_multi_batch(self):
         d,m,k = 3,4,5
         num_gpu = 2
-        TransposeTest.transpose_test_pipeline(num_gpu, d, m, k)
+        self._run_gpu_test(num_gpu, d, m, k)
 
     # # if number_gpu * number_node > batch_size will throw exception
     # # need to handle this exception in FF and add this unit test later on (to expect an exception)
@@ -217,8 +222,7 @@ class TransposeTest(unittest.TestCase):
     #     num_gpu = 2
     #     ret = self.transpose_test_pipeline(num_gpu, d, m, k)
 
-    @staticmethod
-    def transpose_test_pipeline(num_gpu, d, m, k, epsilon=0.00001):
+    def _run_gpu_test(self, num_gpu, d, m, k, epsilon=0.00001):
         # generate python reference and input payload
         input_tensor = np.random.uniform(0, 1, (d,m,k))
         dump_tensor_3d_to_file(input_tensor, "test_input1.txt")

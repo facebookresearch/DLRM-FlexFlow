@@ -1,5 +1,4 @@
 epsilon = 0.00001
-
 def calculate_difference(file_1, file_2, label=''):
     with open(file_1, 'r') as f:
         input1 = f.readline()
@@ -19,17 +18,10 @@ def calculate_difference(file_1, file_2, label=''):
       print('OK')
     else:
       print('diff too significant: %.6f' % avg_diff)
-    # print('average %s difference:' % label, avg_diff)
-
 file1 = 'output.txt'
 file2 = 'test_output.txt'
 calculate_difference(file1, file2, 'output')
-
-
 file1 = 'test_input1_grad.txt'
 file2 = 'input1_grad.txt'
 calculate_difference(file1, file2, 'input 1 grad')
 
-file1 = 'test_input2_grad.txt'
-file2 = 'input2_grad.txt'
-calculate_difference(file1, file2, 'input 2 grad')

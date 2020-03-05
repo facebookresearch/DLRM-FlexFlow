@@ -81,11 +81,8 @@ BatchMatmul::BatchMatmul(
     );
   }
   /*
-  HACK: We zero-init the gradience of the output tensor inside the layer
-  DISCUSSION AND QUESTION:
-  It doesn't hurt to zero init the output gradients here, but is it the best way to do it?
-  What's the performance downside? 
-  What's the design downside?
+  We zero-init the gradience of the output tensor 
+  in constructor to bypass Legion tensor unitialized runtime error
   */
   Rect<3> rect = runtime->get_index_space_domain(ctx, task_is);
   int idx = 0;
@@ -253,8 +250,8 @@ void BatchMatmul::forward_task(
     else{
       /*
       Leading dimension
-           ||
-           \/ 
+            ||
+            \/ 
       A (d,k,m) 
       B (d,k,n) 
       C (d,m,n)

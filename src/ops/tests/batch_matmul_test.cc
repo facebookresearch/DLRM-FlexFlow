@@ -9,8 +9,6 @@ using namespace Legion;
 
 LegionRuntime::Logger::Category log_app("bmm_test");
 
-
-
 struct BMMTestMeta {
   int m,k,n,d;
   BMMTestMeta(int _m, int _k, int _n, int _d) {

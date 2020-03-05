@@ -7,9 +7,7 @@
 #define  PRECISION 16
 using namespace Legion;
 
-
-LegionRuntime::Logger::Category log_app("bmm_test");
-
+LegionRuntime::Logger::Category log_app("transpose_test");
 
 struct TransposeTestMeta {
   int m,k,d;

@@ -1,20 +1,66 @@
 import subprocess, time, unittest
+from subprocess import PIPE, STDOUT
 import numpy as np
-META_FILE_LOCK = False
-TENSOR_FILE_LOCK = False
+import torch
+
+
+class DotCompressor(torch.nn.Module):
+    def __init__(self, channel_dim, h_channel_dim, weights=None):
+        super(DotCompressor, self).__init__()
+        self.channel_dim = channel_dim
+        self.h_channel_dim = h_channel_dim
+        self.projected_rtc_layer = torch.nn.Linear(self.channel_dim, self.h_channel_dim, bias=True)
+        if weights is not None:
+            assert len(weights) == 2
+            self.projected_rtc_layer.weight = torch.nn.Parameter(torch.from_numpy(weights[0]), requires_grad=True)
+            self.projected_rtc_layer.bias = torch.nn.Parameter(torch.from_numpy(weights[1]), requires_grad=True)
+
+    def forward(self, embeddings, dense_projection, debug=False):
+        assert len(dense_projection.shape) == 2
+        assert len(embeddings[0].shape) == 2
+        channel_dim = len(embeddings)
+        batch_size = embeddings[0].shape[0]
+        i_dim = embeddings[0].shape[1]
+        chunk = embeddings
+        cat = torch.cat(chunk, dim=1).reshape(batch_size, channel_dim, i_dim)
+        if debug:
+            print('concatenated', cat.shape)
+        transpose_cat = torch.transpose(cat, 2, 1)
+        if debug:
+            print('transposed', transpose_cat.shape)
+        batched_input_size = batch_size * i_dim
+        reshape_transpose_cat = torch.reshape(transpose_cat, (batched_input_size, channel_dim))
+        if debug:
+            print('reshaped', reshape_transpose_cat.shape)
+        # linear layer
+        projected_rtc = self.projected_rtc_layer(reshape_transpose_cat.double())
+        if debug:
+            print('projected batch:', projected_rtc.shape)
+        # unpack inputs
+        unpacked_projected_rtc = torch.reshape(projected_rtc, (batch_size, i_dim, self.h_channel_dim))
+        if debug:
+            print('unpacked_projected_rtc', unpacked_projected_rtc.shape)
+        batch_pairwise = torch.bmm(transpose_cat.transpose(2, 1).float(), unpacked_projected_rtc.float())
+        if debug:
+            print('batch_pairwise', batch_pairwise.shape)
+        flattened_pairwise = batch_pairwise.flatten(1, 2)
+        if debug:
+            print('flattened_pairwise', flattened_pairwise.shape)
+        tanh_flatteded_pairwise = torch.tanh(flattened_pairwise)
+        if debug:
+            print('tanh_flatteded_pairwise', tanh_flatteded_pairwise.shape)
+        if debug:
+            print('dense_projection', dense_projection.shape)
+        cat_compression_ret = torch.cat([tanh_flatteded_pairwise, dense_projection], 1)
+        return cat_compression_ret
 
 def dump_tensor_3d_to_file(tensor, file_name):
     buffer = []
     for entry in tensor.flatten():
       buffer.append(entry)
     buffer = ["%.16f"%x for x in buffer]
-    global TENSOR_FILE_LOCK
-    while TENSOR_FILE_LOCK:
-      time.sleep(0.5)
-    TENSOR_FILE_LOCK = True
     with open(file_name, 'w+') as f:
       f.write(' '.join(buffer))
-    TENSOR_FILE_LOCK = False
 
 def batch_matmul_3d_reference(input1, input2, trans1, trans2):
     '''
@@ -36,7 +82,8 @@ def batch_transpose_3d_reference(input):
 
 def gen_FF_result(test_target, num_gpu):
     command = 'cd ~/DLRM_FlexFlow/src/ops/tests/ && ./test_run_FF_target.sh %s %s' % (test_target, str(num_gpu))
-    test_process = subprocess.Popen([command], shell=True)
+    test_process = subprocess.Popen([command], shell=True, stdin=PIPE, stdout=PIPE, stderr=STDOUT)
+    test_process.stdout.read()
     test_process.wait()
 
 def is_equal_tensor_from_file(file_1, file_2, label='', epsilon=0.00001):
@@ -48,7 +95,39 @@ def is_equal_tensor_from_file(file_1, file_2, label='', epsilon=0.00001):
     input1_flat = [float(x) for x in input1_flat]
     input2_flat = input2.strip().split(' ')
     input2_flat = [float(x) for x in input2_flat]
-    np.testing.assert_allclose(input1_flat, input2_flat, rtol=epsilon, atol=0)
+    try:
+      np.testing.assert_allclose(input1_flat, input2_flat, rtol=epsilon, atol=0)
+    except Exception as e:
+      print('checking equal %s failed' % label)
+      raise e 
+
+
+class DotCompressorTest(unittest.TestCase):
+    '''
+    Dot Compressor shapes:
+    input1: list of 2d tensors (batch_size, i_dim), the size of list is channel dimension
+    input2: another 2d tensor that we want to concat with the projected input1, input2 shape (batch_size, i2_dim)
+    output: in shape 
+    (batch_size, in_channel_dim * out_channel_dim + i2_dim)
+    example:
+    ```
+      batch_size = 3
+      i_dim = 4
+      channel_dim = 5
+      projected_channel_dim = 6
+      linear_weight = np.random.uniform(0,1, (projected_channel_dim, channel_dim, ))
+      linear_bias = np.random.uniform(0,1, projected_channel_dim)
+      dense_projection_i_dim = 5
+      dense_projection = np.random.uniform(0, 1, (batch_size, dense_projection_i_dim))
+      dense_projection = torch.from_numpy(dense_projection).float()
+      dense_embedding = np.random.uniform(0, 1, (batch_size, i_dim))
+      chunk_embedded = [torch.from_numpy(dense_embedding) for _ in range(channel_dim)]
+      pretrained_weights = [linear_weight, linear_bias]
+      m = DotCompressor(channel_dim, projected_channel_dim, pretrained_weights)
+      ret = m(chunk_embedded, dense_projection, debug=False)
+    ```
+    '''
+
 
 class BatchMatmulTest(unittest.TestCase):
     '''
@@ -64,15 +143,9 @@ class BatchMatmulTest(unittest.TestCase):
     so we set trans1=True and trans2=False
     '''
     TEST_TARGET = 'batch_matmul_test'
-    @staticmethod
-    def dump_meta(m,k,n,d):
-        global META_FILE_LOCK
-        while META_FILE_LOCK:
-          time.sleep(0.1)
-        META_FILE_LOCK = True
+    def _dump_meta(self, m,k,n,d):
         with open('test_meta.txt', 'w+') as f:
           f.write(' '.join([str(m), str(k), str(n), str(d)]))
-        META_FILE_LOCK = False
 
     def _run_gpu_test(self, num_gpu, d, m, n, k, epsilon=0.00001):
         # generate python reference and input payload
@@ -89,7 +162,7 @@ class BatchMatmulTest(unittest.TestCase):
         dump_tensor_3d_to_file(output_tensor, "test_output.txt")
         dump_tensor_3d_to_file(input1_grad_tensor, "test_input1_grad.txt")
         dump_tensor_3d_to_file(input2_grad_tensor, "test_input2_grad.txt")
-        BatchMatmulTest.dump_meta(m,k,n,d)
+        self._dump_meta(m,k,n,d)
 
         # generate FF results
         gen_FF_result(BatchMatmulTest.TEST_TARGET, num_gpu)
@@ -169,15 +242,9 @@ class TransposeTest(unittest.TestCase):
     Transpose shape (d,m,k)
     '''
     TEST_TARGET = 'transpose_test'
-    @staticmethod
-    def dump_meta(m,k,d):
-        global META_FILE_LOCK
-        while META_FILE_LOCK:
-          time.sleep(0.1)
-        META_FILE_LOCK = True
+    def _dump_meta(self,m,k,d):
         with open('test_meta.txt', 'w+') as f:
           f.write(' '.join([str(m), str(k), str(d)]))
-        META_FILE_LOCK = False
 
     def test_single_gpu_single_batch(self):
         # generate test payload
@@ -232,7 +299,7 @@ class TransposeTest(unittest.TestCase):
         input_grad_tensor = batch_transpose_3d_reference(output_gradient_tensor)
         dump_tensor_3d_to_file(output_tensor, "test_output.txt")
         dump_tensor_3d_to_file(input_grad_tensor, "test_input1_grad.txt")
-        TransposeTest.dump_meta(m,k,d)
+        self._dump_meta(m,k,d)
 
         # generate FF results
         gen_FF_result(TransposeTest.TEST_TARGET, num_gpu)

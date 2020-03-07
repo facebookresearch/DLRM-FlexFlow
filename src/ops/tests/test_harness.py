@@ -19,6 +19,7 @@ class DotCompressor(torch.nn.Module):
     def forward(self, embeddings, dense_projection, debug=False):
         assert len(dense_projection.shape) == 2
         assert len(embeddings[0].shape) == 2
+        assert len(embeddings) > 0, 'embeddings to be compressed can not be empty'
         channel_dim = len(embeddings)
         batch_size = embeddings[0].shape[0]
         i_dim = embeddings[0].shape[1]

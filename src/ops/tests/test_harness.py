@@ -3,7 +3,6 @@ from subprocess import PIPE, STDOUT
 import numpy as np
 import torch
 
-
 class DotCompressor(torch.nn.Module):
     def __init__(self, channel_dim, h_channel_dim, weights=None):
         super(DotCompressor, self).__init__()
@@ -12,6 +11,8 @@ class DotCompressor(torch.nn.Module):
         self.projected_rtc_layer = torch.nn.Linear(self.channel_dim, self.h_channel_dim, bias=True)
         if weights is not None:
             assert len(weights) == 2
+            # weights shape  (out_features,in_features)
+            # bias shape (out_features)
             self.projected_rtc_layer.weight = torch.nn.Parameter(torch.from_numpy(weights[0]), requires_grad=True)
             self.projected_rtc_layer.bias = torch.nn.Parameter(torch.from_numpy(weights[1]), requires_grad=True)
 
@@ -101,7 +102,6 @@ def is_equal_tensor_from_file(file_1, file_2, label='', epsilon=0.00001):
       print('checking equal %s failed' % label)
       raise e 
 
-
 class DotCompressorTest(unittest.TestCase):
     '''
     Dot Compressor shapes:
@@ -127,7 +127,6 @@ class DotCompressorTest(unittest.TestCase):
       ret = m(chunk_embedded, dense_projection, debug=False)
     ```
     '''
-
 
 class BatchMatmulTest(unittest.TestCase):
     '''

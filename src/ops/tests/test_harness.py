@@ -4,10 +4,10 @@ import numpy as np
 import torch
 
 class DotCompressor(torch.nn.Module):
-    def __init__(self, channel_dim, h_channel_dim, weights=None):
+    def __init__(self, in_features, out_features, weights=None):
         super(DotCompressor, self).__init__()
-        self.channel_dim = channel_dim
-        self.h_channel_dim = h_channel_dim
+        self.channel_dim = in_features
+        self.h_channel_dim = out_features
         self.projected_rtc_layer = torch.nn.Linear(self.channel_dim, self.h_channel_dim, bias=True)
         if weights is not None:
             assert len(weights) == 2

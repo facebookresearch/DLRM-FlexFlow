@@ -80,12 +80,12 @@ Linear::Linear(FFModel& model,
   int in_dim = _input.adim[0];
   int batch_size = _input.adim[1];
   {
-    const int dims[2] = {batch_size, out_dim};
+    const int dims[2] = {batch_size, out_dim}; // out_dim, batch_size
     output = model.create_tensor<2>(dims, task_is, DT_FLOAT);
   }
   // Create kernel tensor
   {
-    const int dims[2] = {out_dim, in_dim};
+    const int dims[2] = {out_dim, in_dim}; // target shape k,m
     kernel = model.create_weight<2>(dims, task_is, DT_FLOAT, kernel_initializer);
   }
   // Create bias tensor
@@ -136,7 +136,8 @@ Linear::Linear(FFModel& model,
       replica.part = runtime->get_logical_partition(
           ctx, replica.region_grad, ip);
     }
-  } else {
+  } 
+  else {
     if (input_rect == part_rect) {
       input_lps[0] = inputs[0].part;
       input_grad_lps[0] = inputs[0].part_grad;
@@ -299,10 +300,11 @@ void Linear::forward_task(const Task *task,
     cudaEventCreate(&t_end);
     cudaEventRecord(t_start);
   }
-#ifdef FIXME
+#ifndef DISABLE_LEGION_CUDA_HIJACK
   cudaStream_t stream;
   checkCUDA(cudaStreamCreate(&stream));
   checkCUDA(cublasSetStream(m->handle.blas, stream));
+  checkCUDNN(cudnnSetStream(m->handle.dnn, stream));
 #endif
   checkCUDA(cublasSgemm(m->handle.blas, CUBLAS_OP_T, CUBLAS_OP_N,
                         out_dim, batch_size, in_dim,
@@ -442,10 +444,11 @@ void Linear::backward_task(const Task *task,
     cudaEventCreate(&t_end);
     cudaEventRecord(t_start);
   }
-#ifdef FIXME
+#ifndef DISABLE_LEGION_CUDA_HIJACK
   cudaStream_t stream;
   checkCUDA(cudaStreamCreate(&stream));
   checkCUDA(cublasSetStream(m->handle.blas, stream));
+  checkCUDNN(cudnnSetStream(m->handle.dnn, stream));
 #endif
   if (linear->activation == AC_MODE_RELU) {
     reluBackward<<<GET_BLOCKS(acc_output.rect.volume()), CUDA_NUM_THREADS>>>(
@@ -503,7 +506,7 @@ void Linear::backward2_task(const Task *task,
   float alpha = 1.0f;
   const LinearMeta* m = *((LinearMeta**) task->local_args);
   TensorAccessorW<float, 2> acc_input(
-      regions[0], task->regions[1], FID_DATA, ctx, runtime,
+      regions[0], task->regions[0], FID_DATA, ctx, runtime,
       false/*readOutput*/);
   TensorAccessorR<float, 3> acc_replica(
       regions[1], task->regions[1], FID_DATA, ctx, runtime);
@@ -514,6 +517,7 @@ void Linear::backward2_task(const Task *task,
   cudaStream_t stream;
   checkCUDA(cudaStreamCreate(&stream));
   checkCUDA(cublasSetStream(m->handle.blas, stream));
+  checkCUDNN(cudnnSetStream(m->handle.dnn, stream));
   int num_replica = acc_replica.rect.hi[2] - acc_replica.rect.lo[2] + 1;
   const float *replica_ptr = acc_replica.ptr;
   for (int i = 1; i < num_replica; i++) {
@@ -545,7 +549,7 @@ void Linear::backward(const FFModel& ff)
                           READ_ONLY, EXCLUSIVE, inputs[0].region));
     launcher.add_field(0, FID_DATA);
     // regions[1](O): replica_grad 
-    if (replica.region != LogicalRegion::NO_REGION) {
+    if (replica.region_grad != LogicalRegion::NO_REGION) {
       launcher.add_region_requirement(
           RegionRequirement(replica.part_grad, 0/*projection id*/,
                             WRITE_ONLY, EXCLUSIVE, replica.region_grad));
@@ -583,7 +587,7 @@ void Linear::backward(const FFModel& ff)
     launcher.add_field(6, FID_DATA);
     runtime->execute_index_space(ctx, launcher);
   }
-  if (replica.region != LogicalRegion::NO_REGION) {
+  if (replica.region_grad != LogicalRegion::NO_REGION) {
     // We aggregate parameters from replica tensor to input tensor
     // Note we use input's task_is to reduce extra data transfers
     Rect<2> input_rect = runtime->get_index_partition_color_space(

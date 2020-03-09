@@ -15,14 +15,17 @@
 
 #include "model.h"
 #define MAX_NUM_SAMPLES 65536
+#define MAX_NUM_EMB 1000
+#define MAX_NUM_MLPS 100 
+#define MAX_DATASET_PATH_LEN 1023
 
 using namespace Legion;
 
 struct DLRMConfig {
   DLRMConfig(void)
   : sparse_feature_size(2), sigmoid_bot(-1), sigmoid_top(-1),
-    loss_threshold(0.0f),
-    arch_interaction_op("cat"), dataset_path("") {
+    embedding_bag_size(1), loss_threshold(0.0f),
+    arch_interaction_op("cat"), dataset_path(""), data_size(-1) {
     embedding_size.push_back(4);
     //embedding_size.push_back(4);
     //embedding_size.push_back(4);
@@ -31,10 +34,17 @@ struct DLRMConfig {
     mlp_top.push_back(8);
     mlp_top.push_back(2);
   }
-  int sparse_feature_size, sigmoid_bot, sigmoid_top;
+  int sparse_feature_size, sigmoid_bot, sigmoid_top, embedding_bag_size;
   float loss_threshold;
   std::vector<int> embedding_size, mlp_bot, mlp_top;
   std::string arch_interaction_op, dataset_path;
+  int data_size;
+};
+
+struct ArgsConfig {
+  int sparse_feature_size, sigmoid_bot, sigmoid_top, embedding_bag_size;
+  int embedding_size, mlp_bot[MAX_NUM_MLPS], mlp_top[MAX_NUM_MLPS];
+  char dataset_path[MAX_DATASET_PATH_LEN];
 };
 
 class DataLoader {
@@ -42,7 +52,11 @@ public:
   DataLoader(FFModel& ff, const DLRMConfig& dlrm,
              const std::vector<Tensor>& _sparse_inputs,
              Tensor _dense_input, Tensor _label);
+
+  // Dummy loader for test purpose
+  DataLoader(FFModel& ff, const DLRMConfig& dlrm);
   void next_batch(FFModel& ff);
+  void next_random_batch(FFModel& ff);
   void shuffle();
   void reset();
   static void load_entire_dataset(const Task *task,

@@ -250,8 +250,11 @@ Tensor FFModel::create_tensor(const int dims[],
   if (create_grad) {
     tensor.region_grad = runtime->create_logical_region(ctx, is, fs);
   }
+
   // Step 2: create partitions
+  // WARNING: default strategy only supports tensor dimension == 2
   Rect<NDIM> part_rect = runtime->get_index_space_domain(ctx, part_is);
+
   Transform<NDIM, NDIM> transform;
   Point<NDIM> ext_hi;
   for (int i = 0; i < NDIM; i++) {
@@ -286,7 +289,7 @@ void FFModel::create_disjoint_partition(const Tensor& tensor,
                                         const IndexSpaceT<NDIM>& part_is,
                                         LogicalPartition& part_fwd,
                                         LogicalPartition& part_bwd)
-{ 
+{
   // Current assume forward and grad share the same index space
   assert(tensor.region.get_index_space() == tensor.region_grad.get_index_space());
   Context ctx = config.lg_ctx;
@@ -472,7 +475,7 @@ IndexSpace FFModel::get_or_create_task_is(ParallelConfig pc)
       Rect<1> task_rect(Point<1>(0), Point<1>(pc.dim[0]-1));
       task_is = runtime->create_index_space(ctx, task_rect);
       break;
-    } 
+    }
     case 2:
     {
       Rect<2> task_rect(Point<2>(0, 0), Point<2>(pc.dim[0]-1, pc.dim[1]-1));
@@ -538,7 +541,7 @@ void FFModel::reset_metrics()
 }
 
 void FFModel::init_layers()
-{ 
+{
   for (size_t i = 0; i < layers.size(); i++)
     layers[i]->init(*this);
 }
@@ -569,9 +572,9 @@ void FFModel::update()
 {
   optimizer->next();
   for (size_t i = 0; i < parameters.size(); i++) {
-    //if (parameters[i].op->name[0] != 'e')
     //if (i >= parameters.size() - 6)
-    optimizer->update(&(parameters[i]));
+    //if (parameters[i].op->name[0] != 'l')
+      optimizer->update(&(parameters[i]));
   }
 }
 
@@ -662,7 +665,7 @@ DataLoader::DataLoader(std::string datasetPath)
       std::string sampleId(sp->d_name);
       if (sampleId == "." || sampleId == "..")
         continue;
-      
+
     }
     printf("%s/%s\n", trainPath.c_str(), labelId.c_str());
     closedir(labelDir);
@@ -786,16 +789,44 @@ void FFConfig::parse_args(char **argv, int argc)
   }
 }
 
+// Perform data parallelsim across machines
+class DataParallelShardingFunctor : public ShardingFunctor {
+public:
+  DataParallelShardingFunctor(void);
+  ~DataParallelShardingFunctor(void);
+public:
+  ShardID shard(const DomainPoint &point,
+                const Domain &full_space,
+                const size_t total_shards);
+};
+
+DataParallelShardingFunctor::DataParallelShardingFunctor(void)
+: ShardingFunctor() {}
+
+DataParallelShardingFunctor::~DataParallelShardingFunctor(void)
+{}
+
+ShardID DataParallelShardingFunctor::shard(const DomainPoint &point,
+                                           const Domain &full_space,
+                                           const size_t total_shards)
+{
+  assert(point.get_dim() == full_space.get_dim());
+  int idx = full_space.get_dim() - 1;
+  int samples = full_space.hi()[idx] - full_space.lo()[idx] + 1;
+  int samples_per_shard = (samples + total_shards - 1) / total_shards;
+  return (point[idx] - full_space.lo()[idx]) / samples_per_shard;
+}
+
 // ========================================================
 // Task and mapper registrations
 // ========================================================
-
 int main(int argc, char** argv)
 {
   Runtime::set_top_level_task_id(TOP_LEVEL_TASK_ID);
   {
     TaskVariantRegistrar registrar(TOP_LEVEL_TASK_ID, "top_level");
     registrar.add_constraint(ProcessorConstraint(Processor::LOC_PROC));
+    registrar.set_replicable();
     Runtime::preregister_task_variant<top_level_task>(registrar, "top_level");
   }
   // CNN_INIT_TASK
@@ -858,7 +889,7 @@ int main(int argc, char** argv)
         registrar, "Embedding Backward Task");
   }
   // Embedding task CPU
-  {
+  /* {
     TaskVariantRegistrar registrar(EMBED_FWD_TASK_ID, "Embedding Forward");
     registrar.add_constraint(ProcessorConstraint(Processor::LOC_PROC));
     registrar.set_leaf();
@@ -871,7 +902,7 @@ int main(int argc, char** argv)
     registrar.set_leaf();
     Runtime::preregister_task_variant<Embedding::backward_task_cpu>(
         registrar, "Embedding Backward Task");
-  }
+  }*/
   // Pool2D task
   {
     TaskVariantRegistrar registrar(POOL2D_INIT_TASK_ID, "pool2d_init_task");
@@ -1005,6 +1036,13 @@ int main(int argc, char** argv)
     Runtime::preregister_task_variant<PerfMetrics, MSELoss::backward_task>(
         registrar, "MSELoss Backward Task");
   }
+  {
+    TaskVariantRegistrar registrar(MSELOSS3D_BWD_TASK_ID, "MSELoss 3d Backward");
+    registrar.add_constraint(ProcessorConstraint(Processor::TOC_PROC));
+    registrar.set_leaf();
+    Runtime::preregister_task_variant<PerfMetrics, MSELoss3D::backward_task>(
+        registrar, "MSELoss 3d Backward Task");
+  }
   // update metrics
   {
     TaskVariantRegistrar registrar(UPDATE_METRICS_TASK_ID, "Update Metrics");
@@ -1035,6 +1073,52 @@ int main(int argc, char** argv)
     Runtime::preregister_task_variant<Concat::backward_task>(
         registrar, "Concat Backward Task");
   }
+
+  // Batch matmul task
+  {
+    TaskVariantRegistrar registrar(BATCHMATMUL_INIT_TASK_ID, "batch_matmul_init_task");
+    registrar.add_constraint(ProcessorConstraint(Processor::TOC_PROC));
+    registrar.set_leaf();
+    Runtime::preregister_task_variant<OpMeta*, BatchMatmul::init_task>(
+        registrar, "batch_matmul_init_task");
+  }
+  {
+    TaskVariantRegistrar registrar(BATCHMATMUL_FWD_TASK_ID, "batch_matmul_fwd_task");
+    registrar.add_constraint(ProcessorConstraint(Processor::TOC_PROC));
+    registrar.set_leaf();
+    Runtime::preregister_task_variant<BatchMatmul::forward_task>(
+        registrar, "batch_matmul_fwd_task");
+  }
+  {
+    TaskVariantRegistrar registrar(BATCHMATMUL_BWD_TASK_ID, "batch_matmul_bwd_task");
+    registrar.add_constraint(ProcessorConstraint(Processor::TOC_PROC));
+    registrar.set_leaf();
+    Runtime::preregister_task_variant<BatchMatmul::backward_task>(
+        registrar, "batch_matmul_bwd_task");
+  }
+
+  // Transpose task
+  {
+    TaskVariantRegistrar registrar(TRANSPOSE_INIT_TASK_ID, "transpose_init_task");
+    registrar.add_constraint(ProcessorConstraint(Processor::TOC_PROC));
+    registrar.set_leaf();
+    Runtime::preregister_task_variant<OpMeta*, Transpose::init_task>(
+        registrar, "transpose_init_task");
+  }
+  {
+    TaskVariantRegistrar registrar(TRANSPOSE_FWD_TASK_ID, "transpose_fwd_task");
+    registrar.add_constraint(ProcessorConstraint(Processor::TOC_PROC));
+    registrar.set_leaf();
+    Runtime::preregister_task_variant<Transpose::forward_task>(
+        registrar, "transpose_fwd_task");
+  }
+  {
+    TaskVariantRegistrar registrar(TRANSPOSE_BWD_TASK_ID, "transpose_bwd_task");
+    registrar.add_constraint(ProcessorConstraint(Processor::TOC_PROC));
+    registrar.set_leaf();
+    Runtime::preregister_task_variant<Transpose::backward_task>(
+        registrar, "transpose_bwd_task");
+  }
   // Optimizer
   {
     TaskVariantRegistrar registrar(SGD_UPD_TASK_ID,
@@ -1045,14 +1129,14 @@ int main(int argc, char** argv)
         registrar, "SGD Update Task");
   }
   // Initializer
-  {
+  /*{
     TaskVariantRegistrar registrar(ZERO_INIT_TASK_ID,
                                    "Zero Init");
     registrar.add_constraint(ProcessorConstraint(Processor::LOC_PROC));
     registrar.set_leaf();
     Runtime::preregister_task_variant<ZeroInitializer::init_task_cpu>(
         registrar, "Zero Init Task");
-  }
+  }*/
   {
     TaskVariantRegistrar registrar(ZERO_INIT_TASK_ID,
                                    "Zero Init");
@@ -1097,6 +1181,8 @@ int main(int argc, char** argv)
   register_custom_tasks();
 
   Runtime::add_registration_callback(update_mappers);
+  DataParallelShardingFunctor* sharding_functor = new DataParallelShardingFunctor();
+  Runtime::preregister_sharding_functor(DataParallelShardingID, sharding_functor);
   return Runtime::start(argc, argv);
 }
 
@@ -1112,6 +1198,7 @@ template Tensor FFModel::create_tensor<4>(const int* dims, const IndexSpaceT<4>&
 
 template void FFModel::create_disjoint_partition<1>(const Tensor& tensor, const IndexSpaceT<1>& part_is, LogicalPartition& part_fwd, LogicalPartition& part_bwd);
 template void FFModel::create_disjoint_partition<2>(const Tensor& tensor, const IndexSpaceT<2>& part_is, LogicalPartition& part_fwd, LogicalPartition& part_bwd);
+template void FFModel::create_disjoint_partition<3>(const Tensor& tensor, const IndexSpaceT<3>& part_is, LogicalPartition& part_fwd, LogicalPartition& part_bwd);
 
 template Tensor FFModel::create_weight<2>(const int* dims, const IndexSpaceT<2>& part_is, DataType data_type, Initializer* initializer, bool create_grad);
 template Tensor FFModel::create_weight<1>(const int* dims, const IndexSpaceT<2>& part_is, DataType data_type, Initializer* initializer, bool create_grad);

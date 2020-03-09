@@ -6,7 +6,7 @@ fi
 echo "Using GASNET at - ${GASNET}"
 
 #Bootstrap automake
-./Bootstrap
+./Bootstrap -y
 
 cfgopts=" --enable-ibv \
         --enable-mpi \
@@ -40,4 +40,4 @@ echo "Using following configure option -- $cfgopts"
 make all -j
 #make install
 
-ln -s $GASNET/ibv-conduit/libgasnet-ibv-par.a lib/.
+ln -fs $GASNET/ibv-conduit/libgasnet-ibv-par.a lib/.

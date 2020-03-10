@@ -55,7 +55,6 @@ with open("res_single_node.csv", "w") as csvfile:
             try:
                 gen_strategy_cmd = 'cd ~/DLRM_FlexFlow/src/runtime && ./gen_strategy.sh %d %d 1' % (gpus, 8)
                 st_out = subprocess.check_output(gen_strategy_cmd, stderr=subprocess.STDOUT, shell=True)
-                print(str(st_out))
                 out = subprocess.check_output(cmd, stderr=subprocess.STDOUT, shell=True)
                 res = out.splitlines()[-1]
                 throughput = res.strip().split()[-2]

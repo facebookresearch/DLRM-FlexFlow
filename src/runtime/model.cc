@@ -1036,13 +1036,6 @@ int main(int argc, char** argv)
     Runtime::preregister_task_variant<PerfMetrics, MSELoss::backward_task>(
         registrar, "MSELoss Backward Task");
   }
-  {
-    TaskVariantRegistrar registrar(MSELOSS3D_BWD_TASK_ID, "MSELoss 3d Backward");
-    registrar.add_constraint(ProcessorConstraint(Processor::TOC_PROC));
-    registrar.set_leaf();
-    Runtime::preregister_task_variant<PerfMetrics, MSELoss3D::backward_task>(
-        registrar, "MSELoss 3d Backward Task");
-  }
   // update metrics
   {
     TaskVariantRegistrar registrar(UPDATE_METRICS_TASK_ID, "Update Metrics");

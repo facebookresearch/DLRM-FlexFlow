@@ -271,7 +271,7 @@ DataLoader::DataLoader(FFModel& ff,
   num_samples = 0;
   if (dlrm.dataset_path == "") {
     log_app.print("Use random dataset...");
-    if (dlrm.data_size) {	    num_samples = 256 * 4 * ff.config.workersPerNode * ff.config.numNodes;
+    if (dlrm.data_size) {	    
       num_samples = dlrm.data_size;	    //num_samples = 256 * 2 * 8 * 16;
     } else {	
       num_samples = 256 * 4 * ff.config.workersPerNode * ff.config.numNodes;	

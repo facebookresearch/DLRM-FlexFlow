@@ -1,12 +1,13 @@
 #include "model.h"
 #include <sstream>
 #include <fstream>
+#include <iomanip>
 #include <iostream>
 #define MAX_DATASET_PATH_LEN 1023
+#define  PRECISION 16
 using namespace Legion;
 
 LegionRuntime::Logger::Category log_app("bmm_test");
-
 
 struct BMMTestMeta {
   int m,k,n,d;
@@ -27,7 +28,6 @@ void initialize_tensor_from_file(const std::string file_path, Tensor label, cons
   TaskLauncher launcher(
       INIT_TENSOR_FORM_FILE_CPU_TASK,
       TaskArgument(&args_config, sizeof(args_config)));
-  // regions[0]: full_sparse_input
   launcher.add_region_requirement(
       RegionRequirement(label.region,
                         WRITE_ONLY, EXCLUSIVE, label.region,
@@ -107,7 +107,7 @@ void dump_tensor_task(const Task* task,
   myfile.open (file_path);
   for (size_t i = 0; i < rect_fb.volume(); ++i) {
     // printf("%.6lf ", (float)tensor_ptr[i]);
-    myfile << (float)tensor_ptr[i] << " ";
+    myfile << std::fixed << std::setprecision(PRECISION) << (float)tensor_ptr[i] << " ";
   }
   myfile.close();
 }
@@ -141,7 +141,7 @@ void top_level_task(const Task* task,
                     const std::vector<PhysicalRegion>& regions,
                     Context ctx, Runtime* runtime)
 {
-  std::cout<< "test framework launched" << std::endl;
+  // std::cout<< "test framework launched" << std::endl;
   auto test_meta = get_test_meta("test_meta.txt");
   FFConfig ffConfig;
   // Parse input arguments

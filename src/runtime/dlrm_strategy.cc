@@ -78,11 +78,6 @@ public:
                             const std::string& output_memory_type,
                             int num_parts_sample,
                             const std::vector<int>& device_ids);
-  bool add_mse3d_config(const std::string& name,
-                      const std::string& device_type,
-                      const std::string& input_memory_type,
-                      int num_parts_batch,
-                      const std::vector<int>& device_ids);
   void export_file(const std::string& file);
 private:
   int gpus_per_node, embs_per_node, num_nodes;
@@ -220,26 +215,6 @@ bool FFStrategy::add_mse_config(const std::string& name,
     op->add_device_ids(device_ids[i]);
 }
 
-
-bool FFStrategy::add_mse3d_config(const std::string& name,
-                                const std::string& device_type,
-                                const std::string& input_memory_type,
-                                int num_parts_sample,
-                                const std::vector<int>& device_ids)
-{
-  FFProtoBuf::Op* op = strategy.add_ops();
-  op->set_name(name);
-  op->set_device_type(to_device_type(device_type));
-  op->add_memory_types(to_memory_type(input_memory_type));
-  op->add_dims(1);
-  op->add_dims(1);
-  op->add_dims(num_parts_sample);
-  assert(num_parts_sample == (int) device_ids.size());
-  for (int i = 0; i < num_parts_sample; i++)
-    op->add_device_ids(device_ids[i]);
-}
-
-
 void FFStrategy::export_file(const std::string& output)
 {
   std::fstream outputFile(output.c_str(), std::ios::out | std::ios::trunc);
@@ -312,13 +287,6 @@ int main(int argc, char **argv)
     for (int i = 0; i < num_nodes * gpus_per_node; i++)
       device_ids.push_back(i);
       strategy.add_mse_config("mse_loss", "GPU", "FBM"/*input*/,
-        num_nodes*gpus_per_node, device_ids);
-  }
-  {
-    std::vector<int> device_ids;
-    for (int i = 0; i < num_nodes * gpus_per_node; i++)
-      device_ids.push_back(i);
-      strategy.add_mse3d_config("mse_loss3d", "GPU", "FBM"/*input*/,
         num_nodes*gpus_per_node, device_ids);
   }
   std::string output = "dlrm_strategy_emb_" + std::to_string(embs_per_node) + "_gpu_" + std::to_string(gpus_per_node) + "_node_" + std::to_string(num_nodes) + ".pb";

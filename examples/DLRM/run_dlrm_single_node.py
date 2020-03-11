@@ -15,7 +15,7 @@ repeat = 1
 per_gpu_batch_sizes = [2 ** i for i in range(6, 14)]
 num_gpus = [1, 2, 4, 8]
 
-with open("res_single_node.csv", "wb") as csvfile:
+with open("res_single_node.csv", "w") as csvfile:
     writer = csv.writer(csvfile)
 
     for gpu_batch_size, gpus in itertools.product(per_gpu_batch_sizes, num_gpus):
@@ -53,14 +53,16 @@ with open("res_single_node.csv", "wb") as csvfile:
             print(cmd)
 
             try:
+                gen_strategy_cmd = 'cd ~/DLRM_FlexFlow/src/runtime && ./gen_strategy.sh %d %d 1' % (gpus, 8)
+                st_out = subprocess.check_output(gen_strategy_cmd, stderr=subprocess.STDOUT, shell=True)
                 out = subprocess.check_output(cmd, stderr=subprocess.STDOUT, shell=True)
                 res = out.splitlines()[-1]
                 throughput = res.strip().split()[-2]
                 print(res)
             except KeyboardInterrupt:
                 sys.exit(0)
-            except:
+            except Exception as e:
                 throughput = "ERROR"
-                print("An error occured.")
+                print("An error occured.\n%s" % (e))
 
             writer.writerow([str(gpus), str(gpu_batch_size), throughput])

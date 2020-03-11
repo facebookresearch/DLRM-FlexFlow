@@ -21,4 +21,4 @@ g++ dlrm_strategy.cc strategy.pb.cc -o generator -std=c++11 -L${PROTOBUF}/src/.l
 echo "Generate..."
 ./generator --gpu ${pngpus} --emb ${pnembs} --node ${nnodes}
 
-echo "Done. dlrm_strategy_${pnembs}_emb_${pngpus}_gpu_${nnodes}_node.pb"
+echo "Done. dlrm_strategy_emb_${pnembs}_gpu_${pngpus}_node_${nnodes}.pb"

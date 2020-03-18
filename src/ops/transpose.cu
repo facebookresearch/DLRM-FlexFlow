@@ -16,7 +16,7 @@ Transpose::Transpose(
 ): Op(name, input), profiling(model.config.profiling){
   input = _input;
   // Retrive the task indexspace for the op
-  task_is = model.get_or_create_task_is(pcname);
+  task_is = model.get_or_create_task_is(3, pcname);
   ArgumentMap argmap;
   Context ctx = model.config.lg_ctx;
   Runtime* runtime = model.config.lg_hlr;

@@ -1,4 +1,4 @@
-/* Copyright 2019 Stanford
+/* Copyright 2020 Stanford, Facebook
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -489,7 +489,7 @@ void DataLoader::next_batch(FFModel& ff)
   for (size_t i = 0; i < batch_sparse_inputs.size(); i++) {
     int hash = batch_sparse_inputs.size() * MAX_NUM_EMB + i;
     std::string pc_name = "embedding"+std::to_string(i);
-    IndexSpaceT<2> task_is = IndexSpaceT<2>(ff.get_or_create_task_is(pc_name));
+    IndexSpaceT<2> task_is = IndexSpaceT<2>(ff.get_or_create_task_is(2, pc_name));
     Rect<2> rect = runtime->get_index_space_domain(ctx, task_is);
     ArgumentMap argmap;
     int idx = next_index;
@@ -526,7 +526,7 @@ void DataLoader::next_batch(FFModel& ff)
   // Load Dense Input
   {
     std::string pc_name = "";
-    IndexSpaceT<2> task_is = IndexSpaceT<2>(ff.get_or_create_task_is(pc_name));
+    IndexSpaceT<2> task_is = IndexSpaceT<2>(ff.get_or_create_task_is(2, pc_name));
     Rect<2> rect = runtime->get_index_space_domain(ctx, task_is);
     ArgumentMap argmap;
     int idx = next_index;
@@ -557,7 +557,7 @@ void DataLoader::next_batch(FFModel& ff)
   // Load Labels
   {
     std::string pc_name = "";
-    IndexSpaceT<2> task_is = IndexSpaceT<2>(ff.get_or_create_task_is(pc_name));
+    IndexSpaceT<2> task_is = IndexSpaceT<2>(ff.get_or_create_task_is(2, pc_name));
     Rect<2> rect = runtime->get_index_space_domain(ctx, task_is);
     ArgumentMap argmap;
     int idx = next_index;

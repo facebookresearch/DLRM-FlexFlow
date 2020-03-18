@@ -24,7 +24,7 @@ BatchMatmul::BatchMatmul(
 ): Op(pcname, input1, input2), profiling(model.config.profiling){
   ArgumentMap argmap;
   // Retrive the task indexspace for the op
-  task_is = model.get_or_create_task_is(pcname);
+  task_is = model.get_or_create_task_is(3, pcname);
   Context ctx = model.config.lg_ctx;
   Runtime* runtime = model.config.lg_hlr;
   FieldSpace fs = model.config.field_space;

@@ -35,7 +35,7 @@ void FFMapper::slice_task(const MapperContext ctx,
                           const SliceTaskInput& input,
                           SliceTaskOutput& output)
 {
-  //printf("task.task_id = %d task.target_proc = %x num_slices = %zu gpus.size = %zu\n",
+  //printff("task.task_id = %d task.target_proc = %x num_slices = %zu gpus.size = %zu\n",
   //    task.task_id, task.target_proc.id, input.domain.get_volume(), gpus.size());
   if ((task.task_id == TOP_LEVEL_TASK_ID)
   || ((task.task_id >= CUSTOM_CPU_TASK_ID_FIRST)
@@ -50,8 +50,9 @@ void FFMapper::slice_task(const MapperContext ctx,
     unsigned int config_num_parts = 1;
     if (strategies.find(hash) == strategies.end()) {
       // No strategy found, use default data parallelism
-      assert(strategies.find(FFConfig::DataParallelismID) != strategies.end());
-      config = strategies[FFConfig::DataParallelismID];
+      int ndim = input.domain.get_dim();
+      assert(strategies.find(FFConfig::DataParallelism_1D-1+ndim) != strategies.end());
+      config = strategies[FFConfig::DataParallelism_1D-1+ndim];
     } else {
       // Found a strategy
       config = strategies[hash];
@@ -121,6 +122,23 @@ void FFMapper::slice_task(const MapperContext ctx,
         }
         break;
       }
+      case 4:
+      {
+        Rect<4> rect = input.domain;
+        int cnt = 0;
+        for (PointInRectIterator<4> pir(rect); pir(); pir++) {
+          unsigned int idx = 0;
+          for (int i = input.domain.get_dim()-1; i >= 0; i--)
+            idx = idx*(input.domain.hi()[i]-input.domain.lo()[i]+1)+pir[i];
+          assert(config_num_parts > idx);
+          //assert((int)gpus.size() > config.gpu[idx]);
+          Rect<4> slice(*pir, *pir);
+          output.slices[cnt++] = TaskSlice(slice,
+              (*devices)[config.device_ids[idx] % devices->size()],
+              false/*recurse*/, false/*stealable*/);
+        }
+        break;
+      }
       default:
         assert(false);
     }
@@ -131,6 +149,7 @@ void FFMapper::select_task_options(const MapperContext ctx,
                                    const Task& task,
                                    TaskOptions& output)
 {
+  unsigned long long task_hash = compute_task_hash(task);
   if (task.task_id == SGD_UPD_TASK_ID) {
     // For SGD Update, pick a processor from config
     // TODO: perform similar optimizations for other Optimizer
@@ -149,8 +168,21 @@ void FFMapper::select_task_options(const MapperContext ctx,
         return;
       }
     }
+    if (cache_update_tasks.find(task_hash) != cache_update_tasks.end()) {
+      output.initial_proc = cache_update_tasks[task_hash];
+      output.inline_task = false;
+      output.stealable = stealing_enabled;
+      output.map_locally = map_locally;
+      return;
+    }
   }
+  
   DefaultMapper::select_task_options(ctx, task, output);
+  if ((task.task_id == SGD_UPD_TASK_ID)
+  && (cache_update_tasks.find(task_hash) == cache_update_tasks.end())) {
+    cache_update_tasks[task_hash] = output.initial_proc;
+    printf("hash = %llu proc = %llu\n", task_hash, output.initial_proc.id);
+  }
 }
 
 void FFMapper::select_sharding_functor(const MapperContext ctx,
@@ -274,7 +306,6 @@ void update_mappers(Machine machine, Runtime *runtime,
       }
     }
   }
-
   for (std::map<Processor, Memory>::iterator it = proc_fbmems->begin();
        it != proc_fbmems->end(); it++) {
     gpus->push_back(it->first); 
@@ -294,30 +325,24 @@ void update_mappers(Machine machine, Runtime *runtime,
   std::map<MappingTagID, ParallelConfig>* strategies = new std::map<MappingTagID, ParallelConfig>();
 
   if (strategyFile == "") {
-    log_mapper.print("No strategy file provided. Use default data parallelism.");
     // No strategy file provided, use data parallelism
-    // TODO: the decault data parallelsim only apply to 2D operators
-    ParallelConfig pc;
-    pc.device_type = ParallelConfig::GPU;
-    pc.nDims = 2;
-    pc.dim[0] = 1;
-    pc.dim[1] = gpus->size();
-    for (size_t i = 0; i < gpus->size(); i++)
-      pc.device_ids[i] = i;
-    (*strategies)[FFConfig::DataParallelismID] = pc;
+    log_mapper.print("No strategy file provided. Use default data parallelism.");
   } else {
     log_mapper.print("Load parallelization strategy from file %s",
                      strategyFile.c_str());
     load_strategies_from_file(strategyFile, *strategies);
-    // TODO: the decault data parallelsim only apply to 2D operators
+  }
+  for (int i = FFConfig::DataParallelism_1D; i <= FFConfig::DataParallelism_6D; i++) {
     ParallelConfig pc;
     pc.device_type = ParallelConfig::GPU;
-    pc.nDims = 2;
-    pc.dim[0] = 1;
-    pc.dim[1] = gpus->size();
-    for (size_t i = 0; i < gpus->size(); i++)
-      pc.device_ids[i] = i;
-    (*strategies)[FFConfig::DataParallelismID] = pc;
+    pc.nDims = i - FFConfig::DataParallelism_1D + 1;
+    for (int j = 0; j < pc.nDims; j++)
+      pc.dim[j] = 1;
+    pc.dim[pc.nDims-1] = gpus->size();
+    for (size_t j = 0; j < gpus->size(); j++)
+      pc.device_ids[j] = j;
+
+    (*strategies)[i] = pc;
   }
 
   for (std::set<Processor>::const_iterator it = local_procs.begin();
@@ -330,4 +355,3 @@ void update_mappers(Machine machine, Runtime *runtime,
     runtime->replace_default_mapper(mapper, *it);
   }
 }
-

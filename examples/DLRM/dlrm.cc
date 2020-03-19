@@ -78,6 +78,7 @@ void top_level_task(const Task* task,
                     const std::vector<PhysicalRegion>& regions,
                     Context ctx, Runtime* runtime)
 {
+  printf("Checkpoint 1\n");
   FFConfig ffConfig;
   // Parse input arguments
   DLRMConfig dlrmConfig;
@@ -94,11 +95,13 @@ void top_level_task(const Task* task,
     print_vector("MLP Top", dlrmConfig.mlp_top);
     print_vector("MLP Bot", dlrmConfig.mlp_bot);
   }
+  printf("Checkpoint 2\n");
 
   ffConfig.lg_ctx = ctx;
   ffConfig.lg_hlr = runtime;
   ffConfig.field_space = runtime->create_field_space(ctx);
   FFModel ff(ffConfig);
+  printf("Checkpoint 3\n");
 
   std::vector<Tensor> sparse_inputs;
   for (size_t i = 0; i < dlrmConfig.embedding_size.size(); i++) {
@@ -106,46 +109,63 @@ void top_level_task(const Task* task,
     Tensor input = ff.create_tensor<2>(dims, "embedding"+std::to_string(i), DT_INT64);
     sparse_inputs.push_back(input);
   }
+  printf("Checkpoint 4\n");
   Tensor dense_input;
   {
     const int dims[] = {ffConfig.batchSize, dlrmConfig.mlp_bot[0]};
     dense_input = ff.create_tensor<2>(dims, "", DT_FLOAT);
   }
+  printf("Checkpoint 5\n");
   Tensor label;
   {
     const int dims[] = {ffConfig.batchSize, 1};
     label = ff.create_tensor<2>(dims, "", DT_FLOAT);
   }
+  printf("Checkpoint 6\n");
   // Step 1 create dense_mlp
   Tensor x = create_mlp(&ff, dense_input, dlrmConfig.mlp_bot, dlrmConfig.sigmoid_bot);
   std::vector<Tensor> ly;
+  printf("Checkpoint 7\n");
   for (size_t i = 0; i < dlrmConfig.embedding_size.size(); i++) {
     int input_dim = dlrmConfig.embedding_size[i];
     int output_dim = dlrmConfig.sparse_feature_size;
     ly.push_back(create_emb(&ff, sparse_inputs[i], input_dim, output_dim, i));
   }
+  printf("Checkpoint 8\n");
   Tensor z = interact_features(&ff, x, ly, dlrmConfig.arch_interaction_op);
   Tensor p = create_mlp(&ff, z, dlrmConfig.mlp_top, dlrmConfig.mlp_top.size() - 2);
+  printf("Checkpoint 9\n");
   if (dlrmConfig.loss_threshold > 0.0f && dlrmConfig.loss_threshold < 1.0f) {
     // TODO: implement clamp
     assert(false);
   }
+  printf("Checkpoint 10\n");
   ff.mse_loss("mse_loss"/*name*/, p, label, "average"/*reduction*/);
   // Use SGD Optimizer
+  printf("Checkpoint 11\n");
   ff.optimizer = new SGDOptimizer(&ff, 0.01f);
+  printf("Checkpoint 12\n");
   ff.init_layers();
   // Data Loader
+  printf("Checkpoint 13\n");
   DataLoader data_loader(ff, dlrmConfig, sparse_inputs, dense_input, label);
+  printf("Checkpoint 14\n");
 
 #if 1
   // Warmup iterations
   for (int iter = 0; iter < 1; iter++) {
+  printf("Checkpoint 15\n");
     data_loader.reset();
+  printf("Checkpoint 16\n");
     ff.reset_metrics();
+  printf("Checkpoint 17\n");
     data_loader.next_batch(ff);
+  printf("Checkpoint 18\n");
     ff.forward();
     //ff.zero_gradients();
+  printf("Checkpoint 19\n");
     ff.backward();
+  printf("Checkpoint 20\n");
     ff.update();
   }
 #endif

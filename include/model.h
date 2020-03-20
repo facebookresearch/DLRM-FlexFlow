@@ -12,7 +12,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
+#pragma warning disable
 #ifndef _FLEXFLOW_RUNTIME_H_
 #define _FLEXFLOW_RUNTIME_H_
 #include "legion.h"
@@ -55,6 +55,10 @@ enum TaskIDs {
   TRANSPOSE_INIT_TASK_ID,
   TRANSPOSE_FWD_TASK_ID,
   TRANSPOSE_BWD_TASK_ID,
+  RESHAPE_2_TO_3_FWD_TASK_ID,
+  RESHAPE_3_TO_2_FWD_TASK_ID,
+  RESHAPE_3_TO_2_BWD_TASK_ID,
+  RESHAPE_2_TO_3_BWD_TASK_ID,
   LINEAR_INIT_TASK_ID,
   LINEAR_INIT_PARA_TASK_ID,
   LINEAR_FWD_TASK_ID,
@@ -263,6 +267,12 @@ public:
                       const Tensor& input2,
                       const bool trans1=true,
                       const bool trans2=false);
+
+  // Add a reshape layer
+  template<int IDIM, int ODIM>
+  Tensor reshape(std::string name,
+                const Tensor& input,
+                const int output_shape[]);
 
   // Add a concat layer
   Tensor concat(std::string name,
@@ -811,6 +821,39 @@ public:
 class TransposeMeta : public OpMeta {
 public:
   TransposeMeta(FFHandler handle) : OpMeta(handle) {};
+};
+
+class Reshape : public Op {
+public:
+  template<int IDIM, int ODIM>
+  Reshape(FFModel& model,
+         const std::string& pcname,
+         const Tensor& _input,
+         const int output_shape[]);
+  void init(const FFModel&);
+  template<int IDIM, int ODIM>
+  void forward(const FFModel&);
+  template<int IDIM, int ODIM>
+  void backward(const FFModel&);
+  template<int IDIM, int ODIM>
+  static void forward_task(const Task *task,
+                           const std::vector<PhysicalRegion> &regions,
+                           Context ctx, Runtime *runtime);
+  template<int IDIM, int ODIM>
+  static void backward_task(
+                          const Task *task,
+                          const std::vector<PhysicalRegion> &regions,
+                          Context ctx, Runtime *runtime
+                          );
+public:
+  Tensor input;
+  bool profiling;
+  std::string pcname;
+};
+
+class ReshapeMeta : public OpMeta {
+public:
+  ReshapeMeta(FFHandler handle) : OpMeta(handle) {};
 };
 
 #endif//_FLEXFLOW_RUNTIME_H_

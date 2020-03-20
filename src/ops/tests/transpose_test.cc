@@ -163,7 +163,6 @@ void top_level_task(const Task* task,
   Tensor dense_input;
   {
     const int dims[3] = {test_meta.d,test_meta.m,test_meta.k}; // target shape (d,m,k)
-    // HACK: have to pass "batch_matmul" 3-dimensional strategy string id to tell FF to distribute this tensor correctly 
     dense_input = ff.create_tensor<3>(dims, "transpose", DT_FLOAT);
   }
   // build transpose layer

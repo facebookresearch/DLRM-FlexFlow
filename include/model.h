@@ -271,7 +271,8 @@ public:
   // Add a reshape layer
   Tensor reshape(std::string name,
                 const Tensor& input,
-                const int output_shape[]);
+                const int output_shape[],
+                int out_dim);
 
   // Add a concat layer
   Tensor concat(std::string name,
@@ -822,9 +823,9 @@ public:
   TransposeMeta(FFHandler handle) : OpMeta(handle) {};
 };
 
-class Reshape2to3 : public Op {
+class Reshape3to2 : public Op {
 public:
-  Reshape2to3(FFModel& model,
+  Reshape3to2(FFModel& model,
          const std::string pcname,
          const Tensor& _input,
          const int output_shape[]);
@@ -847,6 +848,7 @@ public:
   std::string pcname;
   const int IDIM = 2;
   const int ODIM = 3;
+    IndexSpaceT<2> task_is;
 };
 
 class ReshapeMeta : public OpMeta {

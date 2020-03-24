@@ -346,9 +346,9 @@ class FlattenTest(unittest.TestCase):
 
     def test_simple_case(self):
         num_gpu = 1
-        i_dim = 4
+        i_dim = 3
         o_dim = 2
-        i_shape = (1,2,1,2)
+        i_shape = (1,2,2)
         o_shape = (1,4)
         self._run_gpu_test(num_gpu, i_dim, o_dim, i_shape, o_shape)
 

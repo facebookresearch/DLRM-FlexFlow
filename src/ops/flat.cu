@@ -18,7 +18,7 @@
 
 Tensor FFModel::flat(std::string name, Tensor input)
 {
-  assert(input.numDim == 4);
+  assert(input.numDim == 3);
   //assert(strategies.find(name) != strategies.end());
   //ParallelConfig pc = strategies[name];
   Flat *flat = new Flat(*this, name, input);
@@ -42,14 +42,14 @@ Flat::Flat(FFModel& model,
   
 
 
-  int out_dim = _input.adim[0] * _input.adim[1] * _input.adim[2];
-  int batch_size = _input.adim[3];
+  int out_dim = _input.adim[0] * _input.adim[1];
+  int batch_size = _input.adim[2];
   // Create output tensor
   {
     const int dims[2] = {batch_size, out_dim};
     output = model.create_tensor<2>(dims, task_is, DT_FLOAT);
   }
-  model.create_data_parallel_partition_with_diff_dims<4, 2>(
+  model.create_data_parallel_partition_with_diff_dims<3, 2>(
       _input, task_is, input_lps[0], input_grad_lps[0]);
 
 }
@@ -96,7 +96,7 @@ void Flat::forward_task(const Task *task,
 {
   assert(regions.size() == 2);
   assert(task->regions.size() == 2);
-  TensorAccessorR<float, 4> acc_input(
+  TensorAccessorR<float, 3> acc_input(
     regions[0], task->regions[0], FID_DATA, ctx, runtime);
   TensorAccessorW<float, 2> acc_output(
     regions[1], task->regions[1], FID_DATA, ctx, runtime,
@@ -128,7 +128,7 @@ void Flat::forward(const FFModel& ff)
                         READ_ONLY, EXCLUSIVE, inputs[0].region));
   launcher.add_field(0, FID_DATA);
   launcher.add_region_requirement(
-      RegionRequirement(output.part /*4D->2D partitions*/, 0/*projection id*/,
+      RegionRequirement(output.part /*3D->2D partitions*/, 0/*projection id*/,
         WRITE_ONLY, EXCLUSIVE, output.region));
   launcher.add_field(1, FID_DATA);
 
@@ -145,7 +145,7 @@ void Flat::backward_task(const Task *task,
 {
   assert(regions.size() == 2);
   assert(task->regions.size() == 2);
-  TensorAccessorW<float, 4> acc_input_grad(
+  TensorAccessorW<float, 3> acc_input_grad(
     regions[0], task->regions[0], FID_DATA, ctx, runtime,
     true/*readOutput*/);
   TensorAccessorR<float, 2> acc_output_grad(

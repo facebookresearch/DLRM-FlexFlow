@@ -242,6 +242,16 @@ void dump_region_to_file(FFModel &ff, LogicalRegion &region, std::string file_pa
     );
     launcher.add_field(0, FID_DATA);
     runtime->execute_task(ctx, launcher);
+  } else if (dims == 3) {
+    TaskLauncher launcher(DUMP_TENSOR_3D_CPU_TASK, 
+                          TaskArgument(&args_config, sizeof(args_config)));
+    launcher.add_region_requirement(
+      RegionRequirement(
+        region, READ_WRITE, EXCLUSIVE, region, MAP_TO_ZC_MEMORY)
+    );
+    launcher.add_field(0, FID_DATA);
+    runtime->execute_task(ctx, launcher);
+
   } else if (dims == 4) {
     TaskLauncher launcher(DUMP_TENSOR_4D_CPU_TASK, 
                           TaskArgument(&args_config, sizeof(args_config)));
@@ -260,6 +270,27 @@ void dump_region_to_file(FFModel &ff, LogicalRegion &region, std::string file_pa
 
 }
 
+void dump_3d_tensor_task(const Task* task,
+                      const std::vector<PhysicalRegion>& regions,
+                      Context ctx, Runtime* runtime)
+{
+  assert(task->regions.size() == 1);
+  assert(regions.size() == 1);
+  const ArgsConfig args_config = *((const ArgsConfig *)task->args);
+  std::string file_path((const char*)args_config.dataset_path);
+  const AccessorRO<float, 3> acc_tensor(regions[0], FID_DATA);
+  Rect<3> rect_fb = runtime->get_index_space_domain(
+    ctx, task->regions[0].region.get_index_space());
+  assert(acc_tensor.accessor.is_dense_arbitrary(rect_fb));
+  const float* tensor_ptr = acc_tensor.ptr(rect_fb.lo);
+  std::ofstream myfile;
+  myfile.open (file_path);
+  for (size_t i = 0; i < rect_fb.volume(); ++i) {
+    // printf("%.6lf ", (float)tensor_ptr[i]);
+    myfile << std::fixed << std::setprecision(PRECISION) << (float)tensor_ptr[i] << " ";
+  }
+  myfile.close();
+}
 
 void dump_4d_tensor_task(const Task* task,
                       const std::vector<PhysicalRegion>& regions,
@@ -393,6 +424,13 @@ void register_custom_tasks()
     Runtime::preregister_task_variant<dump_4d_tensor_task>(
         registrar, "Compare Tensor Task");
   }
+  {      
+    TaskVariantRegistrar registrar(DUMP_TENSOR_3D_CPU_TASK, "Compare Tensor");
+    registrar.add_constraint(ProcessorConstraint(Processor::LOC_PROC));
+    registrar.set_leaf();
+    Runtime::preregister_task_variant<dump_3d_tensor_task>(
+        registrar, "Compare Tensor Task");
+  }
 }
 
 void top_level_task(const Task* task,
@@ -416,19 +454,19 @@ void top_level_task(const Task* task,
   // create ff model object
   FFModel ff(ffConfig);
   Tensor dense_input;
-#define input_dim 4
+#define input_dim 3
   const int i_dims[input_dim] = {
     test_meta.i_shape[0], 
     test_meta.i_shape[1], 
-    test_meta.i_shape[2],
-    test_meta.i_shape[3]
+    test_meta.i_shape[2]
+    // test_meta.i_shape[3]
   }; 
   // std::cout << test_meta.i_shape[0] << test_meta.i_shape[1] << test_meta.i_shape[2] << test_meta.i_shape[3] <<  std::endl;
-  dense_input = ff.create_tensor<input_dim>(i_dims, "flat_4_in", DT_FLOAT);
+  dense_input = ff.create_tensor<input_dim>(i_dims, "flat_3_in", DT_FLOAT);
   Tensor ret = ff.flat("flat_2_out", dense_input);
   auto input1_file_path = "test_input1.txt";
   auto output_grad_file_path = "test_output_grad.txt";
-  initialize_tensor_from_file(input1_file_path, dense_input, ff, "float", 4);
+  initialize_tensor_from_file(input1_file_path, dense_input, ff, "float", 3);
   initialize_tensor_gradient_from_file(output_grad_file_path, ret, ff, "float", 2);
   // run forward and backward to produce results
   ff.init_layers();
@@ -437,7 +475,7 @@ void top_level_task(const Task* task,
   dump_region_to_file(ff, ret.region, "output.txt", 2);
 
   ff.backward();
-  dump_region_to_file(ff, dense_input.region_grad, "input1_grad.txt", 4);
+  dump_region_to_file(ff, dense_input.region_grad, "input1_grad.txt", 3);
 
   
   

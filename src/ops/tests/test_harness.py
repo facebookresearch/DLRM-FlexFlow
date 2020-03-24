@@ -344,7 +344,7 @@ class FlattenTest(unittest.TestCase):
         is_equal_tensor_from_file(file1, file2, 'input_grad', epsilon=epsilon)
 
 
-    def test_simple_case(self):
+    def test_single_gpu_single_batch(self):
         num_gpu = 1
         i_dim = 3
         o_dim = 2
@@ -352,6 +352,21 @@ class FlattenTest(unittest.TestCase):
         o_shape = (1,4)
         self._run_gpu_test(num_gpu, i_dim, o_dim, i_shape, o_shape)
 
+    def test_single_gpu_multi_batch(self):
+        num_gpu = 1
+        i_dim = 3
+        o_dim = 2
+        i_shape = (3,2,2)
+        o_shape = (3,4)
+        self._run_gpu_test(num_gpu, i_dim, o_dim, i_shape, o_shape)
+
+    def test_two_gpus_multi_batch(self):
+        num_gpu = 2
+        i_dim = 3
+        o_dim = 2
+        i_shape = (3,2,2)
+        o_shape = (3,4)
+        self._run_gpu_test(num_gpu, i_dim, o_dim, i_shape, o_shape)
 
 
 

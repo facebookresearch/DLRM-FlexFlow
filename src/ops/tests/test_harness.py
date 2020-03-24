@@ -56,7 +56,7 @@ class DotCompressor(torch.nn.Module):
         cat_compression_ret = torch.cat([tanh_flatteded_pairwise, dense_projection], 1)
         return cat_compression_ret
 
-def dump_tensor_3d_to_file(tensor, file_name):
+def dump_tensor_to_file(tensor, file_name):
     buffer = []
     for entry in tensor.flatten():
       buffer.append(entry)
@@ -150,18 +150,18 @@ class BatchMatmulTest(unittest.TestCase):
     def _run_gpu_test(self, num_gpu, d, m, n, k, epsilon=0.00001):
         # generate python reference and input payload
         input1_tensor = np.random.uniform(0, 1, (d,k,m))
-        dump_tensor_3d_to_file(input1_tensor, "test_input1.txt")
+        dump_tensor_to_file(input1_tensor, "test_input1.txt")
         input2_tensor = np.random.uniform(0, 1, (d,k,n))
-        dump_tensor_3d_to_file(input2_tensor, "test_input2.txt")
+        dump_tensor_to_file(input2_tensor, "test_input2.txt")
         output_gradient_tensor = np.random.uniform(0, 1, (d,m,n))
-        dump_tensor_3d_to_file(output_gradient_tensor, "test_output_grad.txt")
+        dump_tensor_to_file(output_gradient_tensor, "test_output_grad.txt")
 
         output_tensor = batch_matmul_3d_reference(input1_tensor, input2_tensor, trans1=True, trans2=False)
         input1_grad_tensor = batch_matmul_3d_reference(input2_tensor, output_gradient_tensor, trans1=False, trans2=True)
         input2_grad_tensor = batch_matmul_3d_reference(input1_tensor, output_gradient_tensor, trans1=False, trans2=False)
-        dump_tensor_3d_to_file(output_tensor, "test_output.txt")
-        dump_tensor_3d_to_file(input1_grad_tensor, "test_input1_grad.txt")
-        dump_tensor_3d_to_file(input2_grad_tensor, "test_input2_grad.txt")
+        dump_tensor_to_file(output_tensor, "test_output.txt")
+        dump_tensor_to_file(input1_grad_tensor, "test_input1_grad.txt")
+        dump_tensor_to_file(input2_grad_tensor, "test_input2_grad.txt")
         self._dump_meta(m,k,n,d)
 
         # generate FF results
@@ -292,13 +292,13 @@ class TransposeTest(unittest.TestCase):
     def _run_gpu_test(self, num_gpu, d, m, k, epsilon=0.00001):
         # generate python reference and input payload
         input_tensor = np.random.uniform(0, 1, (d,m,k))
-        dump_tensor_3d_to_file(input_tensor, "test_input1.txt")
+        dump_tensor_to_file(input_tensor, "test_input1.txt")
         output_gradient_tensor = np.random.uniform(0, 1, (d,k,m))
-        dump_tensor_3d_to_file(output_gradient_tensor, "test_output_grad.txt")
+        dump_tensor_to_file(output_gradient_tensor, "test_output_grad.txt")
         output_tensor = batch_transpose_3d_reference(input_tensor)
         input_grad_tensor = batch_transpose_3d_reference(output_gradient_tensor)
-        dump_tensor_3d_to_file(output_tensor, "test_output.txt")
-        dump_tensor_3d_to_file(input_grad_tensor, "test_input1_grad.txt")
+        dump_tensor_to_file(output_tensor, "test_output.txt")
+        dump_tensor_to_file(input_grad_tensor, "test_input1_grad.txt")
         self._dump_meta(m,k,d)
 
         # generate FF results

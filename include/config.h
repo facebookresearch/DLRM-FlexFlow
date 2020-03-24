@@ -24,7 +24,7 @@
 #define MAX_NUM_INPUTS 512
 #define MAX_NUM_LOCALS 3
 #define MAX_NUM_WORKERS 1024
-#define MAX_DIM 4
+#define MAX_DIM 10
 #define MAX_FILENAME 200
 #define MAX_OPNAME 64
 // DataLoader
@@ -56,7 +56,12 @@ class FFConfig {
 public:
   enum PreservedIDs{
     InvalidID = 0,
-    DataParallelismID = 1,
+    DataParallelism_1D = 1,
+    DataParallelism_2D = 2,
+    DataParallelism_3D = 3,
+    DataParallelism_4D = 4,
+    DataParallelism_5D = 5,
+    DataParallelism_6D = 6,
   };
 
   FFConfig();
@@ -64,7 +69,8 @@ public:
   //bool save_strategy_file(std::string filename);
   void parse_args(char** argv, int argc);
   static MappingTagID get_hash_id(const std::string& pcname);
-  bool find_parallel_config(const std::string& pcname,
+  bool find_parallel_config(int ndims,
+                            const std::string& pcname,
                             ParallelConfig& config);
 public:
   int epochs, batchSize, iterations, printFreq;

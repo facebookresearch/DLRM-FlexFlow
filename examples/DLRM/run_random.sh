@@ -1,6 +1,6 @@
 #!/bin/bash
 
-per_gpu_batch_size=16
+per_gpu_batch_size=256
 numgpu="$1"
 batchsize=$((numgpu * per_gpu_batch_size))
 

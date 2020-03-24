@@ -310,5 +310,65 @@ class TransposeTest(unittest.TestCase):
         file2 = 'input1_grad.txt'
         is_equal_tensor_from_file(file1, file2, 'input_grad', epsilon=epsilon)
 
+class FlattenTest(unittest.TestCase):
+    '''
+    4 dimensional to 2dimensional flatten
+    '''
+    TEST_TARGET = 'flat_test'
+    def _dump_meta(self,i_dim, o_dim, i_shape, o_shape):
+        i_shape = [str(x) for x in i_shape]
+        o_shape = [str(x) for x in o_shape]
+        with open('test_meta.txt', 'w+') as f:
+          f.write(' '.join([str(i_dim), str(o_dim)]+i_shape+o_shape))
+
+   
+    def _run_gpu_test(self, num_gpu, i_dim, o_dim, i_shape, o_shape, epsilon=0.00001):
+        # generate python reference and input payload
+        input_tensor = np.random.uniform(0, 1, i_shape)
+        dump_tensor_to_file(input_tensor, "test_input1.txt")
+        output_gradient_tensor = np.random.uniform(0, 1, o_shape)
+        dump_tensor_to_file(output_gradient_tensor, "test_output_grad.txt")
+        output_tensor = input_tensor.reshape(o_shape)
+        input_grad_tensor = output_gradient_tensor.reshape(i_shape)
+        dump_tensor_to_file(output_tensor, "test_output.txt")
+        dump_tensor_to_file(input_grad_tensor, "test_input1_grad.txt")
+        self._dump_meta(i_dim, o_dim, i_shape, o_shape)
+
+        # generate FF results
+        gen_FF_result(FlattenTest.TEST_TARGET, num_gpu)
+        file1 = 'output.txt'
+        file2 = 'test_output.txt'
+        is_equal_tensor_from_file(file1, file2, 'output', epsilon=epsilon)
+        file1 = 'test_input1_grad.txt'
+        file2 = 'input1_grad.txt'
+        is_equal_tensor_from_file(file1, file2, 'input_grad', epsilon=epsilon)
+
+
+    def test_single_gpu_single_batch(self):
+        num_gpu = 1
+        i_dim = 3
+        o_dim = 2
+        i_shape = (1,2,2)
+        o_shape = (1,4)
+        self._run_gpu_test(num_gpu, i_dim, o_dim, i_shape, o_shape)
+
+    def test_single_gpu_multi_batch(self):
+        num_gpu = 1
+        i_dim = 3
+        o_dim = 2
+        i_shape = (3,2,2)
+        o_shape = (3,4)
+        self._run_gpu_test(num_gpu, i_dim, o_dim, i_shape, o_shape)
+
+    def test_two_gpus_multi_batch(self):
+        num_gpu = 2
+        i_dim = 3
+        o_dim = 2
+        i_shape = (3,2,2)
+        o_shape = (3,4)
+        self._run_gpu_test(num_gpu, i_dim, o_dim, i_shape, o_shape)
+
+
+
 if __name__ == '__main__':
     unittest.main()

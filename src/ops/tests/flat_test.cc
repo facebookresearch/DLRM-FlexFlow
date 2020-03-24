@@ -1,12 +1,11 @@
 #include "model.h"
 #include "test_utils.h"
 #include <sstream>
+#include "test_utils.h"
 #include <fstream>
 #include <iomanip>
 #include <iostream>
-#define  PRECISION 16
 using namespace Legion;
-
 LegionRuntime::Logger::Category log_app("Flat_test");
 
 struct FlatTestMeta {
@@ -20,8 +19,6 @@ struct FlatTestMeta {
       o_shape = _o_shape;
   }
 };
-
-
 
 FlatTestMeta get_test_meta(const std::string file_path) {
   std::fstream myfile(file_path, std::ios_base::in);
@@ -47,23 +44,8 @@ FlatTestMeta get_test_meta(const std::string file_path) {
   return FlatTestMeta(i_dim, o_dim, i_shape, o_shape);
 }
 
-void register_custom_tasks()
-{
-  {
-    TaskVariantRegistrar registrar(INIT_TENSOR_FORM_FILE_CPU_TASK, "Load Label");
-    registrar.add_constraint(ProcessorConstraint(Processor::LOC_PROC));
-    registrar.set_leaf();
-    Runtime::preregister_task_variant<initialize_tensor_from_file_task>(
-        registrar, "Load Label Task");
-  }
-  {      
-    TaskVariantRegistrar registrar(DUMP_TENSOR_CPU_TASK, "Compare Tensor");
-    registrar.add_constraint(ProcessorConstraint(Processor::LOC_PROC));
-    registrar.set_leaf();
-    Runtime::preregister_task_variant<dump_tensor_task>(
-        registrar, "Compare Tensor Task");
-  }
-}
+
+
 
 void top_level_task(const Task* task,
                     const std::vector<PhysicalRegion>& regions,

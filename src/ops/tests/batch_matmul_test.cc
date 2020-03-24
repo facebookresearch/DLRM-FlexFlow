@@ -26,7 +26,7 @@ void initialize_tensor_from_file(const std::string file_path, Tensor label, cons
   ArgsConfig args_config;
   strcpy(args_config.dataset_path, file_path.c_str());
   TaskLauncher launcher(
-      INIT_TENSOR_FORM_FILE_CPU_TASK,
+      INIT_TENSOR_FROM_FILE_CPU_TASK,
       TaskArgument(&args_config, sizeof(args_config)));
   launcher.add_region_requirement(
       RegionRequirement(label.region,
@@ -42,7 +42,7 @@ void initialize_tensor_gradient_from_file(const std::string file_path, Tensor la
   ArgsConfig args_config;
   strcpy(args_config.dataset_path, file_path.c_str());
   TaskLauncher launcher(
-      INIT_TENSOR_FORM_FILE_CPU_TASK,
+      INIT_TENSOR_FROM_FILE_CPU_TASK,
       TaskArgument(&args_config, sizeof(args_config)));
   launcher.add_region_requirement(
       RegionRequirement(
@@ -122,7 +122,7 @@ BMMTestMeta get_test_meta(const std::string file_path) {
 void register_custom_tasks()
 {
   {
-    TaskVariantRegistrar registrar(INIT_TENSOR_FORM_FILE_CPU_TASK, "Load Label");
+    TaskVariantRegistrar registrar(INIT_TENSOR_FROM_FILE_CPU_TASK, "Load Label");
     registrar.add_constraint(ProcessorConstraint(Processor::LOC_PROC));
     registrar.set_leaf();
     Runtime::preregister_task_variant<initialize_tensor_from_file_task>(

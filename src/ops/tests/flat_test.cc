@@ -77,8 +77,8 @@ void top_level_task(const Task* task,
     // test_meta.i_shape[3]
   }; 
   // std::cout << test_meta.i_shape[0] << test_meta.i_shape[1] << test_meta.i_shape[2] << test_meta.i_shape[3] <<  std::endl;
-  dense_input = ff.create_tensor<input_dim>(i_dims, "flat_3_in", DT_FLOAT);
-  Tensor ret = ff.flat("flat_2_out", dense_input);
+  dense_input = ff.create_tensor<input_dim>(i_dims, "", DT_FLOAT);
+  Tensor ret = ff.flat("", dense_input);
   auto input1_file_path = "test_input1.txt";
   auto output_grad_file_path = "test_output_grad.txt";
   initialize_tensor_from_file(input1_file_path, dense_input, ff, "float", 3);

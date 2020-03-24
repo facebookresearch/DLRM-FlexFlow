@@ -22,7 +22,7 @@ GEN_SRC		?= src/runtime/model.cc src/mapper/mapper.cc src/runtime/initializer.cc
 GEN_GPU_SRC	?= src/ops/conv_2d.cu src/runtime/model.cu src/ops/pool_2d.cu src/ops/batch_norm.cu src/ops/linear.cu\
 		src/ops/softmax.cu src/ops/batch_matmul.cu src/ops/concat.cu src/ops/flat.cu src/ops/embedding.cu src/ops/mse_loss.cu\
 		src/runtime/initializer_kernel.cu src/runtime/optimizer_kernel.cu src/runtime/accessor_kernel.cu\
-		src/ops/transpose.cu src/ops/reshape.cu src/runtime/cuda_helper.cu $(app).cu# .cu files
+		src/ops/transpose.cu src/ops/reshape.cu src/ops/reshape_tmp.cu src/runtime/cuda_helper.cu $(app).cu# .cu files
 
 # Flags for directing the runtime makefile what to include
 DEBUG           ?= 0		# Include debugging symbols

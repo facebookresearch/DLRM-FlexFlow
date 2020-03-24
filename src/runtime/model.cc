@@ -1246,7 +1246,13 @@ int main(int argc, char** argv)
     Runtime::preregister_task_variant<Reshape3to2::backward_task>(
         registrar, "reshape_bwd_task");
   }
-
+  {
+    TaskVariantRegistrar registrar(RESHAPE_3_TO_2_INIT_TASK_ID, "reshape_init_task");
+    registrar.add_constraint(ProcessorConstraint(Processor::TOC_PROC));
+    registrar.set_leaf();
+    Runtime::preregister_task_variant<OpMeta*, Reshape3to2::init_task>(
+        registrar, "reshape_init_task");
+  }
   // Optimizer
   {
     TaskVariantRegistrar registrar(SGD_UPD_TASK_ID,

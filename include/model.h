@@ -58,6 +58,7 @@ enum TaskIDs {
   RESHAPE_2_TO_3_FWD_TASK_ID,
   RESHAPE_3_TO_2_FWD_TASK_ID,
   RESHAPE_3_TO_2_BWD_TASK_ID,
+  RESHAPE_3_TO_2_INIT_TASK_ID,
   RESHAPE_2_TO_3_BWD_TASK_ID,
   LINEAR_INIT_TASK_ID,
   LINEAR_INIT_PARA_TASK_ID,
@@ -85,8 +86,14 @@ enum TaskIDs {
   UNIFORM_INIT_TASK_ID,
   NORMAL_INIT_TASK_ID,
   // tensor helper tasks
-  INIT_TENSOR_FORM_FILE_CPU_TASK,
+  INIT_TENSOR_FROM_FILE_CPU_TASK,
+  INIT_TENSOR_2D_FROM_FILE_CPU_TASK,
+  INIT_TENSOR_3D_FROM_FILE_CPU_TASK,
+  INIT_TENSOR_4D_FROM_FILE_CPU_TASK,
   DUMP_TENSOR_CPU_TASK,
+  DUMP_TENSOR_2D_CPU_TASK,
+  DUMP_TENSOR_3D_CPU_TASK,
+  DUMP_TENSOR_4D_CPU_TASK,
   // Custom tasks
   CUSTOM_GPU_TASK_ID_FIRST,
   CUSTOM_GPU_TASK_ID_1,
@@ -823,10 +830,11 @@ public:
   TransposeMeta(FFHandler handle) : OpMeta(handle) {};
 };
 
-class Reshape3to2 : public Op {
+template <int IDIM, int ODIM>
+class Reshape : public Op {
 public:
-  Reshape3to2(FFModel& model,
-         const std::string pcname,
+  Reshape(FFModel& model,
+         const std::string& pcname,
          const Tensor& _input,
          const int output_shape[]);
   void init(const FFModel&);
@@ -842,13 +850,47 @@ public:
                           const std::vector<PhysicalRegion> &regions,
                           Context ctx, Runtime *runtime
                           );
+  static OpMeta* init_task(const Task *task,
+                        const std::vector<PhysicalRegion> &regions,
+                        Context ctx, Runtime *runtime);
+public:
+  Tensor input;
+  bool profiling;
+  std::string pcname;
+  IndexSpaceT<ODIM> task_is;
+};
+
+
+
+class Reshape3to2 : public Op {
+public:
+  Reshape3to2(FFModel& model,
+         const std::string& pcname,
+         const Tensor& _input,
+         const int output_shape[]);
+  void init(const FFModel&);
+  void forward(const FFModel&);
+
+  void backward(const FFModel&);
+
+  static void forward_task(const Task *task,
+                           const std::vector<PhysicalRegion> &regions,
+                           Context ctx, Runtime *runtime);
+  static void backward_task(
+                          const Task *task,
+                          const std::vector<PhysicalRegion> &regions,
+                          Context ctx, Runtime *runtime
+                          );
+  static OpMeta* init_task(const Task *task,
+                        const std::vector<PhysicalRegion> &regions,
+                        Context ctx, Runtime *runtime);
 public:
   Tensor input;
   bool profiling;
   std::string pcname;
   const int IDIM = 2;
   const int ODIM = 3;
-    IndexSpaceT<2> task_is;
+  IndexSpaceT<2> task_is;
 };
 
 class ReshapeMeta : public OpMeta {

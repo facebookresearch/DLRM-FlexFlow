@@ -7,6 +7,9 @@
 using namespace Legion;
 LegionRuntime::Logger::Category log_app("bmm_test");
 
+
+
+
 struct BMMTestMeta {
   int m,k,n,d;
   BMMTestMeta(int _m, int _k, int _n, int _d) {
@@ -78,3 +81,51 @@ void top_level_task(const Task* task,
 }
 
 
+
+void register_custom_tasks()
+{
+  // std::cout << static_cast<std::underlying_type<TaskIDs>::type>(ZERO_INIT_TASK_ID) << std::endl;
+  {
+    TaskVariantRegistrar registrar(INIT_TENSOR_2D_FROM_FILE_CPU_TASK, "Load 2d Tensor");
+    registrar.add_constraint(ProcessorConstraint(Processor::LOC_PROC));
+    registrar.set_leaf();
+    Runtime::preregister_task_variant<initialize_tensor_from_file_task<2>>(
+        registrar, "Load 2d tensor Task");
+  }
+  {
+    TaskVariantRegistrar registrar(INIT_TENSOR_3D_FROM_FILE_CPU_TASK, "Load 3d Tensor");
+    registrar.add_constraint(ProcessorConstraint(Processor::LOC_PROC));
+    registrar.set_leaf();
+    Runtime::preregister_task_variant<initialize_tensor_from_file_task<3>>(
+        registrar, "Load 3d tensor Task");
+  }
+  {
+    TaskVariantRegistrar registrar(INIT_TENSOR_4D_FROM_FILE_CPU_TASK, "Load 4d Tensor");
+    registrar.add_constraint(ProcessorConstraint(Processor::LOC_PROC));
+    registrar.set_leaf();
+    Runtime::preregister_task_variant<initialize_tensor_from_file_task<4>>(
+        registrar, "Load 4d tensor Task");
+  }
+
+  {      
+    TaskVariantRegistrar registrar(DUMP_TENSOR_2D_CPU_TASK, "Compare Tensor");
+    registrar.add_constraint(ProcessorConstraint(Processor::LOC_PROC));
+    registrar.set_leaf();
+    Runtime::preregister_task_variant<dump_tensor_task<2>>(
+        registrar, "Compare Tensor Task");
+  }
+  {      
+    TaskVariantRegistrar registrar(DUMP_TENSOR_4D_CPU_TASK, "Compare Tensor");
+    registrar.add_constraint(ProcessorConstraint(Processor::LOC_PROC));
+    registrar.set_leaf();
+    Runtime::preregister_task_variant<dump_tensor_task<4>>(
+        registrar, "Compare Tensor Task");
+  }
+  {      
+    TaskVariantRegistrar registrar(DUMP_TENSOR_3D_CPU_TASK, "Compare Tensor");
+    registrar.add_constraint(ProcessorConstraint(Processor::LOC_PROC));
+    registrar.set_leaf();
+    Runtime::preregister_task_variant<dump_tensor_task<3>>(
+        registrar, "Compare Tensor Task");
+  }
+}

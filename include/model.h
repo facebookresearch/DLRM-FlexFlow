@@ -12,7 +12,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#pragma warning disable
 #ifndef _FLEXFLOW_RUNTIME_H_
 #define _FLEXFLOW_RUNTIME_H_
 #include "legion.h"
@@ -29,6 +28,12 @@
 using namespace Legion;
 
 enum TaskIDs {
+  /*
+  ATTENTION: DO NOT ADD MORE TASK ENUMS HERE!!
+  ADD NEW TASK ENUMS TO TaskIDs2!!
+  TODO: figure out which task IDs are reserved,
+  so far we know that we can't set TOP_LEVEL_TASK_ID to arbitrary integer
+  */
   TOP_LEVEL_TASK_ID,
   FF_INIT_TASK_ID,
   IMAGE_INIT_TASK_ID,
@@ -55,11 +60,6 @@ enum TaskIDs {
   TRANSPOSE_INIT_TASK_ID,
   TRANSPOSE_FWD_TASK_ID,
   TRANSPOSE_BWD_TASK_ID,
-  RESHAPE_2_TO_3_FWD_TASK_ID,
-  RESHAPE_3_TO_2_FWD_TASK_ID,
-  RESHAPE_3_TO_2_BWD_TASK_ID,
-  RESHAPE_3_TO_2_INIT_TASK_ID,
-  RESHAPE_2_TO_3_BWD_TASK_ID,
   LINEAR_INIT_TASK_ID,
   LINEAR_INIT_PARA_TASK_ID,
   LINEAR_FWD_TASK_ID,
@@ -113,12 +113,14 @@ enum TaskIDs {
   CUSTOM_CPU_TASK_ID_5,
   CUSTOM_CPU_TASK_ID_6,
   CUSTOM_CPU_TASK_ID_7,
-  CUSTOM_CPU_TASK_ID_LAST,
+  CUSTOM_CPU_TASK_ID_LAST
 };
 
 enum ShardingID {
   DataParallelShardingID = 135,
 };
+
+
 
 enum ActiMode {
   AC_MODE_NONE,
@@ -150,6 +152,19 @@ enum FieldIDs {
   FID_DATA,
 };
 
+
+
+enum TaskIDs2 {
+  FIRST_TASK_ID = 99999,
+  RESHAPE_2_TO_3_INIT_TASK_ID,
+  RESHAPE_2_TO_3_FWD_TASK_ID,
+  RESHAPE_3_TO_2_FWD_TASK_ID,
+  RESHAPE_3_TO_2_BWD_TASK_ID,
+  RESHAPE_3_TO_2_INIT_TASK_ID,
+  RESHAPE_2_TO_3_BWD_TASK_ID,
+  First = FIRST_TASK_ID
+  // Last = RESHAPE_2_TO_3_BWD_TASK_ID
+};
 struct PerfMetrics
 {
   float train_loss;
@@ -276,10 +291,10 @@ public:
                       const bool trans2=false);
 
   // Add a reshape layer
+  template <int IDIM, int ODIM>
   Tensor reshape(std::string name,
                 const Tensor& input,
-                const int output_shape[],
-                int out_dim);
+                const int output_shape[]);
 
   // Add a concat layer
   Tensor concat(std::string name,
@@ -862,36 +877,7 @@ public:
 
 
 
-class Reshape3to2 : public Op {
-public:
-  Reshape3to2(FFModel& model,
-         const std::string& pcname,
-         const Tensor& _input,
-         const int output_shape[]);
-  void init(const FFModel&);
-  void forward(const FFModel&);
 
-  void backward(const FFModel&);
-
-  static void forward_task(const Task *task,
-                           const std::vector<PhysicalRegion> &regions,
-                           Context ctx, Runtime *runtime);
-  static void backward_task(
-                          const Task *task,
-                          const std::vector<PhysicalRegion> &regions,
-                          Context ctx, Runtime *runtime
-                          );
-  static OpMeta* init_task(const Task *task,
-                        const std::vector<PhysicalRegion> &regions,
-                        Context ctx, Runtime *runtime);
-public:
-  Tensor input;
-  bool profiling;
-  std::string pcname;
-  const int IDIM = 2;
-  const int ODIM = 3;
-  IndexSpaceT<2> task_is;
-};
 
 class ReshapeMeta : public OpMeta {
 public:

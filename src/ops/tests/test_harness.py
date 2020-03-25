@@ -194,15 +194,6 @@ class BatchMatmulTest(unittest.TestCase):
         num_gpu = 2
         self._run_gpu_test(num_gpu, d, m, n, k)
 
-    def test_8_gpus_small_problem(self):
-        # generate test payload
-        # need to make sure each gpu have assigned some workload, the assignment uses
-        # round robin fashion to assign gpus, if we ask for 14 batches to distribute on 8 gpus
-        # each gpu will get 2 batches, so the last gpu will have no data to allocate
-        d,m,n,k = 15,2,3,4
-        num_gpu = 8
-        self._run_gpu_test(num_gpu, d, m, n, k)
-
     # def uneven_distribute_test(self):
     #     # for this configuration we can't distribute payload to each GPU because
     #     # ceil(9 / 8) = 2, for each gpu we assign 2 batches, such we only assign payloads to 5 gpus, 3 gpus won't get 
@@ -228,7 +219,7 @@ class BatchMatmulTest(unittest.TestCase):
     def test_multi_gpus_ads_team_target_model_shape(self):
         # generate test payload
         d,m,n,k = 145,265,15,64
-        num_gpu = 8
+        num_gpu = 2
         ret = self._run_gpu_test(num_gpu, d, m, n, k, epsilon=0.0001)
 
     def test_single_gpu_ads_team_target_model_shape(self):
@@ -264,7 +255,7 @@ class TransposeTest(unittest.TestCase):
       
     def test_multi_gpus_ads_team_target_shape(self):
         d,m,k = 145, 265, 64
-        num_gpu = 8
+        num_gpu = 2
         self._run_gpu_test(num_gpu, d, m, k)
 
     def test_single_gpu_ads_team_target_shape(self):
@@ -424,6 +415,31 @@ class ReshapeTest(unittest.TestCase):
         o_dim = 2
         i_shape = (144,64,265)
         o_shape = (144*64,265)
+        self._run_gpu_test(num_gpu, i_dim, o_dim, i_shape, o_shape)
+
+
+    def test_single_gpu_multi_batch_23(self):
+        num_gpu = 1
+        i_dim = 2
+        o_dim = 3
+        i_shape = (9,15)
+        o_shape = (3,3,15)
+        self._run_gpu_test(num_gpu, i_dim, o_dim, i_shape, o_shape)
+
+    def test_multi_gpu_multi_batch_23(self):
+        num_gpu = 2
+        i_dim = 2
+        o_dim = 3
+        i_shape = (6,2)
+        o_shape = (2,3,2)
+        self._run_gpu_test(num_gpu, i_dim, o_dim, i_shape, o_shape)
+
+    def test_problem_size_23(self):
+        num_gpu = 2
+        i_dim = 2
+        o_dim = 3
+        i_shape = (144*64,265)
+        o_shape = (144,64,265)
         self._run_gpu_test(num_gpu, i_dim, o_dim, i_shape, o_shape)
 
 if __name__ == '__main__':

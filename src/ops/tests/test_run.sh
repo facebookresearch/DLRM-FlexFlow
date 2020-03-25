@@ -14,3 +14,4 @@ fi
 cd ~/DLRM_FlexFlow/src/ops/tests/ && python -m unittest test_harness.TransposeTest
 cd ~/DLRM_FlexFlow/src/ops/tests/ && python -m unittest test_harness.BatchMatmulTest
 cd ~/DLRM_FlexFlow/src/ops/tests/ && python -m unittest test_harness.FlattenTest
+cd ~/DLRM_FlexFlow/src/ops/tests/ && python -m unittest test_harness.ReshapeTest

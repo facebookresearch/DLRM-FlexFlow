@@ -2,41 +2,39 @@
 #include "model.h"
 #include "cuda_helper.h"
 
-
-Tensor FFModel::reshape(std::string name, const Tensor& input, const int output_shape[], const int out_dim)
+template <int IDIM, int ODIM>
+Tensor FFModel::reshape(std::string name, const Tensor& input, const int output_shape[])
 {
-  if (input.numDim == 2 && out_dim == 3) {
-    // Reshape2to3 *reshape = new Reshape2to3(*this, name, input, output_shape);
-    // layers.push_back(reshape);
-    // return reshape->output;
-    ;
-  }
-  else if (input.numDim == 3 && out_dim == 2) {
-    Reshape<3,2> *reshape = new Reshape<3,2>(*this, name, input, output_shape);
-    layers.push_back(reshape);
-    return reshape->output;
-  }
-  throw 255;
+  Reshape<IDIM,ODIM> *reshape = new Reshape<IDIM,ODIM>(*this, name, input, output_shape);
+  layers.push_back(reshape);
+  return reshape->output;
 }
+template Tensor FFModel::reshape<3,2>(std::string name, const Tensor& input, const int output_shape[]);
+template Tensor FFModel::reshape<2,3>(std::string name, const Tensor& input, const int output_shape[]);
 
-Reshape3to2::Reshape3to2(FFModel& model,
+
+template <int IDIM, int ODIM>
+Reshape<IDIM, ODIM>::Reshape(FFModel& model,
   const std::string& pcname,
   const Tensor& _input,
   const int output_shape[])
   : Op(pcname, _input)
 {
-  task_is = IndexSpaceT<2>(model.get_or_create_task_is(2, pcname));
+  task_is = IndexSpaceT<ODIM>(model.get_or_create_task_is(ODIM, pcname));
   Context ctx = model.config.lg_ctx;
   Runtime* runtime = model.config.lg_hlr;
-  Rect<2> part_rect = runtime->get_index_space_domain(ctx, task_is);
+  Rect<ODIM> part_rect = runtime->get_index_space_domain(ctx, task_is);
   // Create output tensor
-  output = model.create_tensor<2>(output_shape, task_is, DT_FLOAT);
-  model.create_data_parallel_partition_with_diff_dims<3, 2>(
+  output = model.create_tensor<ODIM>(output_shape, task_is, DT_FLOAT);
+  model.create_data_parallel_partition_with_diff_dims<IDIM, ODIM>(
       _input, task_is, input_lps[0], input_grad_lps[0]);
 
 }
 
-OpMeta* Reshape3to2::init_task(const Task *task,
+
+
+template <int IDIM, int ODIM>
+OpMeta* Reshape<IDIM, ODIM>::init_task(const Task *task,
                         const std::vector<PhysicalRegion> &regions,
                         Context ctx, Runtime *runtime)
 {
@@ -45,25 +43,34 @@ OpMeta* Reshape3to2::init_task(const Task *task,
   return m;
 }
 
-void Reshape3to2::init(const FFModel& ff)
+template <int IDIM, int ODIM>
+void Reshape<IDIM, ODIM>::init(const FFModel& ff)
 {
   ArgumentMap argmap;
   Context ctx = ff.config.lg_ctx;
   Runtime* runtime = ff.config.lg_hlr;
-  Rect<2> rect = runtime->get_index_space_domain(ctx, task_is);
+  Rect<ODIM> rect = runtime->get_index_space_domain(ctx, task_is);
   int idx = 0;
-  for (PointInRectIterator<2> it(rect); it(); it++) {
+  for (PointInRectIterator<ODIM> it(rect); it(); it++) {
     FFHandler handle = ff.handlers[idx++];
     argmap.set_point(*it, TaskArgument(&handle, sizeof(FFHandler)));
   }
-  IndexLauncher launcher(RESHAPE_3_TO_2_INIT_TASK_ID, task_is,
-    TaskArgument(this, sizeof(Reshape3to2)), argmap,
+  auto task_id = RESHAPE_3_TO_2_INIT_TASK_ID;
+  if (IDIM == 3 && ODIM == 2) {
+    task_id = RESHAPE_3_TO_2_INIT_TASK_ID;
+  } else if (IDIM == 2 && ODIM == 3) {
+    task_id = RESHAPE_2_TO_3_INIT_TASK_ID;
+  } else {
+    printf("idim %d odim %d not supported", IDIM, ODIM);
+  }
+  IndexLauncher launcher(task_id, task_is,
+    TaskArgument(this, sizeof(Reshape)), argmap,
     Predicate::TRUE_PRED, false/*must*/, 0/*mapper_id*/,
     FFConfig::get_hash_id(std::string(name)));
   FutureMap fm = runtime->execute_index_space(ctx, launcher);
   fm.wait_all_results();
   idx = 0;
-  for (PointInRectIterator<2> it(rect); it(); it++) {
+  for (PointInRectIterator<ODIM> it(rect); it(); it++) {
     meta[idx++] = fm.get_result<OpMeta*>(*it);
   }
 }
@@ -72,15 +79,16 @@ void Reshape3to2::init(const FFModel& ff)
   regions[0](I): input
   regions[1](O): output
 */  
-void Reshape3to2::forward_task(const Task *task,
+template <int IDIM, int ODIM>
+void Reshape<IDIM, ODIM>::forward_task(const Task *task,
                         const std::vector<PhysicalRegion> &regions,
                         Context ctx, Runtime *runtime)
 {
   assert(regions.size() == 2);
   assert(task->regions.size() == 2);
-  TensorAccessorR<float, 3> acc_input(
+  TensorAccessorR<float, IDIM> acc_input(
     regions[0], task->regions[0], FID_DATA, ctx, runtime);
-  TensorAccessorW<float, 2> acc_output(
+  TensorAccessorW<float, ODIM> acc_output(
     regions[1], task->regions[1], FID_DATA, ctx, runtime,
     false/*readOutput*/);
   assert(acc_input.rect.volume() == acc_output.rect.volume());
@@ -89,18 +97,27 @@ void Reshape3to2::forward_task(const Task *task,
     cudaMemcpyDeviceToDevice));
 }
 
-void Reshape3to2::forward(const FFModel& ff)
+template <int IDIM, int ODIM>
+void Reshape<IDIM, ODIM>::forward(const FFModel& ff)
 {
   ArgumentMap argmap;
   Context ctx = ff.config.lg_ctx;
   Runtime* runtime = ff.config.lg_hlr;
-  Rect<2> rect = runtime->get_index_space_domain(ctx, task_is);
+  Rect<ODIM> rect = runtime->get_index_space_domain(ctx, task_is);
   int idx = 0;
-  for (PointInRectIterator<2> it(rect); it(); it++) {
+  for (PointInRectIterator<ODIM> it(rect); it(); it++) {
     OpMeta* mp = meta[idx++];
     argmap.set_point(*it, TaskArgument(&mp, sizeof(OpMeta*)));
   }
-  IndexLauncher launcher(RESHAPE_3_TO_2_FWD_TASK_ID, task_is,
+  auto task_id = RESHAPE_3_TO_2_FWD_TASK_ID;
+  if (IDIM == 3 && ODIM == 2) {
+    task_id = RESHAPE_3_TO_2_FWD_TASK_ID;
+  } else if (IDIM == 2 && ODIM == 3) {
+    task_id = RESHAPE_2_TO_3_FWD_TASK_ID;
+  } else {
+    printf("idim %d odim %d not supported", IDIM, ODIM);
+  }
+  IndexLauncher launcher(task_id, task_is,
     TaskArgument(NULL, 0), argmap,
     Predicate::TRUE_PRED, false/*must*/, 0/*mapper_id*/,
     FFConfig::get_hash_id(std::string(name)));
@@ -121,16 +138,17 @@ void Reshape3to2::forward(const FFModel& ff)
   regions[0](O) : input_grad
   regions[1](I) : output_grad
 */
-void Reshape3to2::backward_task(const Task *task,
+template <int IDIM, int ODIM>
+void Reshape<IDIM, ODIM>::backward_task(const Task *task,
                          const std::vector<PhysicalRegion> &regions,
                          Context ctx, Runtime *runtime)
 {
   assert(regions.size() == 2);
   assert(task->regions.size() == 2);
-  TensorAccessorW<float, 3> acc_input_grad(
+  TensorAccessorW<float, IDIM> acc_input_grad(
     regions[0], task->regions[0], FID_DATA, ctx, runtime,
     true/*readOutput*/);
-  TensorAccessorR<float, 2> acc_output_grad(
+  TensorAccessorR<float, ODIM> acc_output_grad(
     regions[1], task->regions[1], FID_DATA, ctx, runtime);
   assert(acc_input_grad.rect.volume() == acc_output_grad.rect.volume());
   checkCUDA(cudaMemcpyAsync(acc_input_grad.ptr, acc_output_grad.ptr,
@@ -138,18 +156,27 @@ void Reshape3to2::backward_task(const Task *task,
     cudaMemcpyDeviceToDevice));
 }
 
-void Reshape3to2::backward(const FFModel& ff)
+template <int IDIM, int ODIM>
+void Reshape<IDIM, ODIM>::backward(const FFModel& ff)
 {
   ArgumentMap argmap;
   Context ctx = ff.config.lg_ctx;
   Runtime* runtime = ff.config.lg_hlr;
-  Rect<2> rect = runtime->get_index_space_domain(ctx, task_is);
+  Rect<ODIM> rect = runtime->get_index_space_domain(ctx, task_is);
   int idx = 0;
-  for (PointInRectIterator<2> it(rect); it(); it++) {
+  for (PointInRectIterator<ODIM> it(rect); it(); it++) {
     OpMeta* mp = meta[idx++];
     argmap.set_point(*it, TaskArgument(&mp, sizeof(OpMeta*)));
   }
-  IndexLauncher launcher(RESHAPE_3_TO_2_BWD_TASK_ID, task_is,
+  auto task_id = RESHAPE_3_TO_2_BWD_TASK_ID;
+  if (IDIM == 3 && ODIM == 2) {
+    task_id = RESHAPE_3_TO_2_BWD_TASK_ID;
+  } else if (IDIM == 2 && ODIM == 3) {
+    task_id = RESHAPE_2_TO_3_BWD_TASK_ID;
+  } else {
+    printf("idim %d odim %d not supported", IDIM, ODIM);
+  }
+  IndexLauncher launcher(task_id, task_is,
                          TaskArgument(NULL, 0), argmap,
                          Predicate::TRUE_PRED, false/*must*/, 0/*mapper_id*/,
                          FFConfig::get_hash_id(std::string(name)));
@@ -164,3 +191,37 @@ void Reshape3to2::backward(const FFModel& ff)
 
   runtime->execute_index_space(ctx, launcher);
 }
+
+
+template Reshape<3,2>::Reshape(FFModel& model,
+  const std::string& pcname,
+  const Tensor& _input,
+  const int output_shape[]);
+template Reshape<2,3>::Reshape(FFModel& model,
+  const std::string& pcname,
+  const Tensor& _input,
+  const int output_shape[]);
+template OpMeta* Reshape<3,2>::init_task(const Task *task,
+  const std::vector<PhysicalRegion> &regions,
+  Context ctx, Runtime *runtime);
+template OpMeta* Reshape<2,3>::init_task(const Task *task,
+  const std::vector<PhysicalRegion> &regions,
+  Context ctx, Runtime *runtime);
+template void Reshape<3,2>::init(const FFModel& ff);
+template void Reshape<2,3>::init(const FFModel& ff);
+template void Reshape<3,2>::forward_task(const Task *task,
+  const std::vector<PhysicalRegion> &regions,
+  Context ctx, Runtime *runtime);
+template void Reshape<2,3>::forward_task(const Task *task,
+  const std::vector<PhysicalRegion> &regions,
+  Context ctx, Runtime *runtime);
+template void Reshape<3,2>::forward(const FFModel& ff);
+template void Reshape<2,3>::forward(const FFModel& ff);
+template void Reshape<3,2>::backward_task(const Task *task,
+  const std::vector<PhysicalRegion> &regions,
+  Context ctx, Runtime *runtime);
+template void Reshape<2,3>::backward_task(const Task *task,
+  const std::vector<PhysicalRegion> &regions,
+  Context ctx, Runtime *runtime);
+template void Reshape<3,2>::backward(const FFModel& ff);
+template void Reshape<2,3>::backward(const FFModel& ff);

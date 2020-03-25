@@ -12,7 +12,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#pragma warning disable
 #include "model.h"
 #include "mapper.h"
 #include "dirent.h"
@@ -1253,6 +1252,27 @@ int main(int argc, char** argv)
     Runtime::preregister_task_variant<OpMeta*, Reshape<3,2>::init_task>(
         registrar, "reshape_init_task");
   }
+  {
+    TaskVariantRegistrar registrar(RESHAPE_2_TO_3_FWD_TASK_ID, "reshape_fwd_task");
+    registrar.add_constraint(ProcessorConstraint(Processor::TOC_PROC));
+    registrar.set_leaf();
+    Runtime::preregister_task_variant<Reshape<2,3>::forward_task>(
+        registrar, "reshape_fwd_task");
+  }
+  {
+    TaskVariantRegistrar registrar(RESHAPE_2_TO_3_BWD_TASK_ID, "reshape_bwd_task");
+    registrar.add_constraint(ProcessorConstraint(Processor::TOC_PROC));
+    registrar.set_leaf();
+    Runtime::preregister_task_variant<Reshape<2,3>::backward_task>(
+        registrar, "reshape_bwd_task");
+  }
+  {
+    TaskVariantRegistrar registrar(RESHAPE_2_TO_3_INIT_TASK_ID, "reshape_init_task");
+    registrar.add_constraint(ProcessorConstraint(Processor::TOC_PROC));
+    registrar.set_leaf();
+    Runtime::preregister_task_variant<OpMeta*, Reshape<2,3>::init_task>(
+        registrar, "reshape_init_task");
+  }
   // Optimizer
   {
     TaskVariantRegistrar registrar(SGD_UPD_TASK_ID,
@@ -1262,7 +1282,7 @@ int main(int argc, char** argv)
     Runtime::preregister_task_variant<SGDOptimizer::update_task>(
         registrar, "SGD Update Task");
   }
-  // Initializer
+  // Initializer  
   /*{
     TaskVariantRegistrar registrar(ZERO_INIT_TASK_ID,
                                    "Zero Init");
@@ -1270,7 +1290,7 @@ int main(int argc, char** argv)
     registrar.set_leaf();
     Runtime::preregister_task_variant<ZeroInitializer::init_task_cpu>(
         registrar, "Zero Init Task");
-  }*/
+  }*/ 
   {
     TaskVariantRegistrar registrar(ZERO_INIT_TASK_ID,
                                    "Zero Init");
@@ -1340,9 +1360,6 @@ template void FFModel::create_data_parallel_partition_with_diff_dims<3, 2>(const
 template void FFModel::create_data_parallel_partition_with_diff_dims<2, 3>(const Tensor& tensor, const IndexSpaceT<3>& part_is, LogicalPartition& part_fwd, LogicalPartition& part_bwd);
 template Tensor FFModel::create_conv_weight<4>(const int* dims, const IndexSpaceT<4>& part_is, DataType data_type, Initializer* initializer, bool create_grad);
 template Tensor FFModel::create_conv_weight<1>(const int* dims, const IndexSpaceT<4>& part_is, DataType data_type, Initializer* initializer, bool create_grad);
-
-
-
 
 template Tensor FFModel::create_linear_weight<2>(const int* dims, const IndexSpaceT<2>& part_is, DataType data_type, Initializer* initializer, bool create_grad);
 template Tensor FFModel::create_linear_weight<1>(const int* dims, const IndexSpaceT<2>& part_is, DataType data_type, Initializer* initializer, bool create_grad);

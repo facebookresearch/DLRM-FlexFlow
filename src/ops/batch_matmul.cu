@@ -13,7 +13,6 @@ Tensor FFModel::batch_matmul(std::string name,
   return bmm->output;
 }
 
-
 BatchMatmul::BatchMatmul(
   FFModel& model,
   const std::string& pcname,
@@ -64,7 +63,7 @@ BatchMatmul::BatchMatmul(
       input1,
       IndexSpaceT<3>(task_is),
       input_lps[0],
-      input_grad_lps[0]
+      input_grad_lps[0] 
     );
   }
   Rect<3> input2_rect = runtime->get_index_partition_color_space(

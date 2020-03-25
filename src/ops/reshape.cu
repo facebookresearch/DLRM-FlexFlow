@@ -6,10 +6,9 @@
 Tensor FFModel::reshape(std::string name, const Tensor& input, const int output_shape[], const int out_dim)
 {
   if (input.numDim == 2 && out_dim == 3) {
-    // Reshape2to3 *reshape = new Reshape2to3(*this, name, input, output_shape);
-    // layers.push_back(reshape);
-    // return reshape->output;
-    ;
+    Reshape<2,3> *reshape = new Reshape<2,3>(*this, name, input, output_shape);
+    layers.push_back(reshape);
+    return reshape->output;
   }
   else if (input.numDim == 3 && out_dim == 2) {
     Reshape<3,2> *reshape = new Reshape<3,2>(*this, name, input, output_shape);

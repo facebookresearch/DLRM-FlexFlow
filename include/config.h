@@ -21,10 +21,10 @@
 // ========================================================
 // Define Runtime Constants
 // ========================================================
-#define MAX_NUM_INPUTS 32
+#define MAX_NUM_INPUTS 512
 #define MAX_NUM_LOCALS 3
 #define MAX_NUM_WORKERS 1024
-#define MAX_DIM 4
+#define MAX_DIM 10
 #define MAX_FILENAME 200
 #define MAX_OPNAME 64
 // DataLoader

@@ -63,49 +63,6 @@ Embedding::Embedding(FFModel& model,
     // Embeddding weights and linear weights can be partitioned in the same way
     kernel = model.create_linear_weight<2>(dims, task_is, DT_FLOAT, kernel_initializer);
   }
-#ifdef DEADCODE
-  // Create kernel tensor
-  Rect<2> kernel_rect(Point<2>(0, 0), Point<2>(outDim-1, inDim-1));
-  FieldSpace fs = runtime->create_field_space(ctx);
-  FieldAllocator allocator = runtime->create_field_allocator(ctx, fs);
-  allocator.allocate_field(sizeof(float), FID_DATA);
-  IndexSpaceT<2> kernel_is = runtime->create_index_space(ctx, kernel_rect);
-  kernel.region = runtime->create_logical_region(ctx, kernel_is, fs);
-  {
-    int num_part_c = part_rect.hi[0] - part_rect.lo[0] + 1;
-    int extent_c = (outDim + num_part_c - 1) / num_part_c;
-    Rect<2> extent(Point<2>(0, 0), Point<2>(extent_c, inDim-1));
-    Transform<2, 2> transform;
-    transform[0][0] = extent_c; transform[0][1] = 0;
-    transform[1][0] = 0; transform[1][1] = 0;
-    IndexPartition ip = runtime->create_partition_by_restriction(
-        ctx, kernel_is, task_is, transform, extent);
-    kernel.part = runtime->get_logical_partition(
-        ctx, kernel.region, ip);
-  }
-  // Create kernel tensor gradients
-  Rect<3> kernel_grad_rect(Point<3>(0, 0, 0),
-      Point<3>(outDim-1, inDim-1, part_rect.hi[1] - part_rect.lo[1]));
-  IndexSpaceT<3> kernel_grad_is = runtime->create_index_space(
-      ctx, kernel_grad_rect);
-  kernel.region_grad = runtime->create_logical_region(
-      ctx, kernel_grad_is, fs);
-  {
-    int num_part_c = part_rect.hi[0] - part_rect.lo[0] + 1;
-    int extent_c = (outDim + num_part_c - 1) / num_part_c;
-    Rect<3> extent(Point<3>(0, 0, 0), Point<3>(extent_c, inDim-1, 0));
-    Transform<3, 2> transform;
-    transform[0][0] = extent_c; transform[0][1] = 0;
-    transform[1][0] = 0; transform[1][1] = 0;
-    transform[2][0] = 0; transform[2][1] = 1;
-    IndexPartition ip = runtime->create_partition_by_restriction(
-        ctx, kernel_grad_is, task_is, transform, extent);
-    kernel.part_grad = runtime->get_logical_partition(
-        ctx, kernel.region_grad, ip);
-    assert(runtime->is_index_partition_disjoint(ctx, ip));
-    assert(runtime->is_index_partition_complete(ctx, ip));
-  }
-#endif
   // Compute partition bound for input
   Rect<2> input_rect = runtime->get_index_partition_color_space(
       ctx, inputs[0].part.get_index_partition());
@@ -165,6 +122,32 @@ void embed_backward(const int64_t* input,
 {
   CUDA_KERNEL_LOOP(i, batch_size * out_dim)
   {
+    output[i] = 0;
+    int idx = i / out_dim;
+    int off = i % out_dim;
+    for (int j = 0; j < in_dim; j++) {
+      int64_t wordIdx = input[idx * in_dim + j];
+      output[i] += embed[wordIdx * out_dim + off];
+      if (aggr == AGGR_MODE_SUM) {
+      } else {
+        assert(aggr == AGGR_MODE_AVG);
+        output[i] /= in_dim;
+      }
+    }
+  }
+}
+
+__global__
+void embed_backward(const int64_t* input,
+                    const float* output,
+                    float* embed,
+                    int out_dim,
+                    int in_dim,
+                    int batch_size,
+                    AggrMode aggr)
+{
+  CUDA_KERNEL_LOOP(i, batch_size * out_dim)
+  {
     int idx = i / out_dim;
     int off = i % out_dim;
     float gradient;
@@ -189,68 +172,7 @@ void embed_backward(const int64_t* input,
 __host__
 void Embedding::forward_task(const Task *task,
                              const std::vector<PhysicalRegion> &regions,
-                             Context ctx, Runtime* runtime)
-{
-  assert(regions.size() == 3);
-  assert(task->regions.size() == 3);
-  const Embedding* embed = (Embedding*) task->args;
-  TensorAccessorR<int64_t, 2> accInput(
-      regions[0], task->regions[0], FID_DATA, ctx, runtime);
-  TensorAccessorW<float, 2> accOutput(
-      regions[1], task->regions[1], FID_DATA, ctx, runtime, false/*readOutput*/);
-  TensorAccessorR<float, 2> accWeight(
-      regions[2], task->regions[2], FID_DATA, ctx, runtime);
-  // Input matches Output
-  assert(accInput.rect.hi[1] == accOutput.rect.hi[1]);
-  assert(accInput.rect.lo[1] == accOutput.rect.lo[1]);
-  // Weight matches Output
-  assert(accWeight.rect.hi[1] == accOutput.rect.hi[0]);
-  assert(accWeight.rect.lo[1] == accOutput.rect.lo[0]);
-  int in_dim = accInput.rect.hi[0] - accInput.rect.lo[0] + 1;
-  int out_dim = accOutput.rect.hi[0] - accOutput.rect.lo[0] + 1;
-  int batch_size = accOutput.rect.hi[1] - accOutput.rect.lo[1] + 1;
-  embed_forward<<<GET_BLOCKS(accOutput.rect.volume()), CUDA_NUM_THREADS>>>(
-      accInput.ptr, accOutput.ptr, accWeight.ptr, out_dim, in_dim, batch_size, embed->aggr);
-  checkCUDA(cudaDeviceSynchronize());
-  if (embed->profiling) {
-    print_tensor<2, int64_t>(accInput.ptr, accInput.rect, "[Embedding:forward:input]");
-    print_tensor<2, float>(accWeight.ptr, accWeight.rect, "[Embedding:forward:weight]");
-    print_tensor<2, float>(accOutput.ptr, accOutput.rect, "[Embedding:forward:output]");
-    checkCUDA(cudaDeviceSynchronize());
-  }
-}
-
-void Embedding::forward(const FFModel& ff)
-{
-  ArgumentMap argmap;
-  Context ctx = ff.config.lg_ctx;
-  Runtime* runtime = ff.config.lg_hlr;
-  IndexLauncher launcher(EMBED_FWD_TASK_ID, task_is,
-                         TaskArgument(this, sizeof(Embedding)), argmap,
-                         Predicate::TRUE_PRED, false/*must*/, 0/*mapper_id*/,
-                         FFConfig::get_hash_id(std::string(name)));
-  // regions[0]: input
-  launcher.add_region_requirement(
-      RegionRequirement(input_lps[0], 0/*projection*/,
-                        READ_ONLY, EXCLUSIVE, inputs[0].region));
-  launcher.add_field(0, FID_DATA);
-  // regions[1]: output
-  launcher.add_region_requirement(
-      RegionRequirement(output.part, 0/*projection*/,
-                        WRITE_ONLY, EXCLUSIVE, output.region,
-                        MAP_TO_ZC_MEMORY));
-  launcher.add_field(1, FID_DATA);
-  // regions[2]: weight
-  launcher.add_region_requirement(
-      RegionRequirement(kernel.part, 0/*projection*/,
-                        READ_ONLY, EXCLUSIVE, kernel.region));
-  launcher.add_field(2, FID_DATA);
-  runtime->execute_index_space(ctx, launcher);
-}
-
-void Embedding::backward_task(const Task *task,
-                              const std::vector<PhysicalRegion> &regions,
-                              Context ctx, Runtime *runtime)
+                             Context ctx, Runtime *runtime)
 {
   assert(regions.size() == 3);
   assert(task->regions.size() == 3);

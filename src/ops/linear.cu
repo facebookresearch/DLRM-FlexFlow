@@ -84,12 +84,12 @@ Linear::Linear(FFModel& model,
   int in_dim = _input.adim[0];
   int batch_size = _input.adim[1];
   {
-    const int dims[2] = {batch_size, out_dim};
+    const int dims[2] = {batch_size, out_dim}; // out_dim, batch_size
     output = model.create_tensor<2>(dims, task_is, DT_FLOAT);
   }
   // Create kernel tensor
   {
-    const int dims[2] = {out_dim, in_dim};
+    const int dims[2] = {out_dim, in_dim}; // target shape k,m
     kernel = model.create_linear_weight<2>(dims, task_is, DT_FLOAT, kernel_initializer);
   }
   // Create bias tensor
@@ -140,7 +140,8 @@ Linear::Linear(FFModel& model,
       replica.part = runtime->get_logical_partition(
           ctx, replica.region_grad, ip);
     }
-  } else {
+  } 
+  else {
     if (input_rect == part_rect) {
       input_lps[0] = inputs[0].part;
       input_grad_lps[0] = inputs[0].part_grad;

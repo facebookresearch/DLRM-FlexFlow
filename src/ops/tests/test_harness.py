@@ -402,7 +402,7 @@ class ReshapeTest(unittest.TestCase):
         is_equal_tensor_from_file(file1, file2, 'input_grad', epsilon=epsilon)
 
       
-    def test_single_gpu_multi_batch(self):
+    def test_single_gpu_multi_batch_32(self):
         num_gpu = 1
         i_dim = 3
         o_dim = 2
@@ -410,7 +410,7 @@ class ReshapeTest(unittest.TestCase):
         o_shape = (9,15)
         self._run_gpu_test(num_gpu, i_dim, o_dim, i_shape, o_shape)
 
-    def test_multi_gpu_multi_batch(self):
+    def test_multi_gpu_multi_batch_32(self):
         num_gpu = 2
         i_dim = 3
         o_dim = 2
@@ -418,12 +418,12 @@ class ReshapeTest(unittest.TestCase):
         o_shape = (6,2)
         self._run_gpu_test(num_gpu, i_dim, o_dim, i_shape, o_shape)
 
-    def test_problem_size(self):
-        num_gpu = 5
+    def test_problem_size_32(self):
+        num_gpu = 2
         i_dim = 3
         o_dim = 2
-        i_shape = (145,64,265)
-        o_shape = (145*64,265)
+        i_shape = (144,64,265)
+        o_shape = (144*64,265)
         self._run_gpu_test(num_gpu, i_dim, o_dim, i_shape, o_shape)
 
 if __name__ == '__main__':

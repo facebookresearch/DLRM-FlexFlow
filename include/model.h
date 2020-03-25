@@ -854,9 +854,7 @@ public:
          const int output_shape[]);
   void init(const FFModel&);
   void forward(const FFModel&);
-
   void backward(const FFModel&);
-
   static void forward_task(const Task *task,
                            const std::vector<PhysicalRegion> &regions,
                            Context ctx, Runtime *runtime);

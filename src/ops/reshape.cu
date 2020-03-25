@@ -9,8 +9,6 @@ Tensor FFModel::reshape(std::string name, const Tensor& input, const int output_
   layers.push_back(reshape);
   return reshape->output;
 }
-template Tensor FFModel::reshape<3,2>(std::string name, const Tensor& input, const int output_shape[]);
-template Tensor FFModel::reshape<2,3>(std::string name, const Tensor& input, const int output_shape[]);
 
 
 template <int IDIM, int ODIM>
@@ -225,3 +223,5 @@ template void Reshape<2,3>::backward_task(const Task *task,
   Context ctx, Runtime *runtime);
 template void Reshape<3,2>::backward(const FFModel& ff);
 template void Reshape<2,3>::backward(const FFModel& ff);
+template Tensor FFModel::reshape<3,2>(std::string name, const Tensor& input, const int output_shape[]);
+template Tensor FFModel::reshape<2,3>(std::string name, const Tensor& input, const int output_shape[]);

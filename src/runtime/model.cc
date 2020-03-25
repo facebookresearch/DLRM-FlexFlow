@@ -348,26 +348,15 @@ void FFModel::create_data_parallel_partition_with_diff_dims(const Tensor& tensor
   part_bwd = runtime->get_logical_partition(ctx, tensor.region_grad, ip);
 }
 
-<<<<<<< HEAD
-=======
-
->>>>>>> 8a12b65a96c39d320d907aadb581b071bbcd5e14
 // This function assumes:
 // 1. the outer most dim of weight is channel out
 // 2. partition is 2D (sample, channel_out)
 template<int NDIM>
 Tensor FFModel::create_linear_weight(const int dims[],
-<<<<<<< HEAD
                                      const IndexSpaceT<2>& part_is,
                                      DataType data_type,
                                      Initializer* initializer,
                                      bool create_grad)
-=======
-                                      const IndexSpaceT<2>& part_is,
-                                      DataType data_type,
-                                      Initializer* initializer,
-                                      bool create_grad)
->>>>>>> 8a12b65a96c39d320d907aadb581b071bbcd5e14
 {
   Context ctx = config.lg_ctx;
   Runtime* runtime = config.lg_hlr;

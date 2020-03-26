@@ -6,13 +6,13 @@
 #include <iostream>
 #define  PRECISION 16
 using namespace Legion;
-LegionRuntime::Logger::Category log_app("Reshape_test");
+LegionRuntime::Logger::Category log_app("Tanh_test");
 
-struct ReshapeTestMeta {
+struct TanhTestMeta {
   int i_dim, o_dim;
   int* i_shape; 
   int* o_shape;
-  ReshapeTestMeta(int _i_dim, int _o_dim, int* _i_shape, int* _o_shape) {
+  TanhTestMeta(int _i_dim, int _o_dim, int* _i_shape, int* _o_shape) {
       i_dim = _i_dim;
       o_dim = _o_dim;
       i_shape = _i_shape;
@@ -20,7 +20,7 @@ struct ReshapeTestMeta {
   }
 };
 
-ReshapeTestMeta get_test_meta(const std::string file_path) {
+TanhTestMeta get_test_meta(const std::string file_path) {
   std::fstream myfile(file_path, std::ios_base::in);
   int b;
   std::vector<int> buffer;
@@ -41,7 +41,7 @@ ReshapeTestMeta get_test_meta(const std::string file_path) {
   }
   // int m,k,d;
   // myfile >> m >> k >> d;
-  return ReshapeTestMeta(i_dim, o_dim, i_shape, o_shape);
+  return TanhTestMeta(i_dim, o_dim, i_shape, o_shape);
 }
 
 
@@ -66,57 +66,54 @@ void top_level_task(const Task* task,
   // create ff model object
   FFModel ff(ffConfig);
   Tensor dense_input;
-  if (test_meta.i_dim == 3 && test_meta.o_dim == 2) {
+  if (test_meta.i_dim == 3) {
 #define input_dim 3
-#define output_dim 2
+    std::cout << "CP1 " << std::endl;
     const int i_dims[input_dim] = {
       test_meta.i_shape[0], 
       test_meta.i_shape[1], 
       test_meta.i_shape[2]
     }; 
-    const int o_shape[output_dim] = {
-      test_meta.o_shape[0], 
-      test_meta.o_shape[1], 
-    };
     dense_input = ff.create_tensor<input_dim>(i_dims, "", DT_FLOAT);
-    Tensor ret = ff.reshape<input_dim, output_dim>("", dense_input, o_shape);
+    std::cout << "CP2 " << std::endl;
+    Tensor ret = ff.tanh<input_dim>("", dense_input);
+    std::cout << "CP3 " << std::endl;
     auto input1_file_path = "test_input1.txt";
     auto output_grad_file_path = "test_output_grad.txt";
     initialize_tensor_from_file(input1_file_path, dense_input, ff, "float", input_dim);
-    initialize_tensor_gradient_from_file(output_grad_file_path, ret, ff, "float", output_dim);
+    std::cout << "CP4 " << std::endl;
+    initialize_tensor_gradient_from_file(output_grad_file_path, ret, ff, "float", input_dim);
+    std::cout << "CP5 " << std::endl;
     // run forward and backward to produce results
     ff.init_layers();
+    std::cout << "CP6 " << std::endl;
     // forward
     ff.forward();
-    dump_region_to_file(ff, ret.region, "output.txt", output_dim);
+    std::cout << "CP7 " << std::endl;
+    dump_region_to_file(ff, ret.region, "output.txt", input_dim);
+    std::cout << "CP8 " << std::endl;
     ff.backward();
+    std::cout << "CP9 " << std::endl;
     dump_region_to_file(ff, dense_input.region_grad, "input1_grad.txt", input_dim);
 #undef input_dim
-#undef output_dim
     }
-  else if (test_meta.i_dim == 2 && test_meta.o_dim == 3) {
+  else if (test_meta.i_dim == 2) {
 #define input_dim 2
-#define output_dim 3
     const int i_dims[input_dim] = {
       test_meta.i_shape[0], 
       test_meta.i_shape[1], 
     }; 
-    const int o_shape[output_dim] = {
-      test_meta.o_shape[0], 
-      test_meta.o_shape[1], 
-      test_meta.o_shape[2]
-    };
     dense_input = ff.create_tensor<input_dim>(i_dims, "", DT_FLOAT);
-    Tensor ret = ff.reshape<input_dim, output_dim>("", dense_input, o_shape);
+    Tensor ret = ff.tanh<input_dim>("", dense_input);
     auto input1_file_path = "test_input1.txt";
     auto output_grad_file_path = "test_output_grad.txt";
     initialize_tensor_from_file(input1_file_path, dense_input, ff, "float", input_dim);
-    initialize_tensor_gradient_from_file(output_grad_file_path, ret, ff, "float", output_dim);
+    initialize_tensor_gradient_from_file(output_grad_file_path, ret, ff, "float", input_dim);
     // run forward and backward to produce results
     ff.init_layers();
     // forward
     ff.forward();
-    dump_region_to_file(ff, ret.region, "output.txt", output_dim);
+    dump_region_to_file(ff, ret.region, "output.txt", input_dim);
     ff.backward();
     dump_region_to_file(ff, dense_input.region_grad, "input1_grad.txt", input_dim);
 #undef input_dim

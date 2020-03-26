@@ -78,7 +78,6 @@ void top_level_task(const Task* task,
       test_meta.o_shape[0], 
       test_meta.o_shape[1], 
     };
-    // std::cout << test_meta.i_shape[0] << test_meta.i_shape[1] << test_meta.i_shape[2] << test_meta.i_shape[3] <<  std::endl;
     dense_input = ff.create_tensor<input_dim>(i_dims, "", DT_FLOAT);
     Tensor ret = ff.reshape<input_dim, output_dim>("", dense_input, o_shape);
     auto input1_file_path = "test_input1.txt";
@@ -107,7 +106,6 @@ void top_level_task(const Task* task,
       test_meta.o_shape[1], 
       test_meta.o_shape[2]
     };
-    // std::cout << test_meta.i_shape[0] << test_meta.i_shape[1] << test_meta.i_shape[2] << test_meta.i_shape[3] <<  std::endl;
     dense_input = ff.create_tensor<input_dim>(i_dims, "", DT_FLOAT);
     Tensor ret = ff.reshape<input_dim, output_dim>("", dense_input, o_shape);
     auto input1_file_path = "test_input1.txt";

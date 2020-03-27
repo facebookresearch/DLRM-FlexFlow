@@ -216,6 +216,12 @@ class BatchMatmulTest(unittest.TestCase):
         num_gpu = 2
         self._run_gpu_test(num_gpu, d, m, n, k)
 
+    def test_small_size_matrix2(self):
+        # generate test payload
+        d,m,n,k = 2,2,2,1
+        num_gpu = 2
+        self._run_gpu_test(num_gpu, d, m, n, k)
+
     def test_multi_gpus_ads_team_target_model_shape(self):
         # generate test payload
         d,m,n,k = 145,265,15,64
@@ -463,10 +469,7 @@ class TanhTest(unittest.TestCase):
         output_gradient_tensor = np.random.uniform(0, 1, i_shape)
         dump_tensor_to_file(output_gradient_tensor, "test_output_grad.txt")
         output_tensor = torch.nn.Tanh()(input_tensor).numpy()
-        # todo: tanh backward
-        # input_grad_tensor = output_gradient_tensor.reshape(i_shape)
         dump_tensor_to_file(output_tensor, "test_output.txt")
-        # dump_tensor_to_file(input_grad_tensor, "test_input1_grad.txt")
         self._dump_meta(i_dim, o_dim, i_shape, i_shape)
 
         # generate FF results
@@ -474,16 +477,45 @@ class TanhTest(unittest.TestCase):
         file1 = 'output.txt'
         file2 = 'test_output.txt'
         is_equal_tensor_from_file(file1, file2, 'output', epsilon=epsilon)
+
         # todo: add backward checking
+        # todo: tanh backward
+        # input_grad_tensor = output_gradient_tensor.reshape(i_shape)
+        # dump_tensor_to_file(input_grad_tensor, "test_input1_grad.txt")
         # file1 = 'test_input1_grad.txt'
         # file2 = 'input1_grad.txt'
         # is_equal_tensor_from_file(file1, file2, 'input_grad', epsilon=epsilon)
 
       
-    def test_single_gpu_multi_batch_32(self):
+    def test_single_gpu_multi_batch_3d(self):
         num_gpu = 1
         i_dim = 3
         i_shape = (2,3,5)
+        self._run_gpu_test(num_gpu, i_dim, i_dim, i_shape)
+
+    def test_single_gpu_multi_batch_2d(self):
+        num_gpu = 1
+        i_dim = 2
+        i_shape = (2,3)
+        self._run_gpu_test(num_gpu, i_dim, i_dim, i_shape)
+
+    def test_multi_gpu_multi_batch_2d(self):
+        num_gpu = 2
+        i_dim = 2
+        i_shape = (2,3)
+        self._run_gpu_test(num_gpu, i_dim, i_dim, i_shape)
+
+    def test_multi_gpu_target_size(self):
+        num_gpu = 2
+        i_dim = 2
+        i_shape = (145,3975)
+        self._run_gpu_test(num_gpu, i_dim, i_dim, i_shape)
+
+
+    def test_multi_gpu_multi_batch_3d(self):
+        num_gpu = 2
+        i_dim = 3
+        i_shape = (2,2,2)
         self._run_gpu_test(num_gpu, i_dim, i_dim, i_shape)
 
 if __name__ == '__main__':

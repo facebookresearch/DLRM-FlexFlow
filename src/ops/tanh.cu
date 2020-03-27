@@ -3,9 +3,9 @@
 #include "cuda_helper.h"
 
 template <int DIM>
-Tensor FFModel::tanh(std::string name, const Tensor& input)
+Tensor FFModel::tanh(std::string name, const Tensor& input, const int output_shape[])
 {
-  Tanh<DIM> *tanh = new Tanh<DIM>(*this, name, input);
+  Tanh<DIM> *tanh = new Tanh<DIM>(*this, name, input, output_shape);
   layers.push_back(tanh);
   return tanh->output;
 }
@@ -14,7 +14,8 @@ Tensor FFModel::tanh(std::string name, const Tensor& input)
 template <int DIM>
 Tanh<DIM>::Tanh(FFModel& model,
   const std::string& pcname,
-  const Tensor& _input)
+  const Tensor& _input, 
+  const int output_shape[])
   : Op(pcname, _input)
 {
   task_is = IndexSpaceT<DIM>(model.get_or_create_task_is(DIM, pcname));
@@ -22,7 +23,7 @@ Tanh<DIM>::Tanh(FFModel& model,
   Runtime* runtime = model.config.lg_hlr;
   Rect<DIM> part_rect = runtime->get_index_space_domain(ctx, task_is);
   // Create output tensor
-  output = model.create_tensor<DIM>(_input.adim, task_is, DT_FLOAT);
+  output = model.create_tensor<DIM>(output_shape, task_is, DT_FLOAT);
   model.create_data_parallel_partition_with_diff_dims<DIM, DIM>(
       _input, task_is, input_lps[0], input_grad_lps[0]);
 
@@ -49,6 +50,14 @@ OpMeta* Tanh<DIM>::init_task(const Task *task,
   int stride[DIM];
   int stride_buf[DIM];
   stride_buf[0] = 1;
+  checkCUDNN(cudnnCreateTensorDescriptor(&m->inputTensor));
+  checkCUDNN(cudnnCreateActivationDescriptor(&m->activation));
+  checkCUDNN(cudnnSetActivationDescriptor(
+    m->activation,
+    CUDNN_ACTIVATION_TANH,
+    CUDNN_NOT_PROPAGATE_NAN,
+    0.0
+  ));   
   if (DIM == 1) {
     int batch_size = acc_input.rect.hi[0] - acc_input.rect.lo[0] + 1;
     checkCUDNN(cudnnSetTensor4dDescriptor(m->inputTensor,
@@ -63,6 +72,7 @@ OpMeta* Tanh<DIM>::init_task(const Task *task,
       CUDNN_TENSOR_NCHW,
       CUDNN_DATA_FLOAT,
       batch_size, in_dim, 1, 1));
+      // 1, 1, batch_size, in_dim));
   }
   else if (DIM > 2) {
     // cuda tensor dims order from outer to inner , so dims[0] is batch_dimension
@@ -80,22 +90,14 @@ OpMeta* Tanh<DIM>::init_task(const Task *task,
     https://docs.nvidia.com/deeplearning/sdk/cudnn-api/index.html#cudnnSetTensorNdDescriptor
     Note: Do not use 2 dimensions. Due to historical reasons, the minimum number of dimensions in the filter descriptor is three. For more information, see cudnnGetRNNLinLayerBiasParams().
     */
-    checkCUDNN(cudnnCreateTensorDescriptor(&m->inputTensor));
     checkCUDNN(cudnnSetTensorNdDescriptor(m->inputTensor,
                                           CUDNN_DATA_FLOAT,
                                           DIM,
                                           dims,
                                           stride));
-                                        
-    checkCUDNN(cudnnCreateActivationDescriptor(&m->activation));
-    checkCUDNN(cudnnSetActivationDescriptor(
-      m->activation,
-      CUDNN_ACTIVATION_TANH,
-      CUDNN_NOT_PROPAGATE_NAN,
-      0.0
-    ));            
+                                                 
   }
-                            
+                              
 #endif
   return m;
 }
@@ -117,7 +119,10 @@ void Tanh<DIM>::init(const FFModel& ff)
     task_id = TANH_3D_INIT_TASK_ID;
   } else if (DIM == 2) {
     task_id = TANH_2D_INIT_TASK_ID;
-  } else {
+  } else if (DIM == 1) {
+    task_id = TANH_1D_INIT_TASK_ID;
+  }
+  else {
     printf("idim %d odim %d not supported", DIM, DIM);
   }
   IndexLauncher launcher(task_id, task_is,
@@ -172,6 +177,7 @@ void Tanh<DIM>::forward_task(const Task *task,
     &alpha, m->inputTensor, acc_input.ptr,
     &beta, m->inputTensor, acc_output.ptr
   ));
+
 }
 
 template <int DIM>
@@ -191,6 +197,8 @@ void Tanh<DIM>::forward(const FFModel& ff)
     task_id = TANH_3D_FWD_TASK_ID;
   } else if (DIM == 2) {
     task_id = TANH_2D_FWD_TASK_ID;
+  } else if (DIM == 1) {
+    task_id = TANH_1D_FWD_TASK_ID;
   } else {
     printf("idim %d odim %d not supported", DIM, DIM);
   }
@@ -270,6 +278,8 @@ void Tanh<DIM>::backward(const FFModel& ff)
     task_id = TANH_3D_BWD_TASK_ID;
   } else if (DIM == 2) {
     task_id = TANH_2D_BWD_TASK_ID;
+  } else if (DIM == 1) {
+    task_id = TANH_1D_BWD_TASK_ID;
   } else {
     printf("idim %d odim %d not supported", DIM, DIM);
   }
@@ -298,36 +308,54 @@ void Tanh<DIM>::backward(const FFModel& ff)
 }
 
 
-
-template Tanh<3>::Tanh(FFModel& model,
+template Tanh<1>::Tanh(FFModel& model,
   const std::string& pcname,
-  const Tensor& _input);
+  const Tensor& _input,
+  const int output_shape[]);
 template Tanh<2>::Tanh(FFModel& model,
   const std::string& pcname,
-  const Tensor& _input);
-template OpMeta* Tanh<3>::init_task(const Task *task,
+  const Tensor& _input,
+  const int output_shape[]);
+template Tanh<3>::Tanh(FFModel& model,
+  const std::string& pcname,
+  const Tensor& _input,
+  const int output_shape[]);
+template OpMeta* Tanh<1>::init_task(const Task *task,
   const std::vector<PhysicalRegion> &regions,
-  Context ctx, Runtime *runtime);
+  Context ctx, Runtime *runtime);  
 template OpMeta* Tanh<2>::init_task(const Task *task,
   const std::vector<PhysicalRegion> &regions,
   Context ctx, Runtime *runtime);
-template void Tanh<3>::init(const FFModel& ff);
+template OpMeta* Tanh<3>::init_task(const Task *task,
+  const std::vector<PhysicalRegion> &regions,
+  Context ctx, Runtime *runtime);
+template void Tanh<1>::init(const FFModel& ff);
 template void Tanh<2>::init(const FFModel& ff);
-template void Tanh<3>::forward_task(const Task *task,
+template void Tanh<3>::init(const FFModel& ff);
+template void Tanh<1>::forward_task(const Task *task,
   const std::vector<PhysicalRegion> &regions,
   Context ctx, Runtime *runtime);
 template void Tanh<2>::forward_task(const Task *task,
   const std::vector<PhysicalRegion> &regions,
   Context ctx, Runtime *runtime);
-template void Tanh<3>::forward(const FFModel& ff);
+template void Tanh<3>::forward_task(const Task *task,
+  const std::vector<PhysicalRegion> &regions,
+  Context ctx, Runtime *runtime);
+template void Tanh<1>::forward(const FFModel& ff);
 template void Tanh<2>::forward(const FFModel& ff);
-template void Tanh<3>::backward_task(const Task *task,
+template void Tanh<3>::forward(const FFModel& ff);
+template void Tanh<1>::backward_task(const Task *task,
   const std::vector<PhysicalRegion> &regions,
   Context ctx, Runtime *runtime);
 template void Tanh<2>::backward_task(const Task *task,
   const std::vector<PhysicalRegion> &regions,
   Context ctx, Runtime *runtime);
-template void Tanh<3>::backward(const FFModel& ff);
+template void Tanh<3>::backward_task(const Task *task,
+  const std::vector<PhysicalRegion> &regions,
+  Context ctx, Runtime *runtime);
+template void Tanh<1>::backward(const FFModel& ff);
 template void Tanh<2>::backward(const FFModel& ff);
-template Tensor FFModel::tanh<3>(std::string name, const Tensor& input);
-template Tensor FFModel::tanh<2>(std::string name, const Tensor& input);
+template void Tanh<3>::backward(const FFModel& ff);
+template Tensor FFModel::tanh<3>(std::string name, const Tensor& input, const int output_shape[]);
+template Tensor FFModel::tanh<2>(std::string name, const Tensor& input, const int output_shape[]);
+template Tensor FFModel::tanh<1>(std::string name, const Tensor& input, const int output_shape[]);

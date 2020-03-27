@@ -68,6 +68,7 @@ OpMeta* Tanh<DIM>::init_task(const Task *task,
   else if (DIM == 2) {
     int in_dim = acc_input.rect.hi[0] - acc_input.rect.lo[0] + 1;
     int batch_size = acc_input.rect.hi[1] - acc_input.rect.lo[1] + 1;
+    printf("batch size %d, in dim %d\n", batch_size, in_dim);
     checkCUDNN(cudnnSetTensor4dDescriptor(m->inputTensor,
       CUDNN_TENSOR_NCHW,
       CUDNN_DATA_FLOAT,

@@ -511,7 +511,6 @@ class TanhTest(unittest.TestCase):
         i_shape = (145,3975)
         self._run_gpu_test(num_gpu, i_dim, i_dim, i_shape)
 
-
     def test_multi_gpu_multi_batch_3d(self):
         num_gpu = 2
         i_dim = 3

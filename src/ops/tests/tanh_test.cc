@@ -68,32 +68,23 @@ void top_level_task(const Task* task,
   Tensor dense_input;
   if (test_meta.i_dim == 3) {
 #define input_dim 3
-    std::cout << "CP1 " << std::endl;
     const int i_dims[input_dim] = {
       test_meta.i_shape[0], 
       test_meta.i_shape[1], 
       test_meta.i_shape[2]
     }; 
     dense_input = ff.create_tensor<input_dim>(i_dims, "", DT_FLOAT);
-    std::cout << "CP2 " << std::endl;
-    Tensor ret = ff.tanh<input_dim>("", dense_input);
-    std::cout << "CP3 " << std::endl;
+    Tensor ret = ff.tanh<input_dim>("", dense_input, i_dims);
     auto input1_file_path = "test_input1.txt";
     auto output_grad_file_path = "test_output_grad.txt";
     initialize_tensor_from_file(input1_file_path, dense_input, ff, "float", input_dim);
-    std::cout << "CP4 " << std::endl;
     initialize_tensor_gradient_from_file(output_grad_file_path, ret, ff, "float", input_dim);
-    std::cout << "CP5 " << std::endl;
     // run forward and backward to produce results
     ff.init_layers();
-    std::cout << "CP6 " << std::endl;
     // forward
     ff.forward();
-    std::cout << "CP7 " << std::endl;
     dump_region_to_file(ff, ret.region, "output.txt", input_dim);
-    std::cout << "CP8 " << std::endl;
     ff.backward();
-    std::cout << "CP9 " << std::endl;
     dump_region_to_file(ff, dense_input.region_grad, "input1_grad.txt", input_dim);
 #undef input_dim
     }
@@ -104,7 +95,7 @@ void top_level_task(const Task* task,
       test_meta.i_shape[1], 
     }; 
     dense_input = ff.create_tensor<input_dim>(i_dims, "", DT_FLOAT);
-    Tensor ret = ff.tanh<input_dim>("", dense_input);
+    Tensor ret = ff.tanh<input_dim>("", dense_input, i_dims);
     auto input1_file_path = "test_input1.txt";
     auto output_grad_file_path = "test_output_grad.txt";
     initialize_tensor_from_file(input1_file_path, dense_input, ff, "float", input_dim);
@@ -117,8 +108,28 @@ void top_level_task(const Task* task,
     ff.backward();
     dump_region_to_file(ff, dense_input.region_grad, "input1_grad.txt", input_dim);
 #undef input_dim
-#undef output_dim
   }
+  else if (test_meta.i_dim == 1) {
+#define input_dim 1
+    const int i_dims[input_dim] = {
+      test_meta.i_shape[0]
+    }; 
+    dense_input = ff.create_tensor<input_dim>(i_dims, "", DT_FLOAT);
+    Tensor ret = ff.tanh<input_dim>("", dense_input, i_dims);
+    auto input1_file_path = "test_input1.txt";
+    auto output_grad_file_path = "test_output_grad.txt";
+    initialize_tensor_from_file(input1_file_path, dense_input, ff, "float", input_dim);
+    initialize_tensor_gradient_from_file(output_grad_file_path, ret, ff, "float", input_dim);
+    // run forward and backward to produce results
+    ff.init_layers();
+    // forward
+    ff.forward();
+    dump_region_to_file(ff, ret.region, "output.txt", input_dim);
+    ff.backward();
+    dump_region_to_file(ff, dense_input.region_grad, "input1_grad.txt", input_dim);
+#undef input_dim
+  }  
+
   else {
     printf("i_dim %d o_dim %d not supported\n" , test_meta.i_dim, test_meta.o_dim);
     throw 255;

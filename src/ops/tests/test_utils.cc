@@ -139,7 +139,6 @@ void initialize_tensor_from_file_task(const Task *task,
     int i = 0;
     while (myfile >> a)
     {
-      // std::cout << a << std::endl;
       tensor_ptr[i] = a;
       i++;
     } 

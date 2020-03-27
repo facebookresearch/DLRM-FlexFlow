@@ -163,10 +163,13 @@ enum TaskIDs2 {
   RESHAPE_3_TO_2_BWD_TASK_ID,
   RESHAPE_3_TO_2_INIT_TASK_ID,
   RESHAPE_2_TO_3_BWD_TASK_ID,
-  TANH_3D_INIT_TASK_ID,
+  TANH_1D_INIT_TASK_ID,
   TANH_2D_INIT_TASK_ID,
-  TANH_3D_FWD_TASK_ID,
+  TANH_3D_INIT_TASK_ID,
+  TANH_1D_FWD_TASK_ID,
   TANH_2D_FWD_TASK_ID,
+  TANH_3D_FWD_TASK_ID,
+  TANH_1D_BWD_TASK_ID,
   TANH_2D_BWD_TASK_ID,
   TANH_3D_BWD_TASK_ID,
   First = FIRST_TASK_ID
@@ -319,7 +322,9 @@ public:
 
   // Add a tanh layer
   template<int DIM>
-  Tensor tanh(std::string name, const Tensor& input);
+  Tensor tanh(std::string name, 
+    const Tensor& input,
+    const int output_shape[]);
 
 
   void mse_loss(const std::string& name,
@@ -897,7 +902,7 @@ class Tanh : public Op {
 public:
   Tanh(FFModel& model,
          const std::string& pcname,
-         const Tensor& _input);
+         const Tensor& _input, const int output_shape[]);
   void init(const FFModel&);
   void forward(const FFModel&);
   void backward(const FFModel&);

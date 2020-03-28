@@ -16,7 +16,6 @@ def strategy_code(opts):
 #include <fstream>
 #include <iostream>
 
-
 int main()
 {{
   int gpu = {num_gpu};
@@ -34,9 +33,9 @@ int main()
     op->add_device_ids(i % gpu);
   }}
   std::vector<std::string> names;
-  names.push_back("concat");
   names.push_back("linear");
   names.push_back("mse_loss");
+  names.push_back("concat");
   for (size_t i = 0; i < names.size(); i++) {{
     FFProtoBuf::Op* op = strategy.add_ops();
     op->set_name(names[i]);
@@ -67,7 +66,3 @@ with open(opts.filename, "w") as fout:
         fout.write(c + "\n")
 
 print("Created " + opts.filename)
-
-
-
-

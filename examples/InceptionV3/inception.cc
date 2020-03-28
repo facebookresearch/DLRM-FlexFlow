@@ -14,11 +14,12 @@
  */
 
 #include "model.h"
+#include "inception.h"
 using namespace Legion;
 
-LegionRuntime::Logger::Category log_app("AlexNet");
+LegionRuntime::Logger::Category log_app("Inceptionv3");
 
-//void parse_input_args(char **argv, int argc, AlexNetConfig& anConfig);
+//void parse_input_args(char **argv, int argc, Inceptionv3Config& anConfig);
 
 class DataLoader {
 public:
@@ -51,7 +52,7 @@ void top_level_task(const Task* task,
 
   Tensor input;
   {
-    const int dims[] = {ffConfig.batchSize, 3, 229, 229};
+    const int dims[] = {ffConfig.batchSize, 3, 299, 299};
     input = ff.create_tensor<4>(dims, "", DT_FLOAT);
   }
   Tensor label;
@@ -59,24 +60,33 @@ void top_level_task(const Task* task,
     const int dims[] = {ffConfig.batchSize, 1};
     label = ff.create_tensor<2>(dims, "", DT_INT32);
   }
-  // Add layers
-  Tensor t = input, ts[2];
-  ts[0] = ff.conv2d("conv1", input, 64, 11, 11, 4, 4, 2, 2);
-  ts[1] = ff.conv2d("conv1", input, 64, 11, 11, 4, 4, 2, 2);
-  t = ff.concat("concat", 2, ts, 1/*axis*/);
+ 
+//-----------------------------------------------------------------
+  Tensor t = ff.conv2d("conv1", input, 32, 3, 3, 2, 2, 0, 0);
+  t = ff.conv2d("conv2", t, 32, 3, 3, 1, 1, 0, 0);
+  t = ff.conv2d("conv3", t, 64, 3, 3, 1, 1, 1, 1);
   t = ff.pool2d("pool1", t, 3, 3, 2, 2, 0, 0);
-  t = ff.conv2d("conv2", t, 192, 5, 5, 1, 1, 2, 2);
-  t = ff.pool2d("pool2", t, 3, 3, 2, 2, 0, 0);
-  t = ff.conv2d("conv3", t, 384, 3, 3, 1, 1, 1, 1);
-  t = ff.conv2d("conv4", t, 256, 3, 3, 1, 1, 1, 1);
-  t = ff.conv2d("conv5", t, 256, 3, 3, 1, 1, 1, 1);
-  t = ff.pool2d("pool3", t, 3, 3, 2, 2, 0, 0);
+  t = ff.conv2d("conv4", t, 80, 1, 1, 1, 1, 0, 0);
+  t = ff.conv2d("conv5", t, 192, 3, 3, 1, 1, 1, 1);
+  t = ff.pool2d("pool1", t, 3, 3, 2, 2, 0, 0);
+  t = InceptionA(ff, t, 32, "ia1_");
+  t = InceptionA(ff, t, 64, "ia2_");
+  t = InceptionA(ff, t, 64, "ia3_");
+  t = InceptionB(ff, t, "ib1_");
+  t = InceptionC(ff, t, 128, "ic1_");
+  t = InceptionC(ff, t, 160, "ic2_");
+  t = InceptionC(ff, t, 160, "ic3_");
+  t = InceptionC(ff, t, 192, "ic4_");
+  t = InceptionD(ff, t, "id1_");
+  t = InceptionE(ff, t, "ie1_");
+  t = InceptionE(ff, t, "ie1_");
+  t = ff.pool2d("pool1", t, 8, 8, 1, 1, 0, 0, POOL_AVG);
   t = ff.flat("flat", t);
-  t = ff.dense("lienar1", t, 4096, AC_MODE_RELU/*relu*/);
-  t = ff.dense("linear2", t, 4096, AC_MODE_RELU/*relu*/);
-  t = ff.dense("linear3", t, 1000);
+  t = ff.dense("linear1",t, 1000);
   t = ff.softmax("softmax", t, label);
+//-----------------------------------------------------------------
   ff.optimizer = new SGDOptimizer(&ff, 0.01f);
+
   // Data Loader
   DataLoader data_loader(ff, input, label);
   ff.init_layers();
@@ -91,7 +101,7 @@ void top_level_task(const Task* task,
   for (int epoch = 0; epoch < ffConfig.epochs; epoch++) {
     //data_loader.reset();
     ff.reset_metrics();
-    int iterations = 8192 / ffConfig.batchSize;
+    int iterations = data_loader.num_samples / ffConfig.batchSize;
  
     for (int iter = 0; iter < iterations; iter++) {
       //if (dlrmConfig.dataset_path.length() == 0) {
@@ -143,7 +153,7 @@ DataLoader::DataLoader(FFModel& ff,
   Runtime* runtime = ff.config.lg_hlr;
   num_samples = 0;
   log_app.print("Use random dataset...");
-  num_samples = 256 * 10 * ff.config.workersPerNode * ff.config.numNodes;
+  num_samples = 256 * ff.config.workersPerNode * ff.config.numNodes;
   log_app.print("Number of random samples = %d\n", num_samples);
   // Init input
   {

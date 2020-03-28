@@ -22,3 +22,4 @@ echo "Generate..."
 ./generator --gpu ${pngpus} --emb ${pnembs} --node ${nnodes}
 
 echo "Done. dlrm_strategy_emb_${pnembs}_gpu_${pngpus}_node_${nnodes}.pb"
+

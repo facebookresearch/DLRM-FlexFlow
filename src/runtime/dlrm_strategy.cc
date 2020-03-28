@@ -78,6 +78,7 @@ public:
                             const std::string& output_memory_type,
                             int num_parts_sample,
                             const std::vector<int>& device_ids);
+
   void export_file(const std::string& file);
 private:
   int gpus_per_node, embs_per_node, num_nodes;
@@ -174,7 +175,6 @@ bool FFStrategy::add_transpose_config(const std::string& name,
   for (int i = 0; i < num_parts_sample; i++)
     op->add_device_ids(device_ids[i]);
 }
-
 
 bool FFStrategy::add_linear_config(const std::string& name,
                                    const std::string& device_type,

@@ -1,25 +1,52 @@
 #include "model.h"
-#include "test_utils.h"
+// #include "test_utils.h"
 #include <sstream>
+#include "test_utils.h"
 #include <fstream>
 #include <iomanip>
 #include <iostream>
-using namespace Legion;
-LegionRuntime::Logger::Category log_app("transpose_test");
 
-struct TransposeTestMeta {
-  int m,k,d;
-  TransposeTestMeta(int _m, int _k, int _d) {
-      m = _m, k = _k, d = _d;
+using namespace Legion;
+LegionRuntime::Logger::Category log_app("Flat_test");
+
+struct FlatTestMeta {
+  int i_dim, o_dim;
+  int* i_shape; 
+  int* o_shape;
+  FlatTestMeta(int _i_dim, int _o_dim, int* _i_shape, int* _o_shape) {
+      i_dim = _i_dim;
+      o_dim = _o_dim;
+      i_shape = _i_shape;
+      o_shape = _o_shape;
   }
 };
 
-TransposeTestMeta get_test_meta(const std::string file_path) {
+FlatTestMeta get_test_meta(const std::string file_path) {
   std::fstream myfile(file_path, std::ios_base::in);
-  int m,k,d;
-  myfile >> m >> k >> d;
-  return TransposeTestMeta(m,k,d);
+  int b;
+  std::vector<int> buffer;
+  while (myfile >> b) 
+  { 
+      buffer.push_back(b); 
+  } 
+  int i_dim(buffer[0]), o_dim(buffer[1]);
+  int* i_shape = new int[i_dim];
+  int* o_shape = new int[o_dim];
+  int offset = 2;
+  for (int i = 0; i < i_dim; i++){
+    i_shape[i] = buffer[i+offset];
+  }
+  offset += i_dim;
+  for (int i = 0; i < o_dim; i++){
+    o_shape[i] = buffer[i+offset];
+  }
+  // int m,k,d;
+  // myfile >> m >> k >> d;
+  return FlatTestMeta(i_dim, o_dim, i_shape, o_shape);
 }
+
+
+
 
 void top_level_task(const Task* task,
                     const std::vector<PhysicalRegion>& regions,
@@ -41,28 +68,33 @@ void top_level_task(const Task* task,
   ffConfig.field_space = runtime->create_field_space(ctx);
   // create ff model object
   FFModel ff(ffConfig);
-  // create input tensor
   Tensor dense_input;
-  {
-    const int dims[3] = {test_meta.d,test_meta.m,test_meta.k}; // target shape (d,m,k)
-    dense_input = ff.create_tensor<3>(dims, "transpose", DT_FLOAT);
-  }
-  // build transpose layer
-  Tensor ret = ff.transpose("transpose", dense_input);
-  // load inputs tensors and output gradients tensors for testing
+#define input_dim 3
+  const int i_dims[input_dim] = {
+    test_meta.i_shape[0], 
+    test_meta.i_shape[1], 
+    test_meta.i_shape[2]
+    // test_meta.i_shape[3]
+  }; 
+  // std::cout << test_meta.i_shape[0] << test_meta.i_shape[1] << test_meta.i_shape[2] << test_meta.i_shape[3] <<  std::endl;
+  dense_input = ff.create_tensor<input_dim>(i_dims, "", DT_FLOAT);
+  Tensor ret = ff.flat("", dense_input);
   auto input1_file_path = "test_input1.txt";
   auto output_grad_file_path = "test_output_grad.txt";
   initialize_tensor_from_file(input1_file_path, dense_input, ff, "float", 3);
-  initialize_tensor_gradient_from_file(output_grad_file_path, ret, ff, "float", 3);
+  initialize_tensor_gradient_from_file(output_grad_file_path, ret, ff, "float", 2);
   // run forward and backward to produce results
   ff.init_layers();
+  // forward
   ff.forward();
-  ff.backward();
-  // dump results to file for python validation
-  dump_region_to_file(ff, ret.region, "output.txt", 3);
-  dump_region_to_file(ff, dense_input.region_grad, "input1_grad.txt", 3);
-}
+  dump_region_to_file(ff, ret.region, "output.txt", 2);
 
+  ff.backward();
+  dump_region_to_file(ff, dense_input.region_grad, "input1_grad.txt", 3);
+
+  
+  
+}
 
 void register_custom_tasks()
 {
@@ -110,3 +142,4 @@ void register_custom_tasks()
         registrar, "Compare Tensor Task");
   }
 }
+

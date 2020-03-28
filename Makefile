@@ -38,6 +38,7 @@ LD_FLAGS        ?= -L/usr/local/lib -L${CUDNN}/lib64 -lcudnn -lcublas -lcurand -
 CC_FLAGS	?=
 NVCC_FLAGS	?=
 GASNET_FLAGS	?=
+
 # For Point and Rect typedefs
 CC_FLAGS	+= -std=c++11
 NVCC_FLAGS  += -std=c++11

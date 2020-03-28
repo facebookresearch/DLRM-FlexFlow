@@ -331,13 +331,6 @@ public:
     const Tensor& input,
     const int output_shape[]);
 
-  // Add a tanh layer
-  template<int DIM>
-  Tensor tanh(std::string name, 
-    const Tensor& input,
-    const int output_shape[]);
-
-
   void mse_loss(const std::string& name,
                 const Tensor& logits,
                 const Tensor& labels,
@@ -893,33 +886,6 @@ public:
 class ReshapeMeta : public OpMeta {
 public:
   ReshapeMeta(FFHandler handle) : OpMeta(handle) {};
-};
-
-template <int DIM>
-class Tanh : public Op {
-public:
-  Tanh(FFModel& model,
-         const std::string& pcname,
-         const Tensor& _input, const int output_shape[]);
-  void init(const FFModel&);
-  void forward(const FFModel&);
-  void backward(const FFModel&);
-  static void forward_task(const Task *task,
-                           const std::vector<PhysicalRegion> &regions,
-                           Context ctx, Runtime *runtime);
-  static void backward_task(
-                          const Task *task,
-                          const std::vector<PhysicalRegion> &regions,
-                          Context ctx, Runtime *runtime
-                          );
-  static OpMeta* init_task(const Task *task,
-                        const std::vector<PhysicalRegion> &regions,
-                        Context ctx, Runtime *runtime);
-public:
-  Tensor input;
-  bool profiling;
-  std::string pcname;
-  IndexSpaceT<DIM> task_is;
 };
 
 template <int DIM>

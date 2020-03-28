@@ -38,10 +38,18 @@ OpMeta* Tanh<DIM>::init_task(const Task *task,
 {
   FFHandler handle = *((const FFHandler*) task->local_args);
   TanhMeta* m = new TanhMeta(handle);
+<<<<<<< HEAD
   assert(regions.size() == 2);
   assert(task->regions.size() == 2);
   TensorAccessorR<float, DIM> acc_input(regions[0], task->regions[0], FID_DATA, ctx, runtime);
   TensorAccessorR<float, DIM> acc_input(regions[1], task->regions[1], FID_DATA, ctx, runtime);
+=======
+  assert(regions.size() == 1);
+  assert(task->regions.size() == 1);
+  TensorAccessorR<float, DIM> acc_input(regions[0], task->regions[0], FID_DATA, ctx, runtime);
+  Rect<DIM> rect_input;
+  rect_input = runtime->get_index_space_domain(ctx, task->regions[0].region.get_index_space());
+>>>>>>> 3ffe9359bbb1ee132bbf3fa2406fa681b7c891d7
 
 #ifndef DISABLE_COMPUTATION
   // assert(rect_input == rect_output);
@@ -101,6 +109,10 @@ OpMeta* Tanh<DIM>::init_task(const Task *task,
                               
 #endif
   return m;
+<<<<<<< HEAD
+=======
+
+>>>>>>> 3ffe9359bbb1ee132bbf3fa2406fa681b7c891d7
 }
 
 template <int DIM>
@@ -134,10 +146,13 @@ void Tanh<DIM>::init(const FFModel& ff)
       RegionRequirement(input_lps[0], 0/*projection id*/,
                         READ_ONLY, EXCLUSIVE, inputs[0].region));
   launcher.add_field(0, FID_DATA);
+<<<<<<< HEAD
   launcher.add_region_requirement(
       RegionRequirement(output.part, 0/*projection id*/,
                         WRITE_DISCARD, EXCLUSIVE, output.region));
   launcher.add_field(1, FID_DATA);
+=======
+>>>>>>> 3ffe9359bbb1ee132bbf3fa2406fa681b7c891d7
   FutureMap fm = runtime->execute_index_space(ctx, launcher);
   fm.wait_all_results();
   idx = 0;
@@ -216,6 +231,10 @@ void Tanh<DIM>::forward(const FFModel& ff)
       RegionRequirement(output.part, 0/*projection id*/,
         WRITE_ONLY, EXCLUSIVE, output.region));
   launcher.add_field(1, FID_DATA);
+<<<<<<< HEAD
+=======
+
+>>>>>>> 3ffe9359bbb1ee132bbf3fa2406fa681b7c891d7
   runtime->execute_index_space(ctx, launcher);
 }
 

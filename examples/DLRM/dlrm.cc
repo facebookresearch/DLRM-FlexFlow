@@ -131,12 +131,11 @@ void top_level_task(const Task* task,
     assert(false);
   }
   ff.mse_loss("mse_loss"/*name*/, p, label, "average"/*reduction*/);
+  // Data Loader
+  DataLoader data_loader(ff, dlrmConfig, sparse_inputs, dense_input, label);
   // Use SGD Optimizer
   ff.optimizer = new SGDOptimizer(&ff, 0.01f);
   ff.init_layers();
-  // Data Loader
-  DataLoader data_loader(ff, dlrmConfig, sparse_inputs, dense_input, label);
-
   // Warmup iterations
   for (int iter = 0; iter < 1; iter++) {
     data_loader.reset();

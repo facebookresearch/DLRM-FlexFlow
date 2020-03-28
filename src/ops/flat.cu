@@ -18,7 +18,7 @@
 
 Tensor FFModel::flat(std::string name, Tensor input)
 {
-  assert(input.numDim == 4);
+  assert(input.numDim == 3);
   //assert(strategies.find(name) != strategies.end());
   //ParallelConfig pc = strategies[name];
   Flat *flat = new Flat(*this, name, input);
@@ -47,7 +47,7 @@ Flat::Flat(FFModel& model,
     const int dims[2] = {batch_size, out_dim};
     output = model.create_tensor<2>(dims, task_is, DT_FLOAT);
   }
-  model.create_data_parallel_partition_with_diff_dims<4, 2>(
+  model.create_data_parallel_partition_with_diff_dims<3, 2>(
       _input, task_is, input_lps[0], input_grad_lps[0]);
 }
 
@@ -93,7 +93,7 @@ void Flat::forward_task(const Task *task,
 {
   assert(regions.size() == 2);
   assert(task->regions.size() == 2);
-  TensorAccessorR<float, 4> acc_input(
+  TensorAccessorR<float, 3> acc_input(
     regions[0], task->regions[0], FID_DATA, ctx, runtime);
   TensorAccessorW<float, 2> acc_output(
     regions[1], task->regions[1], FID_DATA, ctx, runtime,

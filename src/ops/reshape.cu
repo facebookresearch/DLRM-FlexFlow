@@ -191,6 +191,7 @@ void Reshape<IDIM, ODIM>::backward(const FFModel& ff)
 }
 
 
+
 template Reshape<3,2>::Reshape(FFModel& model,
   const std::string& pcname,
   const Tensor& _input,

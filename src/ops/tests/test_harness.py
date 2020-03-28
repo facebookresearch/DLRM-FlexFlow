@@ -98,9 +98,9 @@ def is_equal_tensor_from_file(file_1, file_2, label='', epsilon=0.00001):
     input2_flat = input2.strip().split(' ')
     input2_flat = [float(x) for x in input2_flat]
     try:
-      np.testing.assert_allclose(input1_flat, input2_flat, rtol=epsilon, atol=0)
+      np.testing.assert_allclose(input1_flat, input2_flat, rtol=epsilon, atol=0.0)
     except Exception as e:
-      print('checking equal %s failed' % label)
+      print('checking equal %s failed, error message: %s' % (label, e))
       raise e 
 
 class DotCompressorTest(unittest.TestCase):
@@ -213,6 +213,12 @@ class BatchMatmulTest(unittest.TestCase):
     def test_unit_size_matrix(self):
         # generate test payload
         d,m,n,k = 2,1,1,1
+        num_gpu = 2
+        self._run_gpu_test(num_gpu, d, m, n, k)
+
+    def test_small_size_matrix2(self):
+        # generate test payload
+        d,m,n,k = 2,2,2,1
         num_gpu = 2
         self._run_gpu_test(num_gpu, d, m, n, k)
 
@@ -441,6 +447,75 @@ class ReshapeTest(unittest.TestCase):
         i_shape = (144*64,265)
         o_shape = (144,64,265)
         self._run_gpu_test(num_gpu, i_dim, o_dim, i_shape, o_shape)
+
+
+class TanhTest(unittest.TestCase):
+    '''
+    4 dimensional to 2dimensional flatten
+    '''
+    TEST_TARGET = 'tanh_test'
+    def _dump_meta(self,i_dim, o_dim, i_shape, o_shape):
+        i_shape = [str(x) for x in i_shape]
+        o_shape = [str(x) for x in o_shape]
+        with open('test_meta.txt', 'w+') as f:
+          f.write(' '.join([str(i_dim), str(o_dim)]+i_shape+o_shape))
+
+   
+    def _run_gpu_test(self, num_gpu, i_dim, o_dim, i_shape, epsilon=0.00001):
+        # generate python reference and input payload
+        input_tensor_value = np.random.uniform(0, 1, i_shape)
+        input_tensor = torch.from_numpy(input_tensor_value).float()
+        dump_tensor_to_file(input_tensor_value, "test_input1.txt")
+        output_gradient_tensor = np.random.uniform(0, 1, i_shape)
+        dump_tensor_to_file(output_gradient_tensor, "test_output_grad.txt")
+        output_tensor = torch.nn.Tanh()(input_tensor).numpy()
+        dump_tensor_to_file(output_tensor, "test_output.txt")
+        self._dump_meta(i_dim, o_dim, i_shape, i_shape)
+
+        # generate FF results
+        gen_FF_result(TanhTest.TEST_TARGET, num_gpu)
+        file1 = 'output.txt'
+        file2 = 'test_output.txt'
+        is_equal_tensor_from_file(file1, file2, 'output', epsilon=epsilon)
+
+        # todo: add backward checking
+        # todo: tanh backward
+        # input_grad_tensor = output_gradient_tensor.reshape(i_shape)
+        # dump_tensor_to_file(input_grad_tensor, "test_input1_grad.txt")
+        # file1 = 'test_input1_grad.txt'
+        # file2 = 'input1_grad.txt'
+        # is_equal_tensor_from_file(file1, file2, 'input_grad', epsilon=epsilon)
+
+      
+    def test_single_gpu_multi_batch_3d(self):
+        num_gpu = 1
+        i_dim = 3
+        i_shape = (2,3,5)
+        self._run_gpu_test(num_gpu, i_dim, i_dim, i_shape)
+
+    def test_single_gpu_multi_batch_2d(self):
+        num_gpu = 1
+        i_dim = 2
+        i_shape = (2,3)
+        self._run_gpu_test(num_gpu, i_dim, i_dim, i_shape)
+
+    def test_multi_gpu_multi_batch_2d(self):
+        num_gpu = 2
+        i_dim = 2
+        i_shape = (2,3)
+        self._run_gpu_test(num_gpu, i_dim, i_dim, i_shape)
+
+    def test_multi_gpu_target_size(self):
+        num_gpu = 2
+        i_dim = 2
+        i_shape = (145,3975)
+        self._run_gpu_test(num_gpu, i_dim, i_dim, i_shape)
+
+    def test_multi_gpu_multi_batch_3d(self):
+        num_gpu = 2
+        i_dim = 3
+        i_shape = (2,2,2)
+        self._run_gpu_test(num_gpu, i_dim, i_dim, i_shape)
 
 if __name__ == '__main__':
     unittest.main()

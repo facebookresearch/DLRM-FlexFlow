@@ -119,14 +119,41 @@ Embedding::Embedding(FFModel& model,
   }
 }
 
-//__host__
-//OpMeta* Embedding::init_task(const Task *task,
-//                             const std::vector<PhysicalRegion> &regions,
-//                             Context ctx, Runtime* runtime)
-//{}
+__host__
+OpMeta* Embedding::init_task(const Task *task,
+                             const std::vector<PhysicalRegion> &regions,
+                             Context ctx, Runtime* runtime)
+{
+  // We don't need EmbedMeta for forward or backward
+  return NULL;
+}
 
 void Embedding::init(const FFModel& ff)
-{}
+{
+  ArgumentMap argmap;
+  Context ctx = ff.config.lg_ctx;
+  Runtime* runtime = ff.config.lg_hlr;
+  IndexLauncher launcher(EMBED_INIT_TASK_ID, task_is,
+                         TaskArgument(this, sizeof(Embedding)), argmap,
+                         Predicate::TRUE_PRED, false/*must*/, 0/*mapper_id*/,
+                         FFConfig::get_hash_id(std::string(name)));
+  // regions[0]: input
+  launcher.add_region_requirement(
+    RegionRequirement(input_lps[0], 0/*projection*/,
+      READ_ONLY, EXCLUSIVE, inputs[0].region));
+  launcher.add_field(0, FID_DATA);
+  // regions[1]: output
+  launcher.add_region_requirement(
+    RegionRequirement(output.part, 0/*projection*/,
+      WRITE_ONLY, EXCLUSIVE, output.region));
+  launcher.add_field(1, FID_DATA);
+  // regions[2]: weight
+  launcher.add_region_requirement(
+    RegionRequirement(kernel.part, 0/*projection*/,
+      READ_ONLY, EXCLUSIVE, kernel.region));
+  launcher.add_field(2, FID_DATA);
+  runtime->execute_index_space(ctx, launcher);
+}
 
 __global__
 void embed_forward(const int64_t* input,

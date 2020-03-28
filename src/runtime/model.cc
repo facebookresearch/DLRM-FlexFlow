@@ -977,6 +977,13 @@ int main(int argc, char** argv)
   }
   // Embedding task GPU
   {
+    TaskVariantRegistrar registrar(EMBED_INIT_TASK_ID, "Embedding Init");
+    registrar.add_constraint(ProcessorConstraint(Processor::TOC_PROC));
+    registrar.set_leaf();
+    Runtime::preregister_task_variant<OpMeta*, Embedding::init_task>(
+        registrar, "Embedding Init Task");
+  }
+  {
     TaskVariantRegistrar registrar(EMBED_FWD_TASK_ID, "Embedding Forward");
     registrar.add_constraint(ProcessorConstraint(Processor::TOC_PROC));
     registrar.set_leaf();

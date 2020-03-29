@@ -133,6 +133,10 @@ void top_level_task(const Task* task,
   ff.mse_loss("mse_loss"/*name*/, p, label, "average"/*reduction*/);
   // Data Loader
   DataLoader data_loader(ff, dlrmConfig, sparse_inputs, dense_input, label);
+  // TODO: remove me in the future
+  // Initialize batch input/label tensors
+  data_loader.reset();
+  data_loader.next_batch(ff);
   // Use SGD Optimizer
   ff.optimizer = new SGDOptimizer(&ff, 0.01f);
   ff.init_layers();
@@ -269,7 +273,7 @@ DataLoader::DataLoader(FFModel& ff,
   num_samples = 0;
   if (dlrm.dataset_path == "") {
     log_app.print("Use random dataset...");
-    if (dlrm.data_size) {	    
+    if (dlrm.data_size > 0) {
       num_samples = dlrm.data_size;	    //num_samples = 256 * 2 * 8 * 16;
     } else {	
       num_samples = 256 * 4 * ff.config.workersPerNode * ff.config.numNodes;	

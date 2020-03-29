@@ -334,7 +334,7 @@ void Embedding::backward(const FFModel& ff)
   // regions[2]: weight_grad
   launcher.add_region_requirement(
       RegionRequirement(kernel.part_grad, 0/*projection*/,
-                        READ_WRITE, EXCLUSIVE, kernel.region_grad));
+                        WRITE_ONLY, EXCLUSIVE, kernel.region_grad));
   launcher.add_field(2, FID_DATA);
   runtime->execute_index_space(ctx, launcher);
 }

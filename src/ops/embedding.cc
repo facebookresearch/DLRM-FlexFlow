@@ -25,8 +25,7 @@ void EmbeddingLookup_int64_t_float_float__avx2_fma(
 		const int* lengths,
 		const float* weight,
 		bool normalize_by_lengths,
-		float* out)
-{}
+		float* out);
 
 void embed_forward(const int64_t* input,
 		const int* lengths,

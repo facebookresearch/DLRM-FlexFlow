@@ -353,8 +353,8 @@ class ReshapeTest(unittest.TestCase):
         num_gpu = 2
         i_dim = 3
         o_dim = 2
-        i_shape = (2,3,2)
-        o_shape = (6,2)
+        i_shape = (2,3,4)
+        o_shape = (6,4)
         self._run_gpu_test(num_gpu, i_dim, o_dim, i_shape, o_shape)
 
     def test_problem_size_32(self):
@@ -396,8 +396,15 @@ class ReshapeTest(unittest.TestCase):
         o_dim = 2
         i_shape = (2,3,2)
         o_shape = (2,6)
+        self._run_gpu_test(num_gpu, i_dim, o_dim, i_shape, o_shape) 
+      
+    def test_flatten_inner_2_target_size(self):
+        num_gpu = 2
+        i_dim = 3
+        o_dim = 2
+        i_shape = (144,265,15)
+        o_shape = (144,3975)
         self._run_gpu_test(num_gpu, i_dim, o_dim, i_shape, o_shape)
-
 
 class TanhTest(unittest.TestCase):
     '''

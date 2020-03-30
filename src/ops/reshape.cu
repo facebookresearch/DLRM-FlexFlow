@@ -22,6 +22,9 @@ Reshape<IDIM, ODIM>::Reshape(FFModel& model,
   Context ctx = model.config.lg_ctx;
   Runtime* runtime = model.config.lg_hlr;
   Rect<ODIM> part_rect = runtime->get_index_space_domain(ctx, task_is);
+  int num_tasks = part_rect.volume();
+  // number batches has to be divisible by partitions
+  assert(_input.adim[_input.numDim-1] % num_tasks == 0);
   // Create output tensor
   output = model.create_tensor<ODIM>(output_shape, task_is, DT_FLOAT);
   model.create_data_parallel_partition_with_diff_dims<IDIM, ODIM>(

@@ -317,6 +317,19 @@ public:
   // Add a transpose layer
   Tensor transpose(std::string name, Tensor input);
 
+  // Add a dot compressor layer
+  Tensor dot_compressor(std::string name,
+                        int num_dense_embeddings,
+                        int num_sparse_embeddings, 
+                        Tensor* _dense_embeddings, 
+                        Tensor* _sparse_embeddings,
+                        Tensor& dense_projection, 
+                        int compressed_num_channels,
+                        ActiMode activation = AC_MODE_NONE,
+                        Initializer* kernel_initializer = NULL,
+                        Initializer* bias_initializer = NULL,
+                        bool use_bias = true);
+
   // Add a flat layer
   Tensor flat(std::string name, Tensor input);
 

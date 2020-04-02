@@ -183,6 +183,7 @@ public:
   //virtual void update(const FFModel&) = 0;
 public:
   char name[MAX_OPNAME];
+  IndexSpace task_is;
   Tensor output;
   Tensor inputs[MAX_NUM_INPUTS];
   bool trainableInputs[MAX_NUM_INPUTS];
@@ -271,7 +272,7 @@ public:
 
   template<int NDIM>
   void create_disjoint_partition(const Tensor& tensor,
-                                 const IndexSpaceT<NDIM>& part_is,
+                                 const IndexSpace& part_is,
                                  LogicalPartition& part_fwd,
                                  LogicalPartition& part_bwd);
 
@@ -282,7 +283,7 @@ public:
                                                      LogicalPartition& part_bwd);
   template<int NDIM>
   Tensor create_tensor(const int* dims,
-                       const IndexSpaceT<NDIM>& part_is,
+                       const IndexSpace& part_is,
                        DataType data_type,
                        bool create_grad = true);
   template<int NDIM>
@@ -362,7 +363,6 @@ public:
   //                        const std::vector<PhysicalRegion> &regions,
   //                        Context ctx, HighLevelRuntime *runtime);
 public:
-  IndexSpaceT<4> task_is;
   int in_channels, out_channels, kernel_h, kernel_w, stride_h, stride_w, padding_h, padding_w;
   Tensor kernel, bias;
   bool profiling;
@@ -406,7 +406,6 @@ public:
                             const std::vector<PhysicalRegion> &regions,
                             Context ctx, Runtime *runtime);
 public:
-  IndexSpaceT<4> task_is;
   int kernel_h, kernel_w, stride_h, stride_w, padding_h, padding_w;
   PoolType pool_type;
   ActiMode activation;
@@ -445,7 +444,6 @@ public:
                             const std::vector<PhysicalRegion> &regions,
                             Context ctx, Runtime *runtime);
 public:
-  IndexSpaceT<4> task_is;
   bool relu, profiling;
   int num_replica;
   Tensor locals[MAX_NUM_LOCALS];
@@ -495,7 +493,6 @@ public:
   //                        const std::vector<PhysicalRegion> &regions,
   //                        Context ctx, Runtime *runtime);
 public:
-  IndexSpaceT<2> task_is;
   Tensor kernel, bias, replica;
   bool profiling;
   ActiMode activation;
@@ -538,7 +535,6 @@ public:
                                 const std::vector<PhysicalRegion> &regions,
                                 Context ctx, Runtime *runtime);
 public:
-  IndexSpaceT<2> task_is;
   Tensor kernel;
   AggrMode aggr;
   bool profiling;
@@ -565,7 +561,6 @@ public:
                             const std::vector<PhysicalRegion> &regions,
                             Context ctx, Runtime *runtime);
 public:
-  IndexSpaceT<2> task_is;
 };
 
 class FlatMeta : public OpMeta {
@@ -595,7 +590,6 @@ public:
                             const std::vector<PhysicalRegion> &regions,
                             Context ctx, Runtime *runtime);
 public:
-  IndexSpaceT<2> task_is;
   bool profiling;
 };
 
@@ -629,7 +623,6 @@ public:
                             Context ctx, Runtime *runtime);
 public:
   int axis;
-  IndexSpace task_is;
   bool profiling;
 };
 
@@ -655,7 +648,6 @@ public:
                                    const std::vector<PhysicalRegion> &regions,
                                    Context ctx, Runtime *runtime);
 public:
-  IndexSpaceT<2> task_is;
   AggrMode aggr_mode;
   bool profiling;
 };

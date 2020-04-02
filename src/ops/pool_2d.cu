@@ -72,8 +72,8 @@ Pool2D::Pool2D(FFModel& model,
     input_lps[0] = inputs[0].part;
     input_grad_lps[0] = inputs[0].part_grad;
   } else {
-    model.create_disjoint_partition(
-        _input, task_is, input_lps[0], input_grad_lps[0]);
+    model.create_disjoint_partition<4>(
+      _input, task_is, input_lps[0], input_grad_lps[0]);
   }
 #ifdef DEADCODE
   LogicalRegion output_lr = runtime->create_logical_region(ctx, output_is, fs);

@@ -56,14 +56,14 @@ Softmax::Softmax(FFModel& model,
     input_lps[0] = inputs[0].part;
     input_grad_lps[0] = inputs[0].part_grad;
   } else {
-    model.create_disjoint_partition(
+    model.create_disjoint_partition<2>(
         inputs[0], task_is, input_lps[0], input_grad_lps[0]);
   }
   if (label_rect == part_rect) {
     input_lps[1] = inputs[1].part;
     input_grad_lps[1] = inputs[1].part_grad;
   } else {
-    model.create_disjoint_partition(
+    model.create_disjoint_partition<2>(
         inputs[1], task_is, input_lps[1], input_grad_lps[1]);
   }
 }

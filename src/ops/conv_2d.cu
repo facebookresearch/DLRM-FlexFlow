@@ -101,12 +101,12 @@ Conv2D::Conv2D(FFModel& model,
   // Create kernel
   {
     const int dims[4] = {output_c, input_c, kernel_h, kernel_w};
-    kernel = model.create_conv_weight<4>(dims, task_is, DT_FLOAT, kernel_initializer);
+    kernel = model.create_conv_weight<4>(dims, (IndexSpaceT<4>)task_is, DT_FLOAT, kernel_initializer);
   }
   // Create bias tensor
   if (use_bias) {
     const int dims[1] = {output_c};
-    bias = model.create_conv_weight<1>(dims, task_is, DT_FLOAT, bias_initializer);
+    bias = model.create_conv_weight<1>(dims, (IndexSpaceT<4>)task_is, DT_FLOAT, bias_initializer);
   }
   // Compute partition bound for input
   Rect<4> input_rect = runtime->get_index_partition_color_space(
@@ -117,7 +117,7 @@ Conv2D::Conv2D(FFModel& model,
     input_lps[0] = inputs[0].part;
     input_grad_lps[0] = inputs[0].part_grad;
   } else {
-    model.create_disjoint_partition(
+    model.create_disjoint_partition<4>(
         inputs[0], task_is, input_lps[0], input_grad_lps[0]);
   }
 #ifdef DEADCODE

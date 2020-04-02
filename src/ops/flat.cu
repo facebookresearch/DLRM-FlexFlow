@@ -49,7 +49,7 @@ Flat::Flat(FFModel& model,
     output = model.create_tensor<2>(dims, task_is, DT_FLOAT);
   }
   model.create_data_parallel_partition_with_diff_dims<4, 2>(
-      _input, task_is, input_lps[0], input_grad_lps[0]);
+      _input, (IndexSpaceT<2>)task_is, input_lps[0], input_grad_lps[0]);
 #ifdef DEADCODE
   Rect<2, coord_t> output_rect(Point<2>(0, 0), Point<2>(output_c-1, output_n-1));
   IndexSpaceT<2> output_is = runtime->create_index_space(ctx, output_rect);

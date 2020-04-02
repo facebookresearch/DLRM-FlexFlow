@@ -90,7 +90,7 @@ Linear::Linear(FFModel& model,
   // Create kernel tensor
   {
     const int dims[2] = {out_dim, in_dim}; // target shape k,m
-    kernel = model.create_linear_weight<2>(dims, task_is, DT_FLOAT, kernel_initializer);
+    kernel = model.create_linear_weight<2>(dims, (IndexSpaceT<2>)task_is, DT_FLOAT, kernel_initializer);
   }
   // Create bias tensor
   if (use_bias) {

@@ -61,7 +61,7 @@ Embedding::Embedding(FFModel& model,
   {
     const int dims[2] = {outDim, num_entries};
     // Embeddding weights and linear weights can be partitioned in the same way
-    kernel = model.create_linear_weight<2>(dims, task_is, DT_FLOAT, kernel_initializer);
+    kernel = model.create_linear_weight<2>(dims, (IndexSpaceT<2>)task_is, DT_FLOAT, kernel_initializer);
   }
 #ifdef DEADCODE
   // Create kernel tensor

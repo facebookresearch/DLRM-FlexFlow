@@ -146,8 +146,6 @@ void initialize_tensor_from_file_task(const Task *task,
 }
 
 
-
-
 void dump_region_to_file(FFModel &ff, 
     LogicalRegion &region, 
     std::string file_path, 

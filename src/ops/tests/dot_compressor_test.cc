@@ -64,6 +64,23 @@ void top_level_task(const Task* task,
         bias, ff, "float", 1);  
   }
 
+  Tensor weights;
+  {
+    const int dims[2] = {test_meta.projected_num_channels, test_meta.num_channels};
+    weights = ff.create_tensor<2>(dims, "", DT_FLOAT);
+    auto weights_file_path = "test_kernel1.txt";
+    initialize_tensor_from_file(weights_file_path, 
+        weights, ff, "float", 2);  
+  }
+  Tensor bias;
+  {
+    const int dims[1] = {test_meta.projected_num_channels};
+    bias = ff.create_tensor<1>(dims, "", DT_FLOAT);
+    auto bias_file_path = "test_bias1.txt";
+    initialize_tensor_from_file(bias_file_path, 
+        bias, ff, "float", 1);  
+  }
+
   // create dense projection
   Tensor dense_projection;
   {

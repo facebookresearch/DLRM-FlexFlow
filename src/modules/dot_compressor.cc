@@ -22,7 +22,7 @@ Tensor FFModel::dot_compressor(
   int sparse_in_dim = _sparse_embeddings[0].adim[_sparse_embeddings[0].numDim-2];
   int dense_in_dim = _dense_embeddings[0].adim[_dense_embeddings[0].numDim-2];
   assert(sparse_in_dim == dense_in_dim);
-  int num_channels = num_sparse_embeddings + num_sparse_embeddings;
+  int num_channels = num_sparse_embeddings + num_dense_embeddings;
   int batch_size = _sparse_embeddings[0].adim[_sparse_embeddings[0].numDim-1];
   
   // merge two embedding lists
@@ -101,7 +101,7 @@ Tensor FFModel::dot_compressor(
   layers.push_back(bmm);
 
   // flatten inner most 2 dimenions
-  int l4_shape[2] = {batch_size, sparse_in_dim * compressed_num_channels};
+  int l4_shape[2] = {batch_size, num_channels * compressed_num_channels};
   Reshape<3,2> *flattened_bmm = new Reshape<3,2>(*this, 
     "flattened_bmm", 
     bmm->output, 

@@ -64,6 +64,23 @@ void top_level_task(const Task* task,
         bias, ff, "float", 1);  
   }
 
+  Tensor weights;
+  {
+    const int dims[2] = {test_meta.projected_num_channels, test_meta.num_channels};
+    weights = ff.create_tensor<2>(dims, "", DT_FLOAT);
+    auto weights_file_path = "test_kernel1.txt";
+    initialize_tensor_from_file(weights_file_path, 
+        weights, ff, "float", 2);  
+  }
+  Tensor bias;
+  {
+    const int dims[1] = {test_meta.projected_num_channels};
+    bias = ff.create_tensor<1>(dims, "", DT_FLOAT);
+    auto bias_file_path = "test_bias1.txt";
+    initialize_tensor_from_file(bias_file_path, 
+        bias, ff, "float", 1);  
+  }
+
   // create dense projection
   Tensor dense_projection;
   {
@@ -112,10 +129,13 @@ void top_level_task(const Task* task,
     &weights,
     NULL  
   );
-dagiuawhdiughas;dfjao;sdjofjasdof
-  // TODO
-  // multi-gpu results are wrong, print layers outputs to debug
-  
+
+// ahsduifgahwe;igha;dsf;iahsd;fha;isdf
+  // TODO 1 add interface of pretrained weights
+  // TODO 2 fix backward
+
+
+
   // load inputs tensors and output gradients tensors for testing
   // use output for output grad (testing only)
   auto output_grad_file_path = "test_output.txt";

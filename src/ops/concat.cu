@@ -369,11 +369,13 @@ void Concat::forward_task(const Task *task,
   }
   checkCUDA(cudaDeviceSynchronize());
   if (cc->profiling) {
-    Rect<2> rect(Point<2>(0, 0), Point<2>(output_blk_size-1, domain.get_volume() / output_blk_size - 1));
-    //print_tensor<2, float>(output - output_blk_size, rect, "[Concat:forward:output]");
     printf("output_blk_size=%zu\n", output_blk_size);
     Rect<2> input_rec(Point<2>(0, 0), Point<2>(input_blk_sizes[0]-1, domain.get_volume() / output_blk_size - 1));
-    //print_tensor<2, float>(inputs[0], rect, "[Concat:forward:input0]");
+    Rect<2> input2_rec(Point<2>(0, 0), Point<2>(input_blk_sizes[1]-1, domain.get_volume() / output_blk_size - 1));
+    Rect<2> rect(Point<2>(0, 0), Point<2>(output_blk_size-1, domain.get_volume() / output_blk_size - 1));
+    print_tensor<2, float>(inputs[0], input_rec, "[Concat:forward:input0]");
+    print_tensor<2, float>(inputs[1], input2_rec, "[Concat:forward:input1]");
+    print_tensor<2, float>(output - output_blk_size, rect, "[Concat:forward:output]");
   }
 #ifdef DEADCODE
   const AccessorWO<float, 3> acc_output(regions[0], FID_DATA);
@@ -526,8 +528,8 @@ void Concat::backward_task(const Task *task,
     int batch_size = domain.get_volume() / output_blk_size;
     Rect<2> output_rect(Point<2>(0, 0), Point<2>(output_blk_size-1, batch_size - 1));
     Rect<2> input_rect(Point<2>(0, 0), Point<2>(input_blk_sizes[0]-1, batch_size - 1));
-    //print_tensor<2, float>(output_grad - output_blk_size, output_rect, "[Concat:backward:output]");
-    //print_tensor<2, float>(input_grads[0], input_rect, "[Concat:backward:input0]");
+    print_tensor<2, float>(output_grad - output_blk_size, output_rect, "[Concat:backward:output]");
+    // print_tensor<2, float>(input_grads[0], input_rect, "[Concat:backward:input0]");
   }
 #ifdef DEADCODE
   const AccessorRO<float, 3> acc_output(regions[0], FID_DATA);

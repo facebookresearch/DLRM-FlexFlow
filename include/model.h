@@ -326,7 +326,7 @@ public:
                         int num_sparse_embeddings, 
                         Tensor* _dense_embeddings, 
                         Tensor* _sparse_embeddings,
-                        Tensor& dense_projection, 
+                        // Tensor dense_projection, 
                         int compressed_num_channels,
                         ActiMode activation = AC_MODE_NONE,
                         Initializer* kernel_initializer = NULL,

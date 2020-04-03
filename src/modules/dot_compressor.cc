@@ -1,6 +1,6 @@
 #include "model.h"
 #include <algorithm>
-
+#include "test_utils.h"
 
 Tensor FFModel::dot_compressor(
   std::string name,
@@ -8,7 +8,6 @@ Tensor FFModel::dot_compressor(
   int num_sparse_embeddings,
   Tensor* _dense_embeddings,
   Tensor* _sparse_embeddings, 
-  Tensor& dense_projection,
   int compressed_num_channels,
   ActiMode activation,
   Initializer* kernel_initializer,
@@ -38,7 +37,11 @@ Tensor FFModel::dot_compressor(
   embeddings.insert(embeddings.end(), dense_embeddings.begin(), dense_embeddings.end());
 
   // concat embeddings
-  Concat *cat_input = new Concat(*this, "concat_input", num_channels, &embeddings[0], 1);
+  Concat *cat_input = new Concat(*this, 
+    "concat_input", 
+    num_channels, 
+    &embeddings[0], 
+  1);
   layers.push_back(cat_input);
   
   // reshape 2 to 3
@@ -121,14 +124,26 @@ Tensor FFModel::dot_compressor(
     flattened_bmm->output, 
     l4_shape);
   layers.push_back(tanh);
-
-  // final concat
-  std::vector<Tensor> final_concats;
-  final_concats.push_back(tanh->output);
-  final_concats.push_back(dense_projection);
+  return tanh->output;
 
 
-  Concat *cat_final = new Concat(*this, "concat_final", 2, &final_concats[0], 1);
-  layers.push_back(cat_final);
-  return cat_final->output;
+  // // final concat
+  // Tensor final_concats[2];
+  // final_concats[0] = tanh->output;
+  // // empty when num_gpu > 1
+  // // jkhsdfgiuvahsdliughafilsdhfa;
+  // final_concats[1] = dense_projection;
+  // // final_concats[1] = tanh->output;
+  // // here looks good still , must be something wrong inside Concat
+  // dump_region_to_file(*this, final_concats[1].region, "dump3.txt", 2);
+
+
+  // Concat *cat_final = new Concat(*this, 
+  //   "", 
+  //   2, 
+  //   final_concats, 
+  //   1);
+  // layers.push_back(cat_final);
+  // return cat_final->output;
+
 }

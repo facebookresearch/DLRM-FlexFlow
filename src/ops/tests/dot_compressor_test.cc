@@ -64,15 +64,16 @@ void top_level_task(const Task* task,
         bias, ff, "float", 1);  
   }
 
+
   // create dense projection
   Tensor dense_projection;
   {
     const int dims[2] = {test_meta.batch_size, test_meta.dense_projection_i_dim}; 
     dense_projection = ff.create_tensor<2>(dims, "", DT_FLOAT);
+    // dense_projection = ff.create_linear_weight<2>(dims, (IndexSpaceT<2>)task_is, DT_FLOAT, kernel_initializer);
     auto dense_projection_file_path = "test_input1.txt";
     initialize_tensor_from_file(dense_projection_file_path, 
         dense_projection, ff, "float", 2);
-
   }
   // create embeddings
   int dense_embedding_channels = test_meta.num_channels / 2;
@@ -103,7 +104,6 @@ void top_level_task(const Task* task,
     sparse_embedding_channels,
     dense_embeddings,
     sparse_embeddings,
-    dense_projection, 
     test_meta.projected_num_channels,
     AC_MODE_NONE,
     NULL,
@@ -112,24 +112,77 @@ void top_level_task(const Task* task,
     &weights,
     NULL  
   );
-dagiuawhdiughas;dfjao;sdjofjasdof
-  // TODO
-  // multi-gpu results are wrong, print layers outputs to debug
-  
+
+
+  // todo
+  // dhjgoashd;oghaw;oehg;ioawho;iefghj;o
+  /*
+  1. check 128 256 512 problem sizes
+    1.1 results 128 doesn't match
+      1.1.1 python reference is wrong, backward doesn't update weights
+
+
+
+  2. compare each layer inputs outputs
+  3. test problem size in operator unit test to figure out problem
+  */
+
   // load inputs tensors and output gradients tensors for testing
   // use output for output grad (testing only)
-  auto output_grad_file_path = "test_output.txt";
+  auto output_grad_file_path = "test_output_grad.txt";
   initialize_tensor_gradient_from_file(output_grad_file_path, ret, ff, "float", 2);
 
-
+  ff.optimizer = new SGDOptimizer(&ff, 0.01f);
   // run forward and backward to produce results
   ff.init_layers();
   ff.forward();
-  ff.backward();
+  int epochs = 10;
+  for (int i = 0; i < epochs; i++) {
+    ff.zero_gradients();
+    ff.backward();
+    ff.update();
+  }
   // dump results to file for python validation
   dump_region_to_file(ff, ret.region, "output.txt", 2);
+  // dump_region_to_file(ff, dense_projection.region, "dump.txt", 2);
   auto kernel = ff.parameters[0].tensor;
-  dump_region_to_file(ff, kernel.region_grad, "kernel_grad1.txt", 2);
+  dump_region_to_file(ff, kernel.region, "kernel_updated1.txt", 2);
+  // kernel = ff.parameters[1].tensor;
+  // dump_region_to_file(ff, kernel.region_grad, "kernel_grad2.txt", 1);
+
+
+
+  // // final concat
+  // Tensor final_concats[2];
+  // final_concats[0] = ret;
+  // // empty when num_gpu > 1
+  // final_concats[1] = dense_projection;
+  // // here looks good still , must be something wrong inside Concat
+  // dump_region_to_file(ff, final_concats[1].region, "dump3.txt", 2);
+  // Concat *cat_final = new Concat(ff, 
+  //   "", 
+  //   2, 
+  //   final_concats, 
+  //   1);
+  // ff.layers.push_back(cat_final);
+  // // TODO
+  // // multi-gpu results are wrong, print layers outputs to debug
+  
+  // // load inputs tensors and output gradients tensors for testing
+  // // use output for output grad (testing only)
+  // auto output_grad_file_path = "test_output.txt";
+  // initialize_tensor_gradient_from_file(output_grad_file_path, cat_final->output, ff, "float", 2);
+
+
+  // // run forward and backward to produce results
+  // ff.init_layers();
+  // ff.forward();
+  // // ff.backward();
+  // // dump results to file for python validation
+  // dump_region_to_file(ff, cat_final->output.region, "output.txt", 2);
+  // // dump_region_to_file(ff, dense_projection.region, "dump.txt", 2);
+  // auto kernel = ff.parameters[0].tensor;
+  // dump_region_to_file(ff, kernel.region_grad, "kernel_grad1.txt", 2);
 }
 
 

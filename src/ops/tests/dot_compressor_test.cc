@@ -45,13 +45,33 @@ void top_level_task(const Task* task,
   // create ff model object
   FFModel ff(ffConfig);
 
+  Tensor weights;
+  {
+    const int dims[2] = {test_meta.projected_num_channels, test_meta.num_channels};
+    weights = ff.create_tensor<2>(dims, "", DT_FLOAT);
+    auto weights_file_path = "test_kernel1.txt";
+    initialize_tensor_from_file(weights_file_path, 
+        weights, ff, "float", 2);  
+  }
+  Tensor bias;
+  {
+    const int dims[1] = {test_meta.projected_num_channels};
+    bias = ff.create_tensor<1>(dims, "", DT_FLOAT);
+    auto bias_file_path = "test_bias1.txt";
+    initialize_tensor_from_file(bias_file_path, 
+        bias, ff, "float", 1);  
+  }
+
   // create dense projection
   Tensor dense_projection;
   {
     const int dims[2] = {test_meta.batch_size, test_meta.dense_projection_i_dim}; 
     dense_projection = ff.create_tensor<2>(dims, "", DT_FLOAT);
-  }
+    auto dense_projection_file_path = "test_input1.txt";
+    initialize_tensor_from_file(dense_projection_file_path, 
+        dense_projection, ff, "float", 2);
 
+  }
   // create embeddings
   int dense_embedding_channels = test_meta.num_channels / 2;
   int sparse_embedding_channels = test_meta.num_channels - dense_embedding_channels;
@@ -82,26 +102,47 @@ void top_level_task(const Task* task,
     dense_embeddings,
     sparse_embeddings,
     dense_projection, 
-    test_meta.projected_num_channels
+    test_meta.projected_num_channels,
+    AC_MODE_NONE,
+    NULL,
+    NULL,
+    true,
+    &weights,
+    NULL  
   );
 
+// ahsduifgahwe;igha;dsf;iahsd;fha;isdf
+  // TODO 1 add interface of pretrained weights
+  // TODO 2 fix backward
+
+
+
   // load inputs tensors and output gradients tensors for testing
-  // auto output_grad_file_path = "test_output_grad.txt";
-  // initialize_tensor_gradient_from_file(output_grad_file_path, ret, ff, "float", 2);
+  // use output for output grad (testing only)
+  auto output_grad_file_path = "test_output.txt";
+  initialize_tensor_gradient_from_file(output_grad_file_path, ret, ff, "float", 2);
 
 
   // run forward and backward to produce results
   ff.init_layers();
   ff.forward();
-  // ff.backward();
+  ff.backward();
   // dump results to file for python validation
   dump_region_to_file(ff, ret.region, "output.txt", 2);
   // dump_region_to_file(ff, dense_embeddings[0].region_grad, "input1_grad.txt", 2);
 }
 
 
+
 void register_custom_tasks()
 {
+  {
+    TaskVariantRegistrar registrar(INIT_TENSOR_1D_FROM_FILE_CPU_TASK, "Load 1d Tensor");
+    registrar.add_constraint(ProcessorConstraint(Processor::LOC_PROC));
+    registrar.set_leaf();
+    Runtime::preregister_task_variant<initialize_tensor_from_file_task<1>>(
+        registrar, "Load 1d tensor Task");
+  }
   {
     TaskVariantRegistrar registrar(INIT_TENSOR_2D_FROM_FILE_CPU_TASK, "Load 2d Tensor");
     registrar.add_constraint(ProcessorConstraint(Processor::LOC_PROC));
@@ -125,24 +166,31 @@ void register_custom_tasks()
   }
 
   {      
-    TaskVariantRegistrar registrar(DUMP_TENSOR_2D_CPU_TASK, "Compare Tensor");
+    TaskVariantRegistrar registrar(DUMP_TENSOR_1D_CPU_TASK, "Dump Tensor");
+    registrar.add_constraint(ProcessorConstraint(Processor::LOC_PROC));
+    registrar.set_leaf();
+    Runtime::preregister_task_variant<dump_tensor_task<1>>(
+        registrar, "Dump Tensor Task");
+  }
+  {      
+    TaskVariantRegistrar registrar(DUMP_TENSOR_2D_CPU_TASK, "Dump Tensor");
     registrar.add_constraint(ProcessorConstraint(Processor::LOC_PROC));
     registrar.set_leaf();
     Runtime::preregister_task_variant<dump_tensor_task<2>>(
-        registrar, "Compare Tensor Task");
+        registrar, "Dump Tensor Task");
   }
   {      
-    TaskVariantRegistrar registrar(DUMP_TENSOR_4D_CPU_TASK, "Compare Tensor");
+    TaskVariantRegistrar registrar(DUMP_TENSOR_4D_CPU_TASK, "Dump Tensor");
     registrar.add_constraint(ProcessorConstraint(Processor::LOC_PROC));
     registrar.set_leaf();
     Runtime::preregister_task_variant<dump_tensor_task<4>>(
-        registrar, "Compare Tensor Task");
+        registrar, "Dump Tensor Task");
   }
   {      
-    TaskVariantRegistrar registrar(DUMP_TENSOR_3D_CPU_TASK, "Compare Tensor");
+    TaskVariantRegistrar registrar(DUMP_TENSOR_3D_CPU_TASK, "Dump Tensor");
     registrar.add_constraint(ProcessorConstraint(Processor::LOC_PROC));
     registrar.set_leaf();
     Runtime::preregister_task_variant<dump_tensor_task<3>>(
-        registrar, "Compare Tensor Task");
+        registrar, "Dump Tensor Task");
   }
 }

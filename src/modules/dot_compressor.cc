@@ -13,8 +13,11 @@ Tensor FFModel::dot_compressor(
   ActiMode activation,
   Initializer* kernel_initializer,
   Initializer* bias_initializer,
-  bool use_bias
-  ){
+  bool use_bias,
+  Tensor* _kernel,
+  Tensor* _bias
+  )
+{
   assert(_dense_embeddings[0].numDim == 2);
   assert(num_dense_embeddings > 0);
   assert(_sparse_embeddings[0].numDim == 2);
@@ -72,6 +75,10 @@ Tensor FFModel::dot_compressor(
     reshape_transpose_reshape_cat_input->output, 
     compressed_num_channels, activation, use_bias,
     kernel_initializer, bias_initializer);
+  if (_kernel != NULL) 
+    compressed_channels->kernel = *_kernel;
+  if (_bias != NULL)
+    compressed_channels->bias = *_bias;
   layers.push_back(compressed_channels);
   Parameter kernel, bias;
   kernel.tensor = compressed_channels->kernel;

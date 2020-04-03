@@ -4,16 +4,17 @@ import numpy as np
 import torch
 
 class DotCompressor(torch.nn.Module):
-    def __init__(self, in_features, out_features, weights=None):
+    def __init__(self, in_features, out_features, weights=None, bias=False):
         super(DotCompressor, self).__init__()
-        self.projected_rtc_layer = torch.nn.Linear(in_features, out_features, bias=True)
+        self.projected_rtc_layer = torch.nn.Linear(in_features, out_features, bias=bias)
         self.h_channel_dim = out_features
         if weights is not None:
             assert len(weights) == 2
             # weights shape  (out_features,in_features)
             # bias shape (out_features)
             self.projected_rtc_layer.weight = torch.nn.Parameter(torch.from_numpy(weights[0]), requires_grad=True)
-            self.projected_rtc_layer.bias = torch.nn.Parameter(torch.from_numpy(weights[1]), requires_grad=True)
+            if bias:
+              self.projected_rtc_layer.bias = torch.nn.Parameter(torch.from_numpy(weights[1]), requires_grad=True)
 
     def forward(self, dense_embeddings, sparse_embeddings, dense_projection, debug=False):
         assert len(dense_projection.shape) == 2
@@ -21,11 +22,16 @@ class DotCompressor(torch.nn.Module):
         assert len(sparse_embeddings[0].shape) == 2
         assert len(dense_embeddings) > 0, 'embeddings to be compressed can not be empty'
         assert len(sparse_embeddings) > 0, 'embeddings to be compressed can not be empty'
-        num_channels = dense_embeddings.shape[1] + sparse_embeddings.shape[1]
-        batch_size = dense_embeddings.shape[0]
-        i_dim = dense_embeddings.shape[2]
+        num_channels = len(dense_embeddings) + len(sparse_embeddings)
+        batch_size = dense_embeddings[0].shape[0]
+        i_dim = dense_embeddings[0].shape[1]
+        if debug:
+            # print("dense embeddings", dense_embeddings.data.cpu().numpy())
+            print("dense embeddings", dense_embeddings[0].shape, len(dense_embeddings))
+            # print("sparse embeddings", sparse_embeddings.data.cpu().numpy())
+            print("sparse embeddings", sparse_embeddings[0].shape, len(sparse_embeddings))
         # concat embeddings
-        cat_input = torch.cat((dense_embeddings, sparse_embeddings), dim=1)
+        cat_input = torch.cat(sparse_embeddings+dense_embeddings, dim=1)
         if debug:
             print("concatenated inputs", cat_input.shape)
         # reshape to add channel dimension
@@ -36,6 +42,8 @@ class DotCompressor(torch.nn.Module):
         transpose_cat = torch.transpose(cat_input_reshape, 2, 1)
         if debug:
             print('transposed', transpose_cat.shape)
+            print('transposed input\n', cat_input_reshape.data.cpu().numpy())
+            print('transposed output\n', transpose_cat.data.cpu().numpy())
         # reshape 3 to 2
         batched_input_size = batch_size * i_dim
         reshape_transpose_cat = torch.reshape(transpose_cat, (batched_input_size, num_channels))
@@ -50,10 +58,13 @@ class DotCompressor(torch.nn.Module):
         if debug:
             print('unpacked_projected_rtc', unpacked_projected_rtc.shape)
         # bmm
-        batch_pairwise = torch.bmm(transpose_cat.transpose(2, 1).float(), unpacked_projected_rtc.float())
+        batch_pairwise = torch.bmm(transpose_cat.transpose(-1, -2).float(), unpacked_projected_rtc.float())
         if debug:
             print('bmm input1', transpose_cat.shape, 'bmm input2', unpacked_projected_rtc.shape)
             print('batch_pairwise', batch_pairwise.shape)
+            print('input1', transpose_cat.data.cpu().numpy())
+            print('input2', unpacked_projected_rtc.data.cpu().numpy())
+            print('output', batch_pairwise.data.cpu().numpy())
         flattened_pairwise = batch_pairwise.flatten(1, 2)
         if debug:
             print('flattened_pairwise', flattened_pairwise.shape)
@@ -112,6 +123,23 @@ def is_equal_tensor_from_file(file_1, file_2, label='', epsilon=0.00001):
       print('checking equal %s failed, error message: %s' % (label, e))
       raise e 
 
+def average_error_tolerance(file_1, file_2, label='', epsilon=0.00001):
+    with open(file_1, 'r') as f:
+        input1 = f.readline()
+    with open(file_2, 'r') as f:
+        input2 = f.readline()
+    input1_flat = input1.strip().split(' ')
+    input1_flat = [float(x) for x in input1_flat]
+    input2_flat = input2.strip().split(' ')
+    input2_flat = [float(x) for x in input2_flat]
+    avg_input1_flat = sum(input1_flat) / len(input1_flat)
+    avg_input2_flat = sum(input2_flat) / len(input2_flat)
+    try:
+      np.testing.assert_allclose(avg_input1_flat, avg_input2_flat, rtol=epsilon, atol=0.0)
+    except Exception as e:
+      print('checking equal %s failed, error message: %s' % (label, e))
+      raise e   
+
 class DotCompressorTest(unittest.TestCase):
     '''
     Dot Compressor shapes:
@@ -153,11 +181,11 @@ class DotCompressorTest(unittest.TestCase):
             ])
           )
 
-    def _run_gpu_test(self, num_gpu, batch_size, i_dim, num_channels, projected_num_channels, dense_projection_i_dim):
+    def _run_gpu_test(self, num_gpu, batch_size, i_dim, num_channels, projected_num_channels, dense_projection_i_dim, epsilon=0.001):
         self._dump_meta(batch_size, i_dim, num_channels, projected_num_channels, dense_projection_i_dim)
         linear_weight = np.random.uniform(0,1, (projected_num_channels, num_channels, ))
-        dump_tensor_to_file(linear_weight, "test_weight1.txt")
-        linear_bias = np.random.uniform(0,1, projected_num_channels)
+        dump_tensor_to_file(linear_weight, "test_kernel1.txt")
+        linear_bias = np.zeros(projected_num_channels)
         dump_tensor_to_file(linear_bias, "test_bias1.txt")
 
         dense_projection = np.random.uniform(0, 1, (batch_size, dense_projection_i_dim))
@@ -165,26 +193,42 @@ class DotCompressorTest(unittest.TestCase):
         dump_tensor_to_file(dense_projection, "test_input1.txt")
 
         dense_embedding = np.random.uniform(0, 1, (batch_size, i_dim))
-        chunk_dense_embedded = np.array([dense_embedding for _ in range(num_channels // 2)])
-        chunk_dense_embedded = chunk_dense_embedded.reshape((batch_size, num_channels // 2, i_dim))
+        chunk_dense_embedded = [torch.from_numpy(dense_embedding) for _ in range(num_channels // 2)]
+        # print(chunk_dense_embedded[0].shape)
         dump_tensor_to_file(dense_embedding, "test_input2.txt")
 
         sparse_embedding = np.random.uniform(0, 1, (batch_size, i_dim))
-        chunk_sparse_embedded = np.array([sparse_embedding for _ in range(num_channels - num_channels // 2)])
-        chunk_sparse_embedded = chunk_sparse_embedded.reshape((batch_size, num_channels - num_channels // 2, i_dim))
+        chunk_sparse_embedded = [torch.from_numpy(sparse_embedding) for _ in range(num_channels - num_channels // 2)]
+        # print(chunk_sparse_embedded[0].shape)
         dump_tensor_to_file(sparse_embedding, "test_input3.txt")
 
         # print('chunk dense embedded', chunk_dense_embedded.shape, "chunk sparse embedded", chunk_sparse_embedded.shape)
-        chunk_dense_embedded = torch.from_numpy(chunk_dense_embedded)
-        chunk_sparse_embedded = torch.from_numpy(chunk_sparse_embedded)
         pretrained_weights = [linear_weight, linear_bias]
-        m = DotCompressor(num_channels, projected_num_channels, pretrained_weights)
-        ret = m(chunk_dense_embedded, chunk_sparse_embedded, dense_projection, debug=True)
+        m = DotCompressor(num_channels, projected_num_channels, pretrained_weights, bias=True)
+        ret = m(chunk_dense_embedded, chunk_sparse_embedded, dense_projection, debug=False)
         dump_tensor_to_file(ret.data.cpu().numpy(), "test_output.txt")
-        # print(num_channels, chunk_dense_embedded.shape, chunk_sparse_embedded.shape, dense_projection.shape)
-        print(ret.shape)
-    
+        # use output as grad just for testing 
+        ret.backward(ret)
+        # print(dir(dense_projection))
+        linear_weights_grad = m.projected_rtc_layer.weight.grad.data.cpu().numpy()
+        dump_tensor_to_file(linear_weights_grad, 'test_kernel_grad1.txt')
+        # print(m.projected_rtc_layer.weight.grad.data.cpu().numpy())
+        # print(ret.shape)
+
+        # generate FF results
+        gen_FF_result(DotCompressorTest.TEST_TARGET, num_gpu)
+        file1 = 'output.txt'
+        file2 = 'test_output.txt'
+        is_equal_tensor_from_file(file1, file2, 'output', epsilon=epsilon)
+        # average_error_tolerance(file1, file2, 'output', epsilon=epsilon)
+        file2 = 'kernel_grad1.txt'
+        file1 = 'test_kernel_grad1.txt'
+        # average_error_tolerance(file1, file2, 'input_grad', epsilon=epsilon)
+        is_equal_tensor_from_file(file1, file2, 'weights_grad', epsilon=epsilon)
+
+
     def test_single_gpu_simple_problem(self):
+        np.random.seed(0)
         num_gpu = 1
         batch_size = 2
         i_dim = 4
@@ -192,10 +236,24 @@ class DotCompressorTest(unittest.TestCase):
         projected_num_channels = 2
         dense_projection_i_dim = 1
         self._run_gpu_test(num_gpu, batch_size, i_dim, num_channels, projected_num_channels, dense_projection_i_dim)
-    
-    def test_multi_gpu_target_problem_size(self):
+
+    def test_multi_gpu_small_problem(self):
+        np.random.seed(0)
         num_gpu = 2
-        batch_size = 145
+        # batch_size % num_worker == 0 (reshape contraints)
+        batch_size = 4
+        i_dim = 3
+        num_channels = 4
+        projected_num_channels = 2
+        dense_projection_i_dim = 3        
+        self._run_gpu_test(num_gpu, batch_size, i_dim, num_channels, projected_num_channels, dense_projection_i_dim)
+
+
+    def test_multi_gpu_target_problem_size(self):
+        np.random.seed(0)
+        num_gpu = 2
+        # batch_size % num_worker == 0 (reshape contraints)
+        batch_size = 146
         i_dim = 64
         num_channels = 265
         projected_num_channels = 15

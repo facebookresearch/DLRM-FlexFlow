@@ -24,7 +24,18 @@ void initialize_tensor_gradient_from_file(const std::string file_path,
   ArgsConfig args_config;
   strcpy(args_config.dataset_path, file_path.c_str());
   strcpy(args_config.data_type, data_type.c_str());
-  if (num_dim == 2) {
+  if (num_dim == 1) {
+    TaskLauncher launcher(
+        INIT_TENSOR_1D_FROM_FILE_CPU_TASK,
+        TaskArgument(&args_config, sizeof(args_config)));
+    // regions[0]: full_sparse_input
+    launcher.add_region_requirement(
+        RegionRequirement(label.region_grad,
+                          WRITE_ONLY, EXCLUSIVE, label.region_grad,
+                          MAP_TO_FB_MEMORY));
+    launcher.add_field(0, FID_DATA);
+    runtime->execute_task(ctx, launcher);
+  } else if (num_dim == 2) {
     TaskLauncher launcher(
         INIT_TENSOR_2D_FROM_FILE_CPU_TASK,
         TaskArgument(&args_config, sizeof(args_config)));
@@ -73,7 +84,17 @@ void initialize_tensor_from_file(const std::string file_path,
   ArgsConfig args_config;
   strcpy(args_config.dataset_path, file_path.c_str());
   strcpy(args_config.data_type, data_type.c_str());
-  if (num_dim == 2) {
+  if (num_dim == 1) {
+    TaskLauncher launcher(
+        INIT_TENSOR_1D_FROM_FILE_CPU_TASK,
+        TaskArgument(&args_config, sizeof(args_config)));
+    launcher.add_region_requirement(
+        RegionRequirement(label.region,
+                          WRITE_ONLY, EXCLUSIVE, label.region,
+                          MAP_TO_FB_MEMORY));
+    launcher.add_field(0, FID_DATA);
+    runtime->execute_task(ctx, launcher);
+  } else if (num_dim == 2) {
     TaskLauncher launcher(
         INIT_TENSOR_2D_FROM_FILE_CPU_TASK,
         TaskArgument(&args_config, sizeof(args_config)));
@@ -217,7 +238,9 @@ void dump_tensor_task(const Task* task,
 
 
 
-
+template void dump_tensor_task<1>(const Task* task,
+                      const std::vector<PhysicalRegion>& regions,
+                      Context ctx, Runtime* runtime);
 template void dump_tensor_task<2>(const Task* task,
                       const std::vector<PhysicalRegion>& regions,
                       Context ctx, Runtime* runtime);
@@ -227,6 +250,10 @@ template void dump_tensor_task<3>(const Task* task,
 template void dump_tensor_task<4>(const Task* task,
                       const std::vector<PhysicalRegion>& regions,
                       Context ctx, Runtime* runtime);
+template void initialize_tensor_from_file_task<1>(const Task *task,
+                    const std::vector<PhysicalRegion> &regions,
+                    Context ctx,
+                    Runtime* runtime);
 template void initialize_tensor_from_file_task<2>(const Task *task,
                     const std::vector<PhysicalRegion> &regions,
                     Context ctx,

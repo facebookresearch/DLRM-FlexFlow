@@ -96,8 +96,16 @@ void top_level_task(const Task* task,
   
 }
 
+
 void register_custom_tasks()
 {
+  {
+    TaskVariantRegistrar registrar(INIT_TENSOR_1D_FROM_FILE_CPU_TASK, "Load 1d Tensor");
+    registrar.add_constraint(ProcessorConstraint(Processor::LOC_PROC));
+    registrar.set_leaf();
+    Runtime::preregister_task_variant<initialize_tensor_from_file_task<1>>(
+        registrar, "Load 1d tensor Task");
+  }
   {
     TaskVariantRegistrar registrar(INIT_TENSOR_2D_FROM_FILE_CPU_TASK, "Load 2d Tensor");
     registrar.add_constraint(ProcessorConstraint(Processor::LOC_PROC));
@@ -121,25 +129,31 @@ void register_custom_tasks()
   }
 
   {      
-    TaskVariantRegistrar registrar(DUMP_TENSOR_2D_CPU_TASK, "Compare Tensor");
+    TaskVariantRegistrar registrar(DUMP_TENSOR_1D_CPU_TASK, "Dump Tensor");
+    registrar.add_constraint(ProcessorConstraint(Processor::LOC_PROC));
+    registrar.set_leaf();
+    Runtime::preregister_task_variant<dump_tensor_task<1>>(
+        registrar, "Dump Tensor Task");
+  }
+  {      
+    TaskVariantRegistrar registrar(DUMP_TENSOR_2D_CPU_TASK, "Dump Tensor");
     registrar.add_constraint(ProcessorConstraint(Processor::LOC_PROC));
     registrar.set_leaf();
     Runtime::preregister_task_variant<dump_tensor_task<2>>(
-        registrar, "Compare Tensor Task");
+        registrar, "Dump Tensor Task");
   }
   {      
-    TaskVariantRegistrar registrar(DUMP_TENSOR_4D_CPU_TASK, "Compare Tensor");
+    TaskVariantRegistrar registrar(DUMP_TENSOR_4D_CPU_TASK, "Dump Tensor");
     registrar.add_constraint(ProcessorConstraint(Processor::LOC_PROC));
     registrar.set_leaf();
     Runtime::preregister_task_variant<dump_tensor_task<4>>(
-        registrar, "Compare Tensor Task");
+        registrar, "Dump Tensor Task");
   }
   {      
-    TaskVariantRegistrar registrar(DUMP_TENSOR_3D_CPU_TASK, "Compare Tensor");
+    TaskVariantRegistrar registrar(DUMP_TENSOR_3D_CPU_TASK, "Dump Tensor");
     registrar.add_constraint(ProcessorConstraint(Processor::LOC_PROC));
     registrar.set_leaf();
     Runtime::preregister_task_variant<dump_tensor_task<3>>(
-        registrar, "Compare Tensor Task");
+        registrar, "Dump Tensor Task");
   }
 }
-

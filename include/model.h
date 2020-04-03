@@ -89,10 +89,12 @@ enum TaskIDs {
   NORMAL_INIT_TASK_ID,
   // tensor helper tasks
   INIT_TENSOR_FROM_FILE_CPU_TASK,
+  INIT_TENSOR_1D_FROM_FILE_CPU_TASK,
   INIT_TENSOR_2D_FROM_FILE_CPU_TASK,
   INIT_TENSOR_3D_FROM_FILE_CPU_TASK,
   INIT_TENSOR_4D_FROM_FILE_CPU_TASK,
   DUMP_TENSOR_CPU_TASK,
+  DUMP_TENSOR_1D_CPU_TASK,
   DUMP_TENSOR_2D_CPU_TASK,
   DUMP_TENSOR_3D_CPU_TASK,
   DUMP_TENSOR_4D_CPU_TASK,
@@ -329,7 +331,9 @@ public:
                         ActiMode activation = AC_MODE_NONE,
                         Initializer* kernel_initializer = NULL,
                         Initializer* bias_initializer = NULL,
-                        bool use_bias = true);
+                        bool use_bias = true,
+                        Tensor* _kernel = NULL,
+                        Tensor* _bias = NULL);
 
   // Add a flat layer
   Tensor flat(std::string name, Tensor input);

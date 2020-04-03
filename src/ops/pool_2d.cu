@@ -17,27 +17,26 @@
 #include "cuda_helper.h"
 
 Tensor FFModel::pool2d(const std::string& name,
-                       const Tensor& input,
-                       int kernelH, int kernelW,
-                       int strideH, int strideW,
-                       int paddingH, int paddingW,
-                       PoolType type, ActiMode activation)
+  const Tensor& input,
+  int kernelH, int kernelW,
+  int strideH, int strideW,
+  int paddingH, int paddingW,
+  PoolType type, ActiMode activation)
 {
   assert(input.numDim == 4); /*NCHW*/
   Pool2D *pool = new Pool2D(*this, name, input,kernelH, kernelW,
-                            strideH, strideW, paddingH, paddingW,
-                            type, activation);
+    strideH, strideW, paddingH, paddingW, type, activation);
   layers.push_back(pool);
   return pool->output;
 }
 
 Pool2D::Pool2D(FFModel& model,
-               const std::string& pcname,
-               const Tensor& _input,
-               int _kernel_h, int _kernel_w,
-               int _stride_h, int _stride_w,
-               int _padding_h, int _padding_w,
-               PoolType _type, ActiMode _activation)
+  const std::string& pcname,
+  const Tensor& _input,
+  int _kernel_h, int _kernel_w,
+  int _stride_h, int _stride_w,
+  int _padding_h, int _padding_w,
+  PoolType _type, ActiMode _activation)
 : Op(pcname, _input),
   kernel_h(_kernel_h), kernel_w(_kernel_w),
   stride_h(_stride_h), stride_w(_stride_w),
@@ -45,7 +44,7 @@ Pool2D::Pool2D(FFModel& model,
   pool_type(_type), activation(_activation),
   profiling(model.config.profiling)
 {
-  Context ctx = model.config.lg_ctx;
+  Context ctx = model.config.lg_ctx;  
   Runtime* runtime = model.config.lg_hlr;
   task_is = IndexSpaceT<4>(model.get_or_create_task_is(4, pcname));
   Rect<4> part_rect = runtime->get_index_space_domain(ctx, task_is);
@@ -60,14 +59,12 @@ Pool2D::Pool2D(FFModel& model,
     const int dims[4] = {output_n, output_c, output_h, output_w};
     output = model.create_tensor<4>(dims, task_is, DT_FLOAT);
   }
-  //int num_par_w = part_rect.hi[0] - part_rect.lo[0] + 1;
-  //int num_par_h = part_rect.hi[1] - part_rect.lo[1] + 1;
   int num_par_c = part_rect.hi[2] - part_rect.lo[2] + 1;
-  //int num_par_n = part_rect.hi[3] - part_rect.lo[3] + 1;
   Rect<4> input_rect = runtime->get_index_partition_color_space(
-      ctx, inputs[0].part.get_index_partition());
+    ctx, inputs[0].part.get_index_partition());
   //TODO: currently do not support splitting over the channel dimension
   assert(num_par_c == 1);
+
   if (input_rect == part_rect) {
     input_lps[0] = inputs[0].part;
     input_grad_lps[0] = inputs[0].part_grad;
@@ -75,81 +72,6 @@ Pool2D::Pool2D(FFModel& model,
     model.create_disjoint_partition<4>(
       _input, task_is, input_lps[0], input_grad_lps[0]);
   }
-#ifdef DEADCODE
-  LogicalRegion output_lr = runtime->create_logical_region(ctx, output_is, fs);
-  LogicalRegion output_grad_lr = runtime->create_logical_region(ctx, output_is, fs);
-  int extent_w = (output_w + num_par_w - 1) / num_par_w;
-  int extent_h = (output_h + num_par_h - 1) / num_par_h;
-  int extent_c = output_c / num_par_c;
-  int extent_n = output_n / num_par_n;
-  assert(output_c % num_par_c == 0);
-  assert(output_n % num_par_n == 0);
-  Rect<4> extent(Point<4>(0, 0, 0, 0),
-      Point<4>(extent_w-1, extent_h-1, extent_c-1, extent_n-1));
-  Transform<4, 4> transform;
-  for (int i = 0; i < 4; i++)
-    for (int j = 0; j < 4; j++)
-      transform[i][j] = 0;
-  transform[0][0] = extent_w; 
-  transform[1][1] = extent_h;
-  transform[2][2] = extent_c;
-  transform[3][3] = extent_n;
-  IndexPartition output_ip =
-    runtime->create_partition_by_restriction(ctx, output_is, task_is, transform, extent);
-  LogicalPartition output_lp = runtime->get_logical_partition(ctx, output_lr, output_ip);
-  LogicalPartition output_grad_lp =
-    runtime->get_logical_partition(ctx, output_grad_lr, output_ip);
-
-  output.numDim = 4;
-  output.adim[0] = output_w;
-  output.adim[1] = output_h;
-  output.adim[2] = output_c;
-  output.adim[3] = output_n;
-  output.pdim[0] = extent_w;
-  output.pdim[1] = extent_h;
-  output.pdim[2] = extent_c;
-  output.pdim[3] = extent_n;
-  output.region = output_lr;
-  output.part = output_lp;
-  output.region_grad = output_grad_lr;
-  output.part_grad = output_grad_lp;
-  printf("Create pool2d layer: output(n=%d c=%d h=%d w=%d)\n",
-         output.adim[3], output.adim[2], output.adim[1], output.adim[0]);
-
-  // Compute partition bound for input
-  Rect<4> input_part_rect =
-    runtime->get_index_partition_color_space(ctx, inputs[0].part.get_index_partition());
-  if (input_part_rect == part_rect) {
-    input_lps[0] = _input.part;
-  } else {
-    printf("WARNING: input has a different partition!!!\n");
-    IndexSpaceT<3> input_is = IndexSpaceT<3>(inputs[0].region.get_index_space());
-    //extent_w = stride_w * (output.pdim[0]-1) + kernel_w - 2 * padding_w;
-    //extent_h = stride_h * (output.pdim[1]-1) + kernel_h - 2 * padding_h;
-    //extent_nc = inputs[0].adim[2] * inputs[0].adim[3] / config.num_par_n;
-    extent_w = (inputs[0].adim[0] + num_par_w - 1) / num_par_w;
-    extent_h = (inputs[0].adim[1] + num_par_h - 1) / num_par_h;
-    extent_c = inputs[0].adim[2] / num_par_c;
-    extent_n = inputs[0].adim[3] / num_par_n;
-    assert(inputs[0].adim[2] % num_par_c == 0);
-    assert(inputs[0].adim[3] % num_par_n == 0);
-    Rect<4> extent_i(Point<4>(0, 0, 0, 0),
-        Point<4>(extent_w-1, extent_h-1, extent_c-1, extent_n-1));
-    //transform[0][0] = stride_w * output.pdim[0];
-    //transform[1][1] = stride_h * output.pdim[1];
-    //transform[2][2] = extent_nc;
-    transform[0][0] = extent_w;
-    transform[1][1] = extent_h;
-    transform[2][2] = extent_c;
-    transform[3][3] = extent_n;
-
-    IndexPartition input_ip =
-      runtime->create_partition_by_restriction(ctx, input_is, task_is, transform, extent_i);
-    assert(runtime->is_index_partition_disjoint(ctx, input_ip));
-    assert(runtime->is_index_partition_complete(ctx, input_ip));
-    input_lps[0] = runtime->get_logical_partition(ctx, inputs[0].region, input_ip);
-  }
-#endif
 }
 
 /*

@@ -1,0 +1,4 @@
+This directory contains the experiments results. to submit a result
+1) create a directory named with hash of the commit
+2) include allocation, and run scripts and commandlines 
+3) include output of the experiment.

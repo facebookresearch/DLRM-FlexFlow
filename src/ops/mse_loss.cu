@@ -42,7 +42,7 @@ MSELoss::MSELoss(FFModel& model,
 : Op(pcname, _logit, _label), profiling(model.config.profiling),
 aggr_mode(_aggr)
 {
-  task_is = model.get_or_create_task_is(2/*numDim*/, pcname);
+  task_is = model.get_or_create_task_is(2, pcname);
   // Current assume 2D logit and label
   assert(_logit.numDim == 2);
   assert(_label.numDim == 2);
@@ -162,7 +162,7 @@ PerfMetrics MSELoss::backward_task(const Task *task,
   perf_zc.train_correct = perf_zc.train_all = 0;
   perf_zc.test_correct = perf_zc.test_all = 0;
   perf_zc.val_correct = perf_zc.val_all = 0;
-  
+
   checkCUDA(cudaMalloc(&perf, sizeof(PerfMetrics)));
   checkCUDA(cudaMemcpy(perf, &perf_zc, sizeof(PerfMetrics), cudaMemcpyHostToDevice));
   if (out_dim == 1) {

@@ -66,7 +66,3 @@ with open(opts.filename, "w") as fout:
         fout.write(c + "\n")
 
 print("Created " + opts.filename)
-
-
-
-

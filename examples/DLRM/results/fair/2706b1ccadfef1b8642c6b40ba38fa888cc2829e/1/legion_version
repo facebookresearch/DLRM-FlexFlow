@@ -1,0 +1,3 @@
+I noticed the latest version of legion has some issues resolving the job completions, and hence yeild much worst throughput. Use this version instead:
+
+377a6fab515f1028f2b01d7c32db3944df22635e

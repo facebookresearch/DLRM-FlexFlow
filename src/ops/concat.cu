@@ -225,7 +225,7 @@ void Concat::init(const FFModel& ff)
   for (int i = 0; i < numInputs; i++) {
     launcher.add_region_requirement(
       RegionRequirement(input_lps[i], 0/*projection id*/,
-        READ_ONLY, EXCLUSIVE, inputs[i].region));
+        READ_WRITE, EXCLUSIVE, inputs[i].region));
     launcher.add_field(i + 1, FID_DATA);
   }
   FutureMap fm = runtime->execute_index_space(ctx, launcher);

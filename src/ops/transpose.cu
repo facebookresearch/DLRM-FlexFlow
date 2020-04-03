@@ -13,18 +13,17 @@ Transpose::Transpose(
     FFModel& model,
     const std::string& pcname,
     const Tensor& _input
-): Op(name, input), profiling(model.config.profiling){
-  input = _input;
+): Op(name, _input), profiling(model.config.profiling){
   // Retrive the task indexspace for the op
   task_is = model.get_or_create_task_is(3, pcname);
   ArgumentMap argmap;
   Context ctx = model.config.lg_ctx;
   Runtime* runtime = model.config.lg_hlr;
   FieldSpace fs = model.config.field_space;
-  // input (k,m,d)
-  int k = input.adim[0];
-  int m = input.adim[1];
-  int d = input.adim[2];
+  // inputs[0] (k,m,d)
+  int k = inputs[0].adim[0];
+  int m = inputs[0].adim[1];
+  int d = inputs[0].adim[2];
   if (profiling){ 
       printf("transpose input shape d(%d) m(%d) k(%d) \n", d,m,k);
   }
@@ -35,13 +34,13 @@ Transpose::Transpose(
   Domain domain = runtime->get_index_space_domain(ctx, task_is);
   Rect<3> part_rect = domain;
   Rect<3> input_rect = runtime->get_index_partition_color_space(
-    ctx, input.part.get_index_partition());
+    ctx, inputs[0].part.get_index_partition());
   if (input_rect == part_rect) {
-    input_lps[0] = input.part;
-    input_grad_lps[0] = input.part_grad;
+    input_lps[0] = inputs[0].part;
+    input_grad_lps[0] = inputs[0].part_grad;
   } else {
     model.create_disjoint_partition<3>(
-      input,
+      inputs[0],
       IndexSpaceT<3>(task_is),
       input_lps[0],
       input_grad_lps[0]
@@ -70,6 +69,7 @@ Transpose::Transpose(
               WRITE_ONLY, EXCLUSIVE, output.region_grad));
   launcher.add_field(0, FID_DATA);
   runtime->execute_index_space(ctx, launcher);
+
 }
 
 void Transpose::init(const FFModel& ff) {
@@ -92,8 +92,8 @@ void Transpose::init(const FFModel& ff) {
     WRITE_ONLY, EXCLUSIVE, output.region));
   launcher.add_field(0, FID_DATA);
   launcher.add_region_requirement(
-  RegionRequirement(input.part, 0/*projection id*/,
-    READ_ONLY, EXCLUSIVE, input.region));
+  RegionRequirement(inputs[0].part, 0/*projection id*/,
+    READ_WRITE, EXCLUSIVE, inputs[0].region));
   launcher.add_field(1, FID_DATA);
   
   FutureMap fm = runtime->execute_index_space(ctx, launcher);
@@ -149,8 +149,8 @@ void Transpose::forward(const FFModel& ff) {
     Predicate::TRUE_PRED, false/*must*/, 0/*mapper_id*/,
     FFConfig::get_hash_id(std::string(name)));
   launcher.add_region_requirement(
-    RegionRequirement(input.part, 0/*projection id*/,
-      READ_ONLY, EXCLUSIVE, input.region));
+    RegionRequirement(inputs[0].part, 0/*projection id*/,
+      READ_ONLY, EXCLUSIVE, inputs[0].region));
   launcher.add_field(0, FID_DATA);
   launcher.add_region_requirement(
     RegionRequirement(output.part, 0/*projection id*/,
@@ -238,8 +238,8 @@ void Transpose::backward(const FFModel& ff) {
     Predicate::TRUE_PRED, false/*must*/, 0/*mapper_id*/,
     FFConfig::get_hash_id(std::string(name)));
   launcher.add_region_requirement(
-    RegionRequirement(input.part_grad, 0/*projection id*/,
-      WRITE_ONLY, EXCLUSIVE, input.region_grad));
+    RegionRequirement(inputs[0].part_grad, 0/*projection id*/,
+      WRITE_ONLY, EXCLUSIVE, inputs[0].region_grad));
   launcher.add_field(0, FID_DATA);
   launcher.add_region_requirement(
     RegionRequirement(output.part_grad, 0/*projection id*/,

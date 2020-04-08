@@ -26,7 +26,7 @@ cd ../
 
 
 make app=src/ops/tests/concat_test -j -f Makefile
-cd /src/ops/tests 
+cd src/ops/tests 
 ./test_run_FF_target.sh concat_test 2 && cp output.txt output_2gpus.txt
 ./test_run_FF_target.sh concat_test 1 && cp output.txt output_1gpus.txt
 

@@ -15,7 +15,8 @@ Tensor FFModel::dot_compressor(
   Initializer* bias_initializer,
   bool use_bias,
   Tensor* _kernel,
-  Tensor* _bias
+  Tensor* _bias,
+  bool test
   )
 {
   assert(_dense_embeddings[0].numDim == 2);
@@ -40,7 +41,6 @@ Tensor FFModel::dot_compressor(
   // concat embeddings
   Concat *cat_input = new Concat(*this, "concat_input", num_channels, &embeddings[0], 1);
   layers.push_back(cat_input);
-  
   // reshape 2 to 3
   int l1_shape[3] = {batch_size, num_channels, sparse_in_dim};
   Reshape<2, 3> *reshape_cat_input = new Reshape<2,3>(*this, 
@@ -48,21 +48,20 @@ Tensor FFModel::dot_compressor(
     cat_input->output, 
     l1_shape);
   layers.push_back(reshape_cat_input); 
-  
+
   // transpose 
   Transpose *transpose_reshape_cat_input = new Transpose(*this, 
-    "transpose_reshape_cat_input", 
+    "trc_input", 
     reshape_cat_input->output);
   layers.push_back(transpose_reshape_cat_input);
-
   // reshape 3 to 2
   int l2_shape[2] = {batch_size * sparse_in_dim, num_channels};
   Reshape<3, 2> *reshape_transpose_reshape_cat_input = new Reshape<3,2>(*this, 
-    "reshape_transpose_reshape_cat_input", 
+    "rtrc_input", 
     transpose_reshape_cat_input->output,
     l2_shape);
   layers.push_back(reshape_transpose_reshape_cat_input);
-
+  
   // linear layer
   if (kernel_initializer == NULL) {
     int seed = std::rand();
@@ -71,7 +70,7 @@ Tensor FFModel::dot_compressor(
   if (bias_initializer == NULL) {
     bias_initializer = new ZeroInitializer();
   }
-  Linear *compressed_channels = new Linear(*this, "compressed channels", 
+  Linear *compressed_channels = new Linear(*this, "compressed_rtrc_input", 
     reshape_transpose_reshape_cat_input->output, 
     compressed_num_channels, activation, use_bias,
     kernel_initializer, bias_initializer);
@@ -90,6 +89,8 @@ Tensor FFModel::dot_compressor(
     parameters.push_back(bias);
   }
 
+  
+
   // unpack channels - reshape 2 to 3
   int l3_shape[3] = {batch_size, sparse_in_dim, compressed_num_channels};
   Reshape<2, 3> *unpacked_compressed_channels = new Reshape<2,3>(*this, 
@@ -97,7 +98,6 @@ Tensor FFModel::dot_compressor(
     compressed_channels->output, 
     l3_shape);
   layers.push_back(unpacked_compressed_channels); 
-
   // bmm 
   BatchMatmul *bmm = new BatchMatmul(*this, 
     "pairwise bmm", 
@@ -106,7 +106,6 @@ Tensor FFModel::dot_compressor(
     true, 
     false);
   layers.push_back(bmm);
-
   // flatten inner most 2 dimenions
   int l4_shape[2] = {batch_size, num_channels * compressed_num_channels};
   Reshape<3,2> *flattened_bmm = new Reshape<3,2>(*this, 
@@ -114,13 +113,31 @@ Tensor FFModel::dot_compressor(
     bmm->output, 
     l4_shape);
   layers.push_back(flattened_bmm);
-
   // tanh
   Tanh<2> *tanh = new Tanh<2>(*this, 
     "tanh", 
     flattened_bmm->output, 
     l4_shape);
+<<<<<<< HEAD
   layers.push_back(tanh);
+=======
+  layers.push_back(tanh); 
+
+  return tanh->output;
+
+
+  // // final concat
+  // Tensor final_concats[2];
+  // final_concats[0] = tanh->output;
+  // // empty when num_gpu > 1
+  // // jkhsdfgiuvahsdliughafilsdhfa;
+  // final_concats[1] = dense_projection;
+  // // final_concats[1] = tanh->output;
+  // // here looks good still , must be something wrong inside Concat
+  // if (test) {
+  //   dump_region_to_file(*this, final_concats[1]->output.region, "dump3.txt", 2);
+  // }
+>>>>>>> 1a03e25... add concat test, linear test
 
   // final concat
   std::vector<Tensor> final_concats;

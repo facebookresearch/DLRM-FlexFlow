@@ -14,6 +14,7 @@
  */
 #include "model.h"
 #include "mapper.h"
+#include "test_utils.h"
 #include "dirent.h"
 
 using namespace std;
@@ -84,6 +85,7 @@ FFModel::FFModel(FFConfig& _config)
       pc.device_ids[j] = j;
     config.strategies[i] = pc;
   }
+  debug = _config.debug;
 
   // Create field space
   {
@@ -676,8 +678,17 @@ void FFModel::init_layers()
 
 void FFModel::forward()
 {
-  for (size_t i = 0; i < layers.size(); i++)
+  for (size_t i = 0; i < layers.size(); i++) {
     layers[i]->forward(*this);
+    if (debug) {
+      std::ostringstream stringStream;
+      stringStream << "layer" << i+1 << "_output.txt";
+      std::cout << stringStream.str() << " " << layers[i]->name << 
+       " num dims: " << layers[i]->output.numDim << std::endl;
+      std::string copyOfStr = stringStream.str();
+      dump_region_to_file(*this, layers[i]->output.region, copyOfStr, layers[i]->output.numDim);
+    }
+  }
 }
 
 void FFModel::backward()
@@ -830,6 +841,7 @@ struct DefaultConfig {
   const static int inputHeight = 224;
   const static int inputWidth = 224;
   const static bool profiling = false;
+  const static bool debug = false;
   constexpr static float learningRate = 0.01f;
   constexpr static float weightDecay = 0.0001f;
   const static size_t workSpaceSize = (size_t)1 * 1024 * 1024 * 1024; // 2GB
@@ -846,6 +858,7 @@ FFConfig::FFConfig()
   inputHeight = DefaultConfig::inputHeight;
   inputWidth = DefaultConfig::inputWidth;
   profiling = DefaultConfig::profiling;
+  debug = DefaultConfig::debug;
   learningRate = DefaultConfig::learningRate;
   weightDecay = DefaultConfig::weightDecay;
   workSpaceSize = DefaultConfig::workSpaceSize;
@@ -1435,6 +1448,7 @@ template void FFModel::create_data_parallel_partition_with_diff_dims<2, 3>(const
 template void FFModel::create_data_parallel_partition_with_diff_dims<1, 1>(const Tensor& tensor, const IndexSpaceT<1>& part_is, LogicalPartition& part_fwd, LogicalPartition& part_bwd);
 template void FFModel::create_data_parallel_partition_with_diff_dims<2, 2>(const Tensor& tensor, const IndexSpaceT<2>& part_is, LogicalPartition& part_fwd, LogicalPartition& part_bwd);
 template void FFModel::create_data_parallel_partition_with_diff_dims<3, 3>(const Tensor& tensor, const IndexSpaceT<3>& part_is, LogicalPartition& part_fwd, LogicalPartition& part_bwd);
+template void FFModel::create_data_parallel_partition_with_diff_dims<4, 4>(const Tensor& tensor, const IndexSpaceT<4>& part_is, LogicalPartition& part_fwd, LogicalPartition& part_bwd);
 template Tensor FFModel::create_conv_weight<4>(const int* dims, const IndexSpaceT<4>& part_is, DataType data_type, Initializer* initializer, bool create_grad);
 template Tensor FFModel::create_conv_weight<1>(const int* dims, const IndexSpaceT<4>& part_is, DataType data_type, Initializer* initializer, bool create_grad);
 

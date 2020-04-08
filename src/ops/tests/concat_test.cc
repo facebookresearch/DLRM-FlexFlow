@@ -5,11 +5,11 @@
 #include <iomanip>
 #include <iostream>
 using namespace Legion;
-LegionRuntime::Logger::Category log_app("dot_compressor_test");
+LegionRuntime::Logger::Category log_app("concat_test");
 
-struct DotCompressorTestMeta {
+struct ConcatTestMeta {
   int batch_size, i_dim, num_channels, projected_num_channels, dense_projection_i_dim;
-  DotCompressorTestMeta(int _batch_size, int _i_dim, int _num_channels,
+  ConcatTestMeta(int _batch_size, int _i_dim, int _num_channels,
     int _projected_num_channels, int _dense_projection_i_dim) {
       batch_size = _batch_size, num_channels = _num_channels, 
         i_dim = _i_dim, projected_num_channels = _projected_num_channels,
@@ -17,11 +17,11 @@ struct DotCompressorTestMeta {
   }
 };
 
-DotCompressorTestMeta get_test_meta(const std::string file_path) {
+ConcatTestMeta get_test_meta(const std::string file_path) {
   std::fstream myfile(file_path, std::ios_base::in);
   int batch_size, i_dim, num_channels, projected_num_channels, dense_projection_i_dim;
   myfile >> batch_size >> i_dim >> num_channels >> projected_num_channels >> dense_projection_i_dim;
-  return DotCompressorTestMeta(batch_size, i_dim, num_channels, projected_num_channels, dense_projection_i_dim);
+  return ConcatTestMeta(batch_size, i_dim, num_channels, projected_num_channels, dense_projection_i_dim);
 }
 
 void top_level_task(const Task* task,
@@ -45,37 +45,8 @@ void top_level_task(const Task* task,
   ffConfig.field_space = runtime->create_field_space(ctx);
   // create ff model object
   FFModel ff(ffConfig);
-  IndexSpace task_is = IndexSpaceT<2>(ff.get_or_create_task_is(2, ""));
-  Initializer* kernel_initializer = new ZeroInitializer();
-  Initializer* bias_initializer = new ZeroInitializer();
-  Tensor weights;
-  {
-    const int dims[2] = {test_meta.projected_num_channels, test_meta.num_channels};
-    weights = ff.create_linear_weight<2>(dims, (IndexSpaceT<2>)task_is, DT_FLOAT, kernel_initializer);
-    auto weights_file_path = "test_kernel1.txt";
-    initialize_tensor_from_file(weights_file_path, 
-        weights, ff, "float", 2);  
-  }
-  Tensor bias;
-  {
-    const int dims[1] = {test_meta.projected_num_channels};
-    bias = ff.create_linear_weight<1>(dims, (IndexSpaceT<2>)task_is, DT_FLOAT, bias_initializer);
-    auto bias_file_path = "test_bias1.txt";
-    initialize_tensor_from_file(bias_file_path, 
-        bias, ff, "float", 1);  
-  }
 
 
-  // create dense projection
-  Tensor dense_projection;
-  {
-    const int dims[2] = {test_meta.batch_size, test_meta.dense_projection_i_dim}; 
-    dense_projection = ff.create_tensor<2>(dims, "", DT_FLOAT);
-    // dense_projection = ff.create_linear_weight<2>(dims, (IndexSpaceT<2>)task_is, DT_FLOAT, kernel_initializer);
-    auto dense_projection_file_path = "test_input1.txt";
-    initialize_tensor_from_file(dense_projection_file_path, 
-        dense_projection, ff, "float", 2);
-  }
   // create embeddings
   int dense_embedding_channels = test_meta.num_channels / 2;
   int sparse_embedding_channels = test_meta.num_channels - dense_embedding_channels;
@@ -97,60 +68,32 @@ void top_level_task(const Task* task,
     initialize_tensor_from_file(sparse_embedding_file_path, 
       sparse_embeddings[i], ff, "float", 2);
   }
+
+
+
+  // merge two embedding lists
+  std::vector<Tensor> dense_embeddings_v(dense_embeddings,
+    dense_embeddings + dense_embedding_channels);
+   std::vector<Tensor> sparse_embeddings_v(sparse_embeddings,
+    sparse_embeddings + sparse_embedding_channels);
+   std::vector<Tensor> embeddings;
+   embeddings.insert(embeddings.begin(), sparse_embeddings_v.begin(), sparse_embeddings_v.end());
+   embeddings.insert(embeddings.end(), dense_embeddings_v.begin(), dense_embeddings_v.end());
+ 
+  auto ret = ff.concat("concat_input", embeddings.size(), &embeddings[0], 1);
+
+  // load inputs tensors and output gradients tensors for testing
+  // use output for output grad (testing only)
   auto output_grad_file_path = "test_output_grad.txt";
-
-
-  // build transpose layer
-  Tensor ret = ff.dot_compressor("", 
-    dense_embedding_channels,
-    sparse_embedding_channels,
-    dense_embeddings,
-    sparse_embeddings,
-    test_meta.projected_num_channels,
-    AC_MODE_NONE,
-    NULL, // kernel initializer
-    NULL, // bias initializer
-    true, // use bias
-    &weights, // weights
-    NULL, // bias
-    true  // test
-  );
-  // init gradient
   initialize_tensor_gradient_from_file(output_grad_file_path, ret, ff, "float", 2);
 
-  /*
-  TODO
-  1. mid size problem kernels dont match
-  2. test linear consistency with large problems
-     becasue we don't know if SGD perform consistently 
-  */
-  ff.optimizer = new SGDOptimizer(&ff, 0.01f, 0.0f);
+  ff.optimizer = new SGDOptimizer(&ff, 0.01f);
   // run forward and backward to produce results
   ff.init_layers();
-  int epochs = 1;
   ff.forward();
-  for (int i = 0; i < epochs; i++) {
-    ff.backward();
-    ff.update();
-  }
-  // for(int i = 0; i < dense_embedding_channels; i++) {
-  //   initialize_tensor_from_file(dense_embedding_file_path, 
-  //     dense_embeddings[i], ff, "float", 2);
-  // }
-  // for(int i = 0; i < sparse_embedding_channels; i++) {
-  //   initialize_tensor_from_file(sparse_embedding_file_path, 
-  //     sparse_embeddings[i], ff, "float", 2);
-  // }
-  // ff.forward();
   // dump results to file for python validation
   dump_region_to_file(ff, ret.region, "output.txt", 2);
-  // dump_region_to_file(ff, dense_projection.region, "dump.txt", 2);
-  auto kernel = ff.parameters[0].tensor;
-  dump_region_to_file(ff, kernel.region, "kernel_updated1.txt", 2);
-  // kernel = ff.parameters[1].tensor;
-  // dump_region_to_file(ff, kernel.region_grad, "kernel_grad2.txt", 1);
-
-
+  
 }
 
 

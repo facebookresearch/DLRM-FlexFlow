@@ -16,7 +16,8 @@ cd ..
 
 cd src/runtime
 ../../protobuf/src/protoc --cpp_out=. strategy.proto
-./gen_strategy.sh 2 1 1 # for 8 gpu per node,  and 8 embeddings per node, and 1 node
+./gen_strategy.sh 8 8 1 # for 8 gpu per node,  and 8 embeddings per node, and 1 node
+./gen_strategy.sh 2 1 1 # for 8 gpu per node, testing purpose
 cd ../..
 
 cd $LEGION

@@ -13,7 +13,7 @@ Transpose::Transpose(
     FFModel& model,
     const std::string& pcname,
     const Tensor& _input
-): Op(name, _input), profiling(model.config.profiling){
+): Op(pcname, _input), profiling(model.config.profiling){
   // Retrive the task indexspace for the op
   task_is = model.get_or_create_task_is(3, pcname);
   ArgumentMap argmap;
@@ -31,22 +31,23 @@ Transpose::Transpose(
   output = model.create_tensor<3>(dims, pcname, DT_FLOAT);
   // Compute partition bound for input
   // TODO the input partition check can be refactored into a helper function
-  Domain domain = runtime->get_index_space_domain(ctx, task_is);
-  Rect<3> part_rect = domain;
-  Rect<3> input_rect = runtime->get_index_partition_color_space(
-    ctx, inputs[0].part.get_index_partition());
-  if (input_rect == part_rect) {
-    input_lps[0] = inputs[0].part;
-    input_grad_lps[0] = inputs[0].part_grad;
-  } else {
-    model.create_disjoint_partition<3>(
-      inputs[0],
-      IndexSpaceT<3>(task_is),
-      input_lps[0],
-      input_grad_lps[0]
-    );
-  }
-
+  // Domain domain = runtime->get_index_space_domain(ctx, task_is);
+  // Rect<3> part_rect = domain;
+  // Rect<3> input_rect = runtime->get_index_partition_color_space(
+  //   ctx, inputs[0].part.get_index_partition());
+  // if (input_rect == part_rect) {
+  //   input_lps[0] = inputs[0].part;
+  //   input_grad_lps[0] = inputs[0].part_grad;
+  // } else {
+  //   model.create_disjoint_partition<3>(
+  //     inputs[0],
+  //     IndexSpaceT<3>(task_is),
+  //     input_lps[0],
+  //     input_grad_lps[0]
+  //   );
+  // }
+  model.create_data_parallel_partition_with_diff_dims<3, 3>(
+    inputs[0], IndexSpaceT<3>(task_is), input_lps[0], input_grad_lps[0]);
   /*
   We zero-init the gradience of the output tensor 
   in constructor to bypass Legion tensor unitialized runtime error

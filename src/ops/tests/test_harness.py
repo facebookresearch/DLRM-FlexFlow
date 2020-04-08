@@ -5,13 +5,17 @@ import torch
 import torch.optim as optim
 
 
-def dump_tensor_to_file(tensor, file_name):
+def dump_numpy_array_to_file(ndarray, file_name):
     buffer = []
-    for entry in tensor.flatten():
+    for entry in ndarray.flatten():
       buffer.append(entry)
     buffer = ["%.16f"%x for x in buffer]
     with open(file_name, 'w+') as f:
       f.write(' '.join(buffer))
+
+def dump_torch_tensor_to_file(tensor, file_name):
+    t = tensor.data.cpu().numpy()
+    dump_numpy_array_to_file(t, file_name)
 
 def batch_matmul_3d_reference(input1, input2, trans1, trans2):
     '''
@@ -61,13 +65,34 @@ def average_error_tolerance(file_1, file_2, label='', epsilon=0.00001):
     input1_flat = [float(x) for x in input1_flat]
     input2_flat = input2.strip().split(' ')
     input2_flat = [float(x) for x in input2_flat]
-    avg_input1_flat = sum(input1_flat) / len(input1_flat)
-    avg_input2_flat = sum(input2_flat) / len(input2_flat)
+    input1_flat = np.array(input1_flat)
+    input2_flat = np.array(input2_flat)
+    avg_diff = abs(sum(input1_flat - input2_flat) / len(input1_flat))
     try:
-      np.testing.assert_allclose(avg_input1_flat, avg_input2_flat, rtol=epsilon, atol=0.0)
+      print(avg_diff)
+      assert(avg_diff < epsilon)
     except Exception as e:
       print('checking equal %s failed, error message: %s' % (label, e))
       raise e   
+
+class Linear(torch.nn.Module):
+    def __init__(self, in_features, out_features, weights=None, bias=False):
+        super(Linear, self).__init__()
+        self.projected_rtc_layer = torch.nn.Linear(in_features, out_features, bias=bias)
+        self.h_channel_dim = out_features
+        if weights is not None:
+            assert len(weights) == 2
+            # weights shape  (out_features,in_features)
+            # bias shape (out_features)
+            print(self.projected_rtc_layer.weight.shape)
+            self.projected_rtc_layer.weight = torch.nn.Parameter(torch.from_numpy(weights[0]).float(), requires_grad=True)
+            print(weights[0].shape)
+            if bias:
+              self.projected_rtc_layer.bias = torch.nn.Parameter(torch.from_numpy(weights[1]).float(), requires_grad=True)
+
+    def forward(self, dense_projection):
+        projected_rtc = self.projected_rtc_layer(dense_projection)
+        return projected_rtc
 
 
 class DotCompressor(torch.nn.Module):
@@ -85,7 +110,7 @@ class DotCompressor(torch.nn.Module):
             if bias:
               self.projected_rtc_layer.bias = torch.nn.Parameter(torch.from_numpy(weights[1]).float(), requires_grad=True)
 
-    def forward(self, dense_embeddings, sparse_embeddings, dense_projection, debug=False):
+    def forward(self, dense_embeddings, sparse_embeddings, dense_projection, debug=False, debuglv2=False):
         if dense_projection is not None:
           assert len(dense_projection.shape) == 2
         assert len(dense_embeddings[0].shape) == 2
@@ -102,44 +127,55 @@ class DotCompressor(torch.nn.Module):
             print("sparse embeddings", sparse_embeddings[0].shape, len(sparse_embeddings))
         # concat embeddings
         cat_input = torch.cat(sparse_embeddings+dense_embeddings, dim=1)
+        dump_torch_tensor_to_file(cat_input, "test_layer1_output.txt")
         if debug:
             print("concatenated inputs", cat_input.shape)
         # reshape to add channel dimension
         cat_input_reshape = cat_input.reshape(batch_size, num_channels, i_dim)
+        dump_torch_tensor_to_file(cat_input_reshape, "test_layer2_output.txt")
         if debug:
             print('reshaped input', cat_input_reshape.shape)
         # transpose
         transpose_cat = torch.transpose(cat_input_reshape, 2, 1)
+        dump_torch_tensor_to_file(transpose_cat, "test_layer3_output.txt")
         if debug:
             print('transposed', transpose_cat.shape)
+        if debuglv2:
             print('transposed input\n', cat_input_reshape.data.cpu().numpy())
             print('transposed output\n', transpose_cat.data.cpu().numpy())
         # reshape 3 to 2
         batched_input_size = batch_size * i_dim
         reshape_transpose_cat = torch.reshape(transpose_cat, (batched_input_size, num_channels)).float()
+        dump_torch_tensor_to_file(reshape_transpose_cat, "test_layer4_output.txt")
         if debug:
             print('reshaped', reshape_transpose_cat.shape)
         # linear layer
         projected_rtc = self.projected_rtc_layer(reshape_transpose_cat)
+        dump_torch_tensor_to_file(projected_rtc, "test_layer5_output.txt")
         if debug:
             print('projected batch:', projected_rtc.shape)
+        if debuglv2:
             print('projected input:', cat_input_reshape.data.cpu().numpy())
             print('projected kernel:', self.projected_rtc_layer.weight.data.cpu().numpy())
             print('projected bias:', self.projected_rtc_layer.bias.data.cpu().numpy())
             print('projected output:', projected_rtc.data.cpu().numpy())
         # unpack inputs reshape 2 to 3
         unpacked_projected_rtc = torch.reshape(projected_rtc, (batch_size, i_dim, self.h_channel_dim))
+        dump_torch_tensor_to_file(unpacked_projected_rtc, "test_layer6_output.txt")
         if debug:
             print('unpacked_projected_rtc', unpacked_projected_rtc.shape)
         # bmm
         batch_pairwise = torch.bmm(transpose_cat.transpose(-1, -2).float(), unpacked_projected_rtc.float())
+        dump_torch_tensor_to_file(batch_pairwise, "test_layer7_output.txt")
         if debug:
             print('bmm input1', transpose_cat.shape, 'bmm input2', unpacked_projected_rtc.shape)
             print('batch_pairwise', batch_pairwise.shape)
+        if debuglv2:
             print('input1', transpose_cat.data.cpu().numpy())
             print('input2', unpacked_projected_rtc.data.cpu().numpy())
             print('output', batch_pairwise.data.cpu().numpy())
         flattened_pairwise = batch_pairwise.flatten(1, 2)
+        dump_torch_tensor_to_file(flattened_pairwise, "test_layer8_output.txt")
         if debug:
             print('flattened_pairwise', flattened_pairwise.shape)
         tanh_flatteded_pairwise = torch.tanh(flattened_pairwise)
@@ -152,6 +188,9 @@ class DotCompressor(torch.nn.Module):
           if debug:
               print('dense_projection', dense_projection.shape)
           return cat_compression_ret
+
+
+
 
 class DotCompressorTest(unittest.TestCase):
     '''
@@ -178,23 +217,23 @@ class DotCompressorTest(unittest.TestCase):
                       concat_last=True, l=-1.0, r=1.0, epoch=1):
         self._dump_meta(batch_size, i_dim, num_channels, projected_num_channels, dense_projection_i_dim)
         linear_weight = np.random.uniform(l,r, (projected_num_channels, num_channels))
-        dump_tensor_to_file(linear_weight, "test_kernel1.txt")
+        dump_numpy_array_to_file(linear_weight, "test_kernel1.txt")
         linear_bias = np.zeros(projected_num_channels)
-        dump_tensor_to_file(linear_bias, "test_bias1.txt")
+        dump_numpy_array_to_file(linear_bias, "test_bias1.txt")
 
         dense_projection = np.random.uniform(l, r, (batch_size, dense_projection_i_dim))
         dense_projection = torch.from_numpy(dense_projection).float()
-        dump_tensor_to_file(dense_projection, "test_input1.txt")
+        dump_numpy_array_to_file(dense_projection, "test_input1.txt")
 
         dense_embedding = np.random.uniform(l, r, (batch_size, i_dim))
         chunk_dense_embedded = [torch.from_numpy(dense_embedding) for _ in range(num_channels // 2)]
         # print(chunk_dense_embedded[0].shape)
-        dump_tensor_to_file(dense_embedding, "test_input2.txt")
+        dump_numpy_array_to_file(dense_embedding, "test_input2.txt")
 
         sparse_embedding = np.random.uniform(l, r, (batch_size, i_dim))
         chunk_sparse_embedded = [torch.from_numpy(sparse_embedding) for _ in range(num_channels - num_channels // 2)]
         # print(chunk_sparse_embedded[0].shape)
-        dump_tensor_to_file(sparse_embedding, "test_input3.txt")
+        dump_numpy_array_to_file(sparse_embedding, "test_input3.txt")
 
 
         # print('chunk dense embedded', chunk_dense_embedded.shape, "chunk sparse embedded", chunk_sparse_embedded.shape)
@@ -202,10 +241,9 @@ class DotCompressorTest(unittest.TestCase):
         m = DotCompressor(num_channels, projected_num_channels, pretrained_weights, bias=True)
         if not concat_last:
           dense_projection = None
-        ret = m(chunk_dense_embedded, chunk_sparse_embedded, dense_projection, debug=False)
-        dump_tensor_to_file(ret.data.cpu().numpy(), "test_output.txt")
+        ret = m(chunk_dense_embedded, chunk_sparse_embedded, dense_projection, debug=True)
         output_gradiance = np.random.uniform(l,r,ret.data.cpu().numpy().shape)
-        dump_tensor_to_file(output_gradiance, "test_output_grad.txt")
+        dump_numpy_array_to_file(output_gradiance, "test_output_grad.txt")
         output_gradiance_t = torch.from_numpy(output_gradiance).float()
         # use output as grad just for testing 
 
@@ -214,32 +252,54 @@ class DotCompressorTest(unittest.TestCase):
           optimizer.zero_grad()
           ret.backward(output_gradiance_t, retain_graph=True)
           optimizer.step()
+        optimizer.zero_grad()
         # print(dir(dense_projection))
         linear_weights_updated = m.projected_rtc_layer.weight.data.numpy()
-        dump_tensor_to_file(linear_weights_updated, 'test_kernel_updated1.txt')
-        # print(m.projected_rtc_layer.weight.grad.data.cpu().numpy())
-        # print(ret.shape)
+        dump_numpy_array_to_file(linear_weights_updated, 'test_kernel_updated1.txt')
+
+
+
+        # 2nd forward run
+        # ret = m(chunk_dense_embedded, chunk_sparse_embedded, dense_projection, debug=True)
+        dump_numpy_array_to_file(ret.data.cpu().numpy(), "test_output.txt")
 
         # generate FF results
         gen_FF_result(DotCompressorTest.TEST_TARGET, num_gpu)
+
+        layer_outputs = [
+          'layer1_output.txt',
+          'layer2_output.txt',
+          'layer3_output.txt',
+          'layer4_output.txt',
+          'layer5_output.txt',
+          'layer6_output.txt',
+          'layer7_output.txt',
+          'layer8_output.txt',
+        ]
+        for layer_id in layer_outputs:
+          file1 = layer_id
+          file2 = "test_"+layer_id
+          print('checking layer %s' % (layer_id))
+          average_error_tolerance(file1, file2, layer_id, epsilon=epsilon)
+
         file1 = 'output.txt'
         file2 = 'test_output.txt'
-        is_equal_tensor_from_file(file1, file2, 'output', epsilon=epsilon)
+        average_error_tolerance(file1, file2, 'output', epsilon=epsilon)
         # average_error_tolerance(file1, file2, 'output', epsilon=epsilon)
         file2 = 'kernel_updated1.txt'
         file1 = 'test_kernel_updated1.txt'
-        is_equal_tensor_from_file(file1, file2, 'kernel', epsilon=epsilon)
-        # average_error_tolerance(file1, file2, 'input_grad', epsilon=epsilon)
+        average_error_tolerance(file1, file2, 'kernel', epsilon=epsilon)
+        
 
 
     def test_single_gpu_simple_problem(self):
         np.random.seed(0)
         num_gpu = 1
         batch_size = 2
-        i_dim = 4
-        num_channels = 3
-        projected_num_channels = 2
-        dense_projection_i_dim = 1
+        i_dim = 6
+        num_channels = 4
+        projected_num_channels = 3
+        dense_projection_i_dim = 2
         self._run_gpu_test(num_gpu, batch_size, i_dim, \
                            num_channels, projected_num_channels, \
                            dense_projection_i_dim, \
@@ -257,7 +317,22 @@ class DotCompressorTest(unittest.TestCase):
         self._run_gpu_test(num_gpu, batch_size, i_dim, \
                            num_channels, projected_num_channels, \
                            dense_projection_i_dim, \
-                           concat_last=False, epoch=10)
+                           concat_last=False)
+
+    def test_multi_gpu_small_small_mid_problem(self):
+        np.random.seed(0)
+        num_gpu = 2
+        # batch_size % num_worker == 0 (reshape contraints)
+        batch_size = 4
+        i_dim = 10
+        num_channels = 10
+        projected_num_channels = 6
+        dense_projection_i_dim = 12        
+        self._run_gpu_test(num_gpu, batch_size, i_dim, \
+                           num_channels, projected_num_channels, \
+                           dense_projection_i_dim, \
+                           concat_last=False)
+
 
     def test_multi_gpu_small_mid_problem(self):
         np.random.seed(0)
@@ -271,7 +346,7 @@ class DotCompressorTest(unittest.TestCase):
         self._run_gpu_test(num_gpu, batch_size, i_dim, \
                            num_channels, projected_num_channels, \
                            dense_projection_i_dim, \
-                           concat_last=False, epoch=10)
+                           concat_last=False)
 
     def test_multi_gpu_target_mid_size_problem(self):
         np.random.seed(0)
@@ -285,7 +360,7 @@ class DotCompressorTest(unittest.TestCase):
         self._run_gpu_test(num_gpu, batch_size, i_dim, \
                            num_channels, projected_num_channels, \
                            dense_projection_i_dim, \
-                           concat_last=False, epoch=10)
+                           concat_last=False)
 
     def test_multi_gpu_target_problem_size(self):
         np.random.seed(0)
@@ -329,7 +404,231 @@ class DotCompressorTest(unittest.TestCase):
                            dense_projection_i_dim, \
                            concat_last=False, l=1.0, r=1.0)
 
-                    
+
+
+
+
+
+
+
+
+
+class LinearTest(unittest.TestCase):
+    TEST_TARGET = 'linear_test'
+    def _dump_meta(self, batch_size, i_dim, num_channels, dense_projection_o_dim, dense_projection_i_dim):
+        with open('test_meta.txt', 'w+') as f:
+          f.write(' '.join(
+            [str(batch_size), str(i_dim), 
+             str(num_channels), str(dense_projection_o_dim),
+             str(dense_projection_i_dim)
+            ])
+          )
+
+
+
+    def _run_gpu_test(self, num_gpu, batch_size, i_dim, \
+                      num_channels, dense_projection_o_dim, \
+                      dense_projection_i_dim, epsilon=0.001, \
+                      l=-1.0, r=1.0, epoch=1):
+        self._dump_meta(batch_size, i_dim, num_channels, dense_projection_o_dim, dense_projection_i_dim)
+        linear_weight = np.random.uniform(l,r, (dense_projection_o_dim, dense_projection_i_dim))
+        dump_numpy_array_to_file(linear_weight, "test_kernel1.txt")
+        linear_bias = np.zeros(dense_projection_o_dim)
+        dump_numpy_array_to_file(linear_bias, "test_bias1.txt")
+
+        dense_projection = np.random.uniform(l, r, (batch_size, dense_projection_i_dim))
+        dense_projection = torch.from_numpy(dense_projection).float()
+        dump_numpy_array_to_file(dense_projection, "test_input1.txt")
+
+
+        # print('chunk dense embedded', chunk_dense_embedded.shape, "chunk sparse embedded", chunk_sparse_embedded.shape)
+        pretrained_weights = [linear_weight, linear_bias]
+
+        m = Linear(dense_projection_i_dim, dense_projection_o_dim, pretrained_weights, bias=True)
+        ret = m(dense_projection)
+        
+        output_gradiance = np.random.uniform(l,r,ret.data.cpu().numpy().shape)
+        dump_numpy_array_to_file(output_gradiance, "test_output_grad.txt")
+        output_gradiance_t = torch.from_numpy(output_gradiance).float()
+        # use output as grad just for testing 
+
+        optimizer = optim.SGD(m.parameters(), lr=0.01, momentum=0.0)
+        for _ in range(epoch):
+          optimizer.zero_grad()
+          ret.backward(output_gradiance_t, retain_graph=True)
+          optimizer.step()
+        # print(dir(dense_projection))
+        linear_weights_updated = m.projected_rtc_layer.weight.data.numpy()
+        dump_numpy_array_to_file(linear_weights_updated, 'test_kernel_updated1.txt')
+        # print(m.projected_rtc_layer.weight.grad.data.cpu().numpy())
+        # print(ret.shape)
+        ret = m(dense_projection)
+        dump_numpy_array_to_file(ret.data.cpu().numpy(), "test_output.txt")
+
+        # generate FF results
+        gen_FF_result(LinearTest.TEST_TARGET, num_gpu)
+
+
+        file1 = 'output.txt'
+        file2 = 'test_output.txt'
+        average_error_tolerance(file1, file2, 'output', epsilon=epsilon)
+        # average_error_tolerance(file1, file2, 'output', epsilon=epsilon)
+        file2 = 'kernel_updated1.txt'
+        file1 = 'test_kernel_updated1.txt'
+        average_error_tolerance(file1, file2, 'kernel', epsilon=epsilon)
+        
+    def test_single_gpu_simple_problem(self):
+        np.random.seed(0)
+        num_gpu = 1
+        batch_size = 2
+        i_dim = 0 # not used
+        num_channels = 4
+        dense_projection_o_dim = 3
+        dense_projection_i_dim = 2
+        self._run_gpu_test(num_gpu, batch_size, i_dim, \
+                           num_channels, dense_projection_o_dim, \
+                           dense_projection_i_dim,)
+
+    def test_multi_gpu_small_small_mid_problem(self):
+        np.random.seed(0)
+        num_gpu = 2
+        # batch_size % num_worker == 0 (reshape contraints)
+        batch_size = 10
+        i_dim = 0 # not used
+        num_channels = 10
+        dense_projection_o_dim = 1000
+        dense_projection_i_dim = 2000      
+        self._run_gpu_test(num_gpu, batch_size, i_dim, \
+                           num_channels, dense_projection_o_dim, \
+                           dense_projection_i_dim)
+
+
+    def test_multi_gpu_small_mid_problem(self):
+        np.random.seed(0)
+        num_gpu = 2
+        # batch_size % num_worker == 0 (reshape contraints)
+        batch_size = 20
+        i_dim = 0 # not used
+        num_channels = 20
+        dense_projection_o_dim = 5000
+        dense_projection_i_dim = 5000    
+        self._run_gpu_test(num_gpu, batch_size, i_dim, \
+                           num_channels, dense_projection_o_dim, \
+                           dense_projection_i_dim)
+
+
+
+
+
+class ConcatTest(unittest.TestCase):
+    TEST_TARGET = 'concat_test'
+    def _dump_meta(self, batch_size, i_dim, num_channels, projected_num_channels, dense_projection_i_dim):
+        with open('test_meta.txt', 'w+') as f:
+          f.write(' '.join(
+            [str(batch_size), str(i_dim), 
+             str(num_channels), str(projected_num_channels),
+             str(dense_projection_i_dim)
+            ])
+          )
+
+    def _run_gpu_test(self, num_gpu, batch_size, i_dim, \
+                      num_channels, projected_num_channels, \
+                      dense_projection_i_dim, epsilon=0.001, \
+                      concat_last=True, l=-1.0, r=1.0, epoch=1):
+        self._dump_meta(batch_size, i_dim, num_channels, projected_num_channels, dense_projection_i_dim)
+        linear_weight = np.random.uniform(l,r, (projected_num_channels, num_channels))
+        dump_numpy_array_to_file(linear_weight, "test_kernel1.txt")
+        linear_bias = np.zeros(projected_num_channels)
+        dump_numpy_array_to_file(linear_bias, "test_bias1.txt")
+
+        dense_projection = np.random.uniform(l, r, (batch_size, dense_projection_i_dim))
+        dense_projection = torch.from_numpy(dense_projection).float()
+        dump_numpy_array_to_file(dense_projection, "test_input1.txt")
+
+        dense_embedding = np.random.uniform(l, r, (batch_size, i_dim))
+        chunk_dense_embedded = [torch.from_numpy(dense_embedding) for _ in range(num_channels // 2)]
+        # print(chunk_dense_embedded[0].shape)
+        dump_numpy_array_to_file(dense_embedding, "test_input2.txt")
+
+        sparse_embedding = np.random.uniform(l, r, (batch_size, i_dim))
+        chunk_sparse_embedded = [torch.from_numpy(sparse_embedding) for _ in range(num_channels - num_channels // 2)]
+        # print(chunk_sparse_embedded[0].shape)
+        dump_numpy_array_to_file(sparse_embedding, "test_input3.txt")
+
+
+        ret = np.concatenate(chunk_sparse_embedded+chunk_dense_embedded, axis=1)
+        # dump_torch_tensor_to_file(ret.data.cpu().numpy(), "test_output.txt")
+        dump_numpy_array_to_file(ret, "test_output.txt")
+        # output_gradiance = np.random.uniform(l,r,ret.data.cpu().numpy().shape)
+        output_gradiance = np.random.uniform(l,r,ret.shape)
+        dump_numpy_array_to_file(output_gradiance, "test_output_grad.txt")
+        output_gradiance_t = torch.from_numpy(output_gradiance).float()
+        # use output as grad just for testing 
+
+
+        # generate FF results
+        gen_FF_result(ConcatTest.TEST_TARGET, num_gpu)
+
+
+        file1 = 'output.txt'
+        file2 = 'test_output.txt'
+        is_equal_tensor_from_file(file1, file2, 'output', epsilon=epsilon)
+
+    def test_single_gpu_simple_problem(self):
+        np.random.seed(0)
+        num_gpu = 1
+        batch_size = 2
+        i_dim = 6
+        num_channels = 4
+        projected_num_channels = 3
+        dense_projection_i_dim = 2
+        self._run_gpu_test(num_gpu, batch_size, i_dim, \
+                           num_channels, projected_num_channels, \
+                           dense_projection_i_dim, \
+                           concat_last=False)
+
+    def test_multi_gpu_small_problem(self):
+        np.random.seed(0)
+        num_gpu = 2
+        # batch_size % num_worker == 0 (reshape contraints)
+        batch_size = 2
+        i_dim = 3
+        num_channels = 2
+        projected_num_channels = 2
+        dense_projection_i_dim = 3        
+        self._run_gpu_test(num_gpu, batch_size, i_dim, \
+                           num_channels, projected_num_channels, \
+                           dense_projection_i_dim, \
+                           concat_last=False, epoch=10)   
+
+
+    def test_multi_gpu_small_small_mid_problem(self):
+        np.random.seed(0)
+        num_gpu = 2
+        # batch_size % num_worker == 0 (reshape contraints)
+        batch_size = 4
+        i_dim = 10
+        num_channels = 10
+        projected_num_channels = 6
+        dense_projection_i_dim = 12         
+        self._run_gpu_test(num_gpu, batch_size, i_dim, \
+                           num_channels, projected_num_channels, \
+                           dense_projection_i_dim, \
+                           concat_last=False, epoch=10)      
+
+    def test_single_gpu_small_small_mid_problem(self):
+        np.random.seed(0)
+        num_gpu = 1
+        # batch_size % num_worker == 0 (reshape contraints)
+        batch_size = 4
+        i_dim = 10
+        num_channels = 10
+        projected_num_channels = 6
+        dense_projection_i_dim = 12         
+        self._run_gpu_test(num_gpu, batch_size, i_dim, \
+                           num_channels, projected_num_channels, \
+                           dense_projection_i_dim, \
+                           concat_last=False, epoch=10)      
 
 class BatchMatmulTest(unittest.TestCase):
     '''
@@ -352,18 +651,18 @@ class BatchMatmulTest(unittest.TestCase):
     def _run_gpu_test(self, num_gpu, d, m, n, k, epsilon=0.00001):
         # generate python reference and input payload
         input1_tensor = np.random.uniform(0, 1, (d,k,m))
-        dump_tensor_to_file(input1_tensor, "test_input1.txt")
+        dump_numpy_array_to_file(input1_tensor, "test_input1.txt")
         input2_tensor = np.random.uniform(0, 1, (d,k,n))
-        dump_tensor_to_file(input2_tensor, "test_input2.txt")
+        dump_numpy_array_to_file(input2_tensor, "test_input2.txt")
         output_gradient_tensor = np.random.uniform(0, 1, (d,m,n))
-        dump_tensor_to_file(output_gradient_tensor, "test_output_grad.txt")
+        dump_numpy_array_to_file(output_gradient_tensor, "test_output_grad.txt")
 
         output_tensor = batch_matmul_3d_reference(input1_tensor, input2_tensor, trans1=True, trans2=False)
         input1_grad_tensor = batch_matmul_3d_reference(input2_tensor, output_gradient_tensor, trans1=False, trans2=True)
         input2_grad_tensor = batch_matmul_3d_reference(input1_tensor, output_gradient_tensor, trans1=False, trans2=False)
-        dump_tensor_to_file(output_tensor, "test_output.txt")
-        dump_tensor_to_file(input1_grad_tensor, "test_input1_grad.txt")
-        dump_tensor_to_file(input2_grad_tensor, "test_input2_grad.txt")
+        dump_numpy_array_to_file(output_tensor, "test_output.txt")
+        dump_numpy_array_to_file(input1_grad_tensor, "test_input1_grad.txt")
+        dump_numpy_array_to_file(input2_grad_tensor, "test_input2_grad.txt")
         self._dump_meta(m,k,n,d)
 
         # generate FF results
@@ -491,13 +790,13 @@ class TransposeTest(unittest.TestCase):
     def _run_gpu_test(self, num_gpu, d, m, k, epsilon=0.00001):
         # generate python reference and input payload
         input_tensor = np.random.uniform(0, 1, (d,m,k))
-        dump_tensor_to_file(input_tensor, "test_input1.txt")
+        dump_numpy_array_to_file(input_tensor, "test_input1.txt")
         output_gradient_tensor = np.random.uniform(0, 1, (d,k,m))
-        dump_tensor_to_file(output_gradient_tensor, "test_output_grad.txt")
+        dump_numpy_array_to_file(output_gradient_tensor, "test_output_grad.txt")
         output_tensor = batch_transpose_3d_reference(input_tensor)
         input_grad_tensor = batch_transpose_3d_reference(output_gradient_tensor)
-        dump_tensor_to_file(output_tensor, "test_output.txt")
-        dump_tensor_to_file(input_grad_tensor, "test_input1_grad.txt")
+        dump_numpy_array_to_file(output_tensor, "test_output.txt")
+        dump_numpy_array_to_file(input_grad_tensor, "test_input1_grad.txt")
         self._dump_meta(m,k,d)
 
         # generate FF results
@@ -524,13 +823,13 @@ class ReshapeTest(unittest.TestCase):
     def _run_gpu_test(self, num_gpu, i_dim, o_dim, i_shape, o_shape, epsilon=0.00001):
         # generate python reference and input payload
         input_tensor = np.random.uniform(0, 1, i_shape)
-        dump_tensor_to_file(input_tensor, "test_input1.txt")
+        dump_numpy_array_to_file(input_tensor, "test_input1.txt")
         output_gradient_tensor = np.random.uniform(0, 1, o_shape)
-        dump_tensor_to_file(output_gradient_tensor, "test_output_grad.txt")
+        dump_numpy_array_to_file(output_gradient_tensor, "test_output_grad.txt")
         output_tensor = input_tensor.reshape(o_shape)
         input_grad_tensor = output_gradient_tensor.reshape(i_shape)
-        dump_tensor_to_file(output_tensor, "test_output.txt")
-        dump_tensor_to_file(input_grad_tensor, "test_input1_grad.txt")
+        dump_numpy_array_to_file(output_tensor, "test_output.txt")
+        dump_numpy_array_to_file(input_grad_tensor, "test_input1_grad.txt")
         self._dump_meta(i_dim, o_dim, i_shape, o_shape)
 
         # generate FF results
@@ -624,11 +923,11 @@ class TanhTest(unittest.TestCase):
         # generate python reference and input payload
         input_tensor_value = np.random.uniform(0, 1, i_shape)
         input_tensor = torch.from_numpy(input_tensor_value).float()
-        dump_tensor_to_file(input_tensor_value, "test_input1.txt")
+        dump_numpy_array_to_file(input_tensor_value, "test_input1.txt")
         output_gradient_tensor = np.random.uniform(0, 1, i_shape)
-        dump_tensor_to_file(output_gradient_tensor, "test_output_grad.txt")
+        dump_numpy_array_to_file(output_gradient_tensor, "test_output_grad.txt")
         output_tensor = torch.nn.Tanh()(input_tensor).numpy()
-        dump_tensor_to_file(output_tensor, "test_output.txt")
+        dump_numpy_array_to_file(output_tensor, "test_output.txt")
         self._dump_meta(i_dim, o_dim, i_shape, i_shape)
 
         # generate FF results
@@ -640,7 +939,7 @@ class TanhTest(unittest.TestCase):
         # todo: add backward checking
         # todo: tanh backward
         # input_grad_tensor = output_gradient_tensor.reshape(i_shape)
-        # dump_tensor_to_file(input_grad_tensor, "test_input1_grad.txt")
+        # dump_numpy_array_to_file(input_grad_tensor, "test_input1_grad.txt")
         # file1 = 'test_input1_grad.txt'
         # file2 = 'input1_grad.txt'
         # is_equal_tensor_from_file(file1, file2, 'input_grad', epsilon=epsilon)

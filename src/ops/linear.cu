@@ -22,7 +22,9 @@ Tensor FFModel::dense(std::string name,
                       ActiMode activation,
                       bool use_bias, 
                       Initializer* kernel_initializer,
-                      Initializer* bias_initializer)
+                      Initializer* bias_initializer,
+                      Tensor* _weights,
+                      Tensor* _bias)
 {
   if (kernel_initializer == NULL) {
     int seed = std::rand();
@@ -33,6 +35,12 @@ Tensor FFModel::dense(std::string name,
   }
   Linear *li = new Linear(*this, name, input, outDim, activation, use_bias,
                           kernel_initializer, bias_initializer);
+  if (_weights != NULL) {
+    li->kernel = *_weights;
+  }
+  if (_bias != NULL) {
+    li->bias = *_bias;
+  }
   layers.push_back(li);
   Parameter kernel, bias;
   kernel.tensor = li->kernel;

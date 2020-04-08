@@ -206,6 +206,7 @@ void dump_region_to_file(FFModel &ff,
 
   } else
   {
+    std::cout << "dims: " << dims << std::endl;
     // not supported
     throw 255;
   }

@@ -18,7 +18,7 @@
 
 Tensor FFModel::flat(std::string name, Tensor input)
 {
-  assert(input.numDim == 4);
+  assert(input.numDim == 3);
   //assert(strategies.find(name) != strategies.end());
   //ParallelConfig pc = strategies[name];
   Flat *flat = new Flat(*this, name, input);
@@ -27,12 +27,11 @@ Tensor FFModel::flat(std::string name, Tensor input)
 }
 
 Flat::Flat(FFModel& model,
-           const std::string& pcname,
-           const Tensor& _input)
+  const std::string& pcname,
+  const Tensor& _input)
 : Op(pcname, _input)
 {
   task_is = IndexSpaceT<2>(model.get_or_create_task_is(2, pcname));
-
   Context ctx = model.config.lg_ctx;
   Runtime* runtime = model.config.lg_hlr;
   Rect<2> part_rect = runtime->get_index_space_domain(ctx, task_is);
@@ -49,7 +48,7 @@ Flat::Flat(FFModel& model,
     output = model.create_tensor<2>(dims, task_is, DT_FLOAT);
   }
   model.create_data_parallel_partition_with_diff_dims<4, 2>(
-      _input, task_is, input_lps[0], input_grad_lps[0]);
+      _input, (IndexSpaceT<2>)task_is, input_lps[0], input_grad_lps[0]);
 #ifdef DEADCODE
   Rect<2, coord_t> output_rect(Point<2>(0, 0), Point<2>(output_c-1, output_n-1));
   IndexSpaceT<2> output_is = runtime->create_index_space(ctx, output_rect);
@@ -167,11 +166,10 @@ void Flat::init(const FFModel& ff)
     FFHandler handle = ff.handlers[idx++];
     argmap.set_point(*it, TaskArgument(&handle, sizeof(FFHandler)));
   }
-
   IndexLauncher launcher(FLAT_INIT_TASK_ID, task_is,
-                         TaskArgument(this, sizeof(Flat)), argmap,
-                         Predicate::TRUE_PRED, false/*must*/, 0/*mapper_id*/,
-                         FFConfig::get_hash_id(std::string(name)));
+    TaskArgument(this, sizeof(Flat)), argmap,
+    Predicate::TRUE_PRED, false/*must*/, 0/*mapper_id*/,
+    FFConfig::get_hash_id(std::string(name)));
   FutureMap fm = runtime->execute_index_space(ctx, launcher);
   fm.wait_all_results();
   idx = 0;
@@ -190,16 +188,15 @@ void Flat::forward_task(const Task *task,
 {
   assert(regions.size() == 2);
   assert(task->regions.size() == 2);
-  TensorAccessorR<float, 4> acc_input(
-      regions[0], task->regions[0], FID_DATA, ctx, runtime);
+  TensorAccessorR<float, 3> acc_input(
+    regions[0], task->regions[0], FID_DATA, ctx, runtime);
   TensorAccessorW<float, 2> acc_output(
-      regions[1], task->regions[1], FID_DATA, ctx, runtime,
-      false/*readOutput*/);
-
+    regions[1], task->regions[1], FID_DATA, ctx, runtime,
+    false/*readOutput*/);
   assert(acc_input.rect.volume() == acc_output.rect.volume());
   checkCUDA(cudaMemcpyAsync(acc_output.ptr, acc_input.ptr,
-                            acc_input.rect.volume() * sizeof(float),
-                            cudaMemcpyDeviceToDevice));
+    acc_input.rect.volume() * sizeof(float),
+    cudaMemcpyDeviceToDevice));
 }
 
 void Flat::forward(const FFModel& ff)
@@ -214,16 +211,16 @@ void Flat::forward(const FFModel& ff)
     argmap.set_point(*it, TaskArgument(&mp, sizeof(OpMeta*)));
   }
   IndexLauncher launcher(FLAT_FWD_TASK_ID, task_is,
-                         TaskArgument(NULL, 0), argmap,
-                         Predicate::TRUE_PRED, false/*must*/, 0/*mapper_id*/,
-                         FFConfig::get_hash_id(std::string(name)));
+    TaskArgument(NULL, 0), argmap,
+    Predicate::TRUE_PRED, false/*must*/, 0/*mapper_id*/,
+    FFConfig::get_hash_id(std::string(name)));
   launcher.add_region_requirement(
-      RegionRequirement(input_lps[0], 0/*projection id*/,
-                        READ_ONLY, EXCLUSIVE, inputs[0].region));
+    RegionRequirement(input_lps[0], 0/*projection id*/,
+      READ_ONLY, EXCLUSIVE, inputs[0].region));
   launcher.add_field(0, FID_DATA);
   launcher.add_region_requirement(
-      RegionRequirement(output.part, 0/*projection id*/,
-                        WRITE_ONLY, EXCLUSIVE, output.region));
+    RegionRequirement(output.part, 0/*projection id*/,
+      WRITE_ONLY, EXCLUSIVE, output.region));
   launcher.add_field(1, FID_DATA);
   runtime->execute_index_space(ctx, launcher);
 }
@@ -239,15 +236,14 @@ void Flat::backward_task(const Task *task,
   assert(regions.size() == 2);
   assert(task->regions.size() == 2);
   TensorAccessorW<float, 4> acc_input_grad(
-      regions[0], task->regions[0], FID_DATA, ctx, runtime,
-      true/*readOutput*/);
+    regions[0], task->regions[0], FID_DATA, ctx, runtime,
+    true/*readOutput*/);
   TensorAccessorR<float, 2> acc_output_grad(
-      regions[1], task->regions[1], FID_DATA, ctx, runtime);
+    regions[1], task->regions[1], FID_DATA, ctx, runtime);
   assert(acc_input_grad.rect.volume() == acc_output_grad.rect.volume());
-
   checkCUDA(cudaMemcpyAsync(acc_input_grad.ptr, acc_output_grad.ptr,
-                            acc_input_grad.rect.volume() * sizeof(float),
-                            cudaMemcpyDeviceToDevice));
+    acc_input_grad.rect.volume() * sizeof(float),
+    cudaMemcpyDeviceToDevice));
 }
 
 void Flat::backward(const FFModel& ff)
@@ -262,16 +258,16 @@ void Flat::backward(const FFModel& ff)
     argmap.set_point(*it, TaskArgument(&mp, sizeof(OpMeta*)));
   }
   IndexLauncher launcher(FLAT_BWD_TASK_ID, task_is,
-                         TaskArgument(NULL, 0), argmap,
-                         Predicate::TRUE_PRED, false/*must*/, 0/*mapper_id*/,
-                         FFConfig::get_hash_id(std::string(name)));
+    TaskArgument(NULL, 0), argmap,
+    Predicate::TRUE_PRED, false/*must*/, 0/*mapper_id*/,
+    FFConfig::get_hash_id(std::string(name)));
   launcher.add_region_requirement(
-      RegionRequirement(input_grad_lps[0], 0/*projection id*/,
-                        WRITE_ONLY, EXCLUSIVE, inputs[0].region_grad));
+    RegionRequirement(input_grad_lps[0], 0/*projection id*/,
+      WRITE_ONLY, EXCLUSIVE, inputs[0].region_grad));
   launcher.add_field(0, FID_DATA);
   launcher.add_region_requirement(
-      RegionRequirement(output.part_grad, 0/*projection id*/,
-                        READ_ONLY, EXCLUSIVE, output.region_grad));
+    RegionRequirement(output.part_grad, 0/*projection id*/,
+      READ_ONLY, EXCLUSIVE, output.region_grad));
   launcher.add_field(1, FID_DATA);
   runtime->execute_index_space(ctx, launcher);
 }

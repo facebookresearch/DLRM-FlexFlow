@@ -84,18 +84,18 @@ Linear::Linear(FFModel& model,
   int in_dim = _input.adim[0];
   int batch_size = _input.adim[1];
   {
-    const int dims[2] = {batch_size, out_dim};
+    const int dims[2] = {batch_size, out_dim}; // out_dim, batch_size
     output = model.create_tensor<2>(dims, task_is, DT_FLOAT);
   }
   // Create kernel tensor
   {
-    const int dims[2] = {out_dim, in_dim};
-    kernel = model.create_linear_weight<2>(dims, task_is, DT_FLOAT, kernel_initializer);
+    const int dims[2] = {out_dim, in_dim}; // target shape k,m
+    kernel = model.create_linear_weight<2>(dims, (IndexSpaceT<2>)task_is, DT_FLOAT, kernel_initializer);
   }
   // Create bias tensor
   if (use_bias) {
     const int dims[1] = {out_dim};
-    bias = model.create_linear_weight<1>(dims, task_is, DT_FLOAT, bias_initializer);
+    bias = model.create_linear_weight<1>(dims, (IndexSpaceT<2>)task_is, DT_FLOAT, bias_initializer);
   }
   // Compute partition bound for input
   Rect<2> input_rect = runtime->get_index_partition_color_space(
@@ -103,7 +103,7 @@ Linear::Linear(FFModel& model,
   // Create replica tensor
   if (num_par_c > 1) {
     const int dims[3] = {num_par_c, batch_size, in_dim};
-    replica = model.create_linear_replica<3>(dims, task_is, DT_FLOAT);
+    replica = model.create_linear_replica<3>(dims, (IndexSpaceT<2>)task_is, DT_FLOAT);
     {
       Rect<2> extent(Point<2>(0, 0), Point<2>(in_dim-1, batch_size/num_par_n-1));
       Transform<2, 2> transform;
@@ -140,7 +140,8 @@ Linear::Linear(FFModel& model,
       replica.part = runtime->get_logical_partition(
           ctx, replica.region_grad, ip);
     }
-  } else {
+  } 
+  else {
     if (input_rect == part_rect) {
       input_lps[0] = inputs[0].part;
       input_grad_lps[0] = inputs[0].part_grad;

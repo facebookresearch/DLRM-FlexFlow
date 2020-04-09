@@ -28,7 +28,7 @@ Tensor FFModel::dot_compressor(
   int num_channels = num_sparse_embeddings + num_dense_embeddings;
   int batch_size = _sparse_embeddings[0].adim[_sparse_embeddings[0].numDim-1];
   
-  // merge two embedding lists
+  // merge embeddings into single list
   std::vector<Tensor> dense_embeddings(_dense_embeddings,
    _dense_embeddings + num_dense_embeddings);
   std::vector<Tensor> sparse_embeddings(_sparse_embeddings,
@@ -37,12 +37,13 @@ Tensor FFModel::dot_compressor(
   embeddings.insert(embeddings.begin(), sparse_embeddings.begin(), sparse_embeddings.end());
   embeddings.insert(embeddings.end(), dense_embeddings.begin(), dense_embeddings.end());
 
-  // concat embeddings
+  // concat embedding features
   Concat *cat_input = new Concat(*this, 
     "concat_input", 
     num_channels, 
     &embeddings[0], 
-  1);
+    1 
+  );
   layers.push_back(cat_input);
   // reshape 2 to 3
   int l1_shape[3] = {batch_size, num_channels, sparse_in_dim};
@@ -52,7 +53,7 @@ Tensor FFModel::dot_compressor(
     l1_shape);
   layers.push_back(reshape_cat_input); 
 
-  // transpose 
+  // transpose inner most
   Transpose *transpose_reshape_cat_input = new Transpose(*this, 
     "trc_input", 
     reshape_cat_input->output);
@@ -124,27 +125,4 @@ Tensor FFModel::dot_compressor(
   layers.push_back(tanh); 
 
   return tanh->output;
-
-
-  // // final concat
-  // Tensor final_concats[2];
-  // final_concats[0] = tanh->output;
-  // // empty when num_gpu > 1
-  // // jkhsdfgiuvahsdliughafilsdhfa;
-  // final_concats[1] = dense_projection;
-  // // final_concats[1] = tanh->output;
-  // // here looks good still , must be something wrong inside Concat
-  // if (test) {
-  //   dump_region_to_file(*this, final_concats[1]->output.region, "dump3.txt", 2);
-  // }
-
-
-  // Concat *cat_final = new Concat(*this, 
-  //   "", 
-  //   2, 
-  //   final_concats, 
-  //   1);
-  // layers.push_back(cat_final);
-  // return cat_final->output;
-
 }

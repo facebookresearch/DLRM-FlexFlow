@@ -69,8 +69,15 @@ void top_level_task(const Task* task,
     const int dims[2] = {test_meta.batch_size, test_meta.i_dim};
     sparse_embeddings[i] = ff.create_tensor<2>(dims, 
       "", DT_FLOAT);
+    // init tensor is checked, nothing wrong in init tensor
+    // sparse_embeddings[i] also checked, it's correct
     initialize_tensor_from_file(sparse_embedding_file_path, 
       sparse_embeddings[i], ff, "float", 2);
+    // std::ostringstream stringStream;
+    // stringStream << "sparse_embedding" << i << "_output.txt";
+    // std::string copyOfStr = stringStream.str();
+    // dump_region_to_file(ff, sparse_embeddings[i].region, copyOfStr, 2);
+
   }
 
 

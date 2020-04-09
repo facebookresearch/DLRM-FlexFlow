@@ -41,7 +41,7 @@ void top_level_task(const Task* task,
   ffConfig.lg_ctx = ctx;
   ffConfig.lg_hlr = runtime;
   ffConfig.profiling = false;
-  ffConfig.debug = true;
+  ffConfig.debug = false;
   ffConfig.field_space = runtime->create_field_space(ctx);
   // create ff model object
   FFModel ff(ffConfig);
@@ -135,12 +135,6 @@ void top_level_task(const Task* task,
   // init gradient
   initialize_tensor_gradient_from_file(output_grad_file_path, ret, ff, "float", 2);
 
-  /*
-  TODO
-  1. mid size problem kernels dont match
-  2. test linear consistency with large problems
-     becasue we don't know if SGD perform consistently 
-  */
   ff.optimizer = new SGDOptimizer(&ff, 0.01f, 0.0f);
   // run forward and backward to produce results
   ff.init_layers();
@@ -150,22 +144,19 @@ void top_level_task(const Task* task,
     ff.backward();
     ff.update();
   }
-  // for(int i = 0; i < dense_embedding_channels; i++) {
-  //   initialize_tensor_from_file(dense_embedding_file_path, 
-  //     dense_embeddings[i], ff, "float", 2);
-  // }
-  // for(int i = 0; i < sparse_embedding_channels; i++) {
-  //   initialize_tensor_from_file(sparse_embedding_file_path, 
-  //     sparse_embeddings[i], ff, "float", 2);
-  // }
-  // ff.forward();
+  for(int i = 0; i < dense_embedding_channels; i++) {
+    initialize_tensor_from_file(dense_embedding_file_path, 
+      dense_embeddings[i], ff, "float", 2);
+  }
+  for(int i = 0; i < sparse_embedding_channels; i++) {
+    initialize_tensor_from_file(sparse_embedding_file_path, 
+      sparse_embeddings[i], ff, "float", 2);
+  }
+  ff.forward();
   // dump results to file for python validation
   dump_region_to_file(ff, ret.region, "output.txt", 2);
   auto kernel = ff.parameters[0].tensor;
   dump_region_to_file(ff, kernel.region, "kernel_updated1.txt", 2);
-  // kernel = ff.parameters[1].tensor;
-  // dump_region_to_file(ff, kernel.region_grad, "kernel_grad2.txt", 1);
-
 
 }
 

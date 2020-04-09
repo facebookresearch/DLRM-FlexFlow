@@ -41,7 +41,7 @@ void top_level_task(const Task* task,
   ffConfig.lg_ctx = ctx;
   ffConfig.lg_hlr = runtime;
   ffConfig.profiling = false;
-  ffConfig.debug = true;
+  ffConfig.debug = false;
   ffConfig.field_space = runtime->create_field_space(ctx);
   // create ff model object
   FFModel ff(ffConfig);
@@ -58,9 +58,13 @@ void top_level_task(const Task* task,
     const int dims[2] = {test_meta.batch_size, test_meta.i_dim};
     dense_embeddings[i] = ff.create_tensor<2>(dims, 
       "", DT_FLOAT);
+    // init tensor is checked, nothing wrong in init tensor
+    // dense_embeddings[i] also checked, it's correct
     initialize_tensor_from_file(dense_embedding_file_path, 
       dense_embeddings[i], ff, "float", 2);
+
   }
+
   for(int i = 0; i < sparse_embedding_channels; i++) {
     const int dims[2] = {test_meta.batch_size, test_meta.i_dim};
     sparse_embeddings[i] = ff.create_tensor<2>(dims, 
@@ -80,7 +84,10 @@ void top_level_task(const Task* task,
    embeddings.insert(embeddings.begin(), sparse_embeddings_v.begin(), sparse_embeddings_v.end());
    embeddings.insert(embeddings.end(), dense_embeddings_v.begin(), dense_embeddings_v.end());
  
-  auto ret = ff.concat("concat_input", embeddings.size(), &embeddings[0], 1);
+  
+
+  auto ret = ff.concat("concat_input", test_meta.num_channels, &embeddings[0], 1);
+
 
   // load inputs tensors and output gradients tensors for testing
   // use output for output grad (testing only)

@@ -152,6 +152,7 @@ void initialize_tensor_from_file_task(const Task *task,
       tensor_ptr[i] = a;
       i++;
     }   
+    myfile.close();
   } else if (data_type == "float") {
     const AccessorWO<float, DIM> acc_label_tensor(regions[0], FID_DATA);
     float* tensor_ptr = acc_label_tensor.ptr(rect_label_tensor.lo);
@@ -163,6 +164,7 @@ void initialize_tensor_from_file_task(const Task *task,
       tensor_ptr[i] = a;
       i++;
     } 
+    myfile.close();
   }
 }
 

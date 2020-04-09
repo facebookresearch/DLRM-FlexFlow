@@ -587,12 +587,26 @@ class ConcatTest(unittest.TestCase):
                            dense_projection_i_dim, \
                            concat_last=False)
 
-    def test_multi_gpu_small_problem(self):
+    def test_multi_gpu_small_working_problem(self):
         np.random.seed(0)
         num_gpu = 2
         # batch_size % num_worker == 0 (reshape contraints)
         batch_size = 2
-        i_dim = 3
+        i_dim = 6
+        num_channels = 2
+        projected_num_channels = 2
+        dense_projection_i_dim = 3        
+        self._run_gpu_test(num_gpu, batch_size, i_dim, \
+                           num_channels, projected_num_channels, \
+                           dense_projection_i_dim, \
+                           concat_last=False, epoch=10)   
+
+    def test_multi_gpu_small_problem(self):
+        np.random.seed(0)
+        num_gpu = 2
+        # batch_size % num_worker == 0 (reshape contraints)
+        batch_size = 4
+        i_dim = 6
         num_channels = 2
         projected_num_channels = 2
         dense_projection_i_dim = 3        

@@ -40,7 +40,7 @@ void top_level_task(const Task* task,
   }
   ffConfig.lg_ctx = ctx;
   ffConfig.lg_hlr = runtime;
-  ffConfig.profiling = false;
+  ffConfig.profiling = true;
   ffConfig.debug = true;
   ffConfig.field_space = runtime->create_field_space(ctx);
   // create ff model object
@@ -58,29 +58,60 @@ void top_level_task(const Task* task,
     const int dims[2] = {test_meta.batch_size, test_meta.i_dim};
     dense_embeddings[i] = ff.create_tensor<2>(dims, 
       "", DT_FLOAT);
+    // init tensor is checked, nothing wrong in init tensor
+    // dense_embeddings[i] also checked, it's correct
     initialize_tensor_from_file(dense_embedding_file_path, 
       dense_embeddings[i], ff, "float", 2);
+
+    // std::ostringstream stringStream;
+    // stringStream << "dense_embedding" << i << "_output.txt";
+    // std::string copyOfStr = stringStream.str();
+    // dump_region_to_file(ff, dense_embeddings[i].region, copyOfStr, 2);
   }
+
   for(int i = 0; i < sparse_embedding_channels; i++) {
     const int dims[2] = {test_meta.batch_size, test_meta.i_dim};
     sparse_embeddings[i] = ff.create_tensor<2>(dims, 
       "", DT_FLOAT);
+    // init tensor is checked, nothing wrong in init tensor
+    // sparse_embeddings[i] also checked, it's correct
     initialize_tensor_from_file(sparse_embedding_file_path, 
       sparse_embeddings[i], ff, "float", 2);
+    // std::ostringstream stringStream;
+    // stringStream << "sparse_embedding" << i << "_output.txt";
+    // std::string copyOfStr = stringStream.str();
+    // dump_region_to_file(ff, sparse_embeddings[i].region, copyOfStr, 2);
+
   }
 
 
 
   // merge two embedding lists
-  std::vector<Tensor> dense_embeddings_v(dense_embeddings,
-    dense_embeddings + dense_embedding_channels);
-   std::vector<Tensor> sparse_embeddings_v(sparse_embeddings,
-    sparse_embeddings + sparse_embedding_channels);
-   std::vector<Tensor> embeddings;
-   embeddings.insert(embeddings.begin(), sparse_embeddings_v.begin(), sparse_embeddings_v.end());
-   embeddings.insert(embeddings.end(), dense_embeddings_v.begin(), dense_embeddings_v.end());
+  // std::vector<Tensor> dense_embeddings_v(dense_embeddings,
+  //   dense_embeddings + dense_embedding_channels);
+  //  std::vector<Tensor> sparse_embeddings_v(sparse_embeddings,
+  //   sparse_embeddings + sparse_embedding_channels);
+  //  std::vector<Tensor> embeddings;
+  //  embeddings.insert(embeddings.begin(), sparse_embeddings_v.begin(), sparse_embeddings_v.end());
+  //  embeddings.insert(embeddings.end(), dense_embeddings_v.begin(), dense_embeddings_v.end());
  
-  auto ret = ff.concat("concat_input", embeddings.size(), &embeddings[0], 1);
+  Tensor* embeddings = (Tensor*) malloc(sizeof(Tensor) * test_meta.num_channels);
+  for (int i = 0; i < dense_embedding_channels; i++) {
+    embeddings[i+dense_embedding_channels] = dense_embeddings[i];
+  }
+  for (int i = 0; i < sparse_embedding_channels; i++) {
+    embeddings[i] = sparse_embeddings[i];
+  }
+  
+  // embeddings also checked
+  // for (int i = 0 ; i < embeddings.size(); i++) {
+  //       std::ostringstream stringStream;
+  //   stringStream << "embedding" << i << "_output.txt";
+  //   std::string copyOfStr = stringStream.str();
+  //   dump_region_to_file(ff, embeddings[i].region, copyOfStr, 2);
+  // }
+
+  auto ret = ff.concat("concat_input", test_meta.num_channels, &embeddings[0], 1);
 
   // load inputs tensors and output gradients tensors for testing
   // use output for output grad (testing only)

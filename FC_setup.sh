@@ -23,6 +23,7 @@ cd $LEGION
 git checkout control_replication
 cd ../
 
-# make app=examples/DLRM/dlrm -j
-# cd examples/DLRM
-# ./run_random.sh 1 
+
+make app=examples/DLRM/dlrm -j
+cd examples/DLRM
+./run_random.sh 1 

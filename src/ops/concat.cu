@@ -120,7 +120,8 @@ void add_with_stride(float* output,
                      int num_blocks,
                      int output_blk_size,
                      int input_blk_size,
-                     int input_volume)
+                     int input_volume,
+                     int output_volume)
 {
   int min_blk_size = min(output_blk_size, input_blk_size);
   CUDA_KERNEL_LOOP(i, num_blocks * min_blk_size)
@@ -129,7 +130,16 @@ void add_with_stride(float* output,
     int blk_offset = i % min_blk_size;
     int input_offset = blk_idx * input_blk_size + blk_offset;
     int output_offset = blk_idx * output_blk_size + blk_offset;
-    if (input_offset < input_volume) {
+    if (input_offset < input_volume && output_offset < output_volume) 
+    {
+      // printf("offset out, in, block offset,i, blk_idx, input, output\t%d\t%d\t%d\t%d\t%d\t%.4f\t%d\n",
+      // output_offset, 
+      // input_offset,
+      // blk_offset, 
+      // i, 
+      // blk_idx,
+      // input[input_offset],
+      // output[output_offset]);
       output[output_offset] += input[input_offset];
     }
   }
@@ -147,7 +157,8 @@ void copy_with_stride(float* output,
                       int num_blocks,
                       int output_blk_size,
                       int input_blk_size,
-                      int input_volume)
+                      int input_volume,
+                      int output_volume)
 {
   int min_blk_size = min(output_blk_size, input_blk_size);
   CUDA_KERNEL_LOOP(i, num_blocks * min_blk_size)
@@ -156,7 +167,8 @@ void copy_with_stride(float* output,
     int blk_offset = i % min_blk_size;
     int input_offset = blk_idx * input_blk_size + blk_offset;
     int output_offset = blk_idx * output_blk_size + blk_offset;
-    if (input_offset < input_volume) {
+    if (input_offset < input_volume && output_offset < output_volume)
+    {
       // printf("offset out, in, block offset,i, blk_idx, input, input_blk_size\t%d\t%d\t%d\t%d\t%d\t%.4f\t%d\n",
       // output_offset, 
       // input_offset,
@@ -239,7 +251,8 @@ void Concat::forward_task(const Task *task,
         }
         copy_with_stride<<<GET_BLOCKS(input_blk_sizes[i]*num_blocks), CUDA_NUM_THREADS>>>(
             output, inputs[i], num_blocks, output_blk_size, input_blk_sizes[i],
-            accInput.rect.volume());
+            accInput.rect.volume(),
+            accOutput.rect.volume());
         output += input_blk_sizes[i];
       }
       checkCUDA(cudaDeviceSynchronize());
@@ -379,16 +392,26 @@ void Concat::backward_task(const Task *task,
             regions[i+1], task->regions[i+1], FID_DATA, ctx, runtime,
             false/*readOutput*/);
         input_grads[i] = accInputGrad.ptr;
+        // copy_with_stride<<<GET_BLOCKS(input_blk_sizes[i]*num_blocks), CUDA_NUM_THREADS>>>(
+        //   output, 
+        //   inputs[i], 
+        //   num_blocks, 
+        //   output_blk_size, 
+        //   input_blk_sizes[i],
+        //   accInput.rect.volume(),
+        //   accOutput.rect.volume());
         add_with_stride<<<GET_BLOCKS(input_blk_sizes[i]*num_blocks), CUDA_NUM_THREADS>>>(
             input_grads[i], 
             output_grad, 
             num_blocks, 
             input_blk_sizes[i], 
             output_blk_size,
+            accOutputGrad.rect.volume(),
             accInputGrad.rect.volume());
         output_grad += input_blk_sizes[i];
         if (cc->profiling){
-          printf("input volume %d\n", accInputGrad.rect.volume());
+          printf("input grad volume %d\n", accInputGrad.rect.volume());
+          printf("output grad volume %d\n", accOutputGrad.rect.volume());
           std::ostringstream stringStream;
           stringStream << "[Concat:backward:input_grad" << i << "]";
           print_tensor<2, float>(input_grads[i], accInputGrad.rect, stringStream.str().c_str());

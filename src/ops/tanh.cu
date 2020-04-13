@@ -88,7 +88,7 @@ OpMeta* Tanh<DIM>::init_task(const Task *task,
     }
     /*
     https://docs.nvidia.com/deeplearning/sdk/cudnn-api/index.html#cudnnSetTensorNdDescriptor
-    Note: Do not use 2 dimensions. Due to historical reasons, the minimum number of dimensions in the filter descriptor is three. For more information, see cudnnGetRNNLinLayerBiasParams().
+    Note: Do not use for 2 dimensional tensors. The minimum number of dimensions in the filter descriptor is three. For more information, see cudnnGetRNNLinLayerBiasParams().
     */
     checkCUDNN(cudnnSetTensorNdDescriptor(m->inputTensor,
                                           CUDNN_DATA_FLOAT,
@@ -132,6 +132,9 @@ void Tanh<DIM>::init(const FFModel& ff)
   launcher.add_region_requirement(
       RegionRequirement(input_lps[0], 0/*projection id*/,
                         READ_WRITE, EXCLUSIVE, inputs[0].region));
+
+
+
   launcher.add_field(0, FID_DATA);
   launcher.add_region_requirement(
       RegionRequirement(output.part, 0/*projection id*/,

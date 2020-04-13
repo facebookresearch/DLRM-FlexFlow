@@ -49,10 +49,12 @@ void top_level_task(const Task* task,
   Initializer* kernel_initializer = new ZeroInitializer();
   Initializer* bias_initializer = new ZeroInitializer();
   Tensor weights;
+  auto dense_projection_file_path = "test_input1.txt";
+  auto bias_file_path = "test_bias1.txt";
+  auto weights_file_path = "test_kernel1.txt";
   {
     const int dims[2] = {test_meta.projected_num_channels, test_meta.num_channels};
     weights = ff.create_linear_weight<2>(dims, (IndexSpaceT<2>)task_is, DT_FLOAT, kernel_initializer);
-    auto weights_file_path = "test_kernel1.txt";
     initialize_tensor_from_file(weights_file_path, 
         weights, ff, "float", 2);  
   }
@@ -60,7 +62,6 @@ void top_level_task(const Task* task,
   {
     const int dims[1] = {test_meta.projected_num_channels};
     bias = ff.create_linear_weight<1>(dims, (IndexSpaceT<2>)task_is, DT_FLOAT, bias_initializer);
-    auto bias_file_path = "test_bias1.txt";
     initialize_tensor_from_file(bias_file_path, 
         bias, ff, "float", 1);  
   }
@@ -72,7 +73,6 @@ void top_level_task(const Task* task,
     const int dims[2] = {test_meta.batch_size, test_meta.dense_projection_i_dim}; 
     dense_projection = ff.create_tensor<2>(dims, "", DT_FLOAT);
     // dense_projection = ff.create_linear_weight<2>(dims, (IndexSpaceT<2>)task_is, DT_FLOAT, kernel_initializer);
-    auto dense_projection_file_path = "test_input1.txt";
     initialize_tensor_from_file(dense_projection_file_path, 
         dense_projection, ff, "float", 2);
   }
@@ -101,12 +101,14 @@ void top_level_task(const Task* task,
 
 
   // build transpose layer
-  Tensor ret = ff.dot_compressor("", 
+  Tensor ret = ff.dot_compressor(
+    "", 
     dense_embedding_channels,
     sparse_embedding_channels,
     dense_embeddings,
     sparse_embeddings,
     test_meta.projected_num_channels,
+    &dense_projection, // dense projection
     AC_MODE_NONE,
     NULL, // kernel initializer
     NULL, // bias initializer
@@ -117,7 +119,6 @@ void top_level_task(const Task* task,
   );
   // init gradient
   initialize_tensor_gradient_from_file(output_grad_file_path, ret, ff, "float", 2);
-
   ff.optimizer = new SGDOptimizer(&ff, 0.01f, 0.0f);
   // run forward and backward to produce results
   ff.init_layers();
@@ -135,6 +136,9 @@ void top_level_task(const Task* task,
     initialize_tensor_from_file(sparse_embedding_file_path, 
       sparse_embeddings[i], ff, "float", 2);
   }
+  initialize_tensor_from_file(dense_projection_file_path, 
+        dense_projection, ff, "float", 2);
+  
   ff.forward();
   // dump results to file for python validation
   dump_region_to_file(ff, ret.region, "output.txt", 2);

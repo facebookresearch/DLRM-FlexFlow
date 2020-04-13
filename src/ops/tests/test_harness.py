@@ -80,7 +80,7 @@ def dump_numpy_array_to_file(ndarray, file_name):
     buffer = []
     for entry in ndarray.flatten():
       buffer.append(entry)
-    buffer = ["%.16f"%x for x in buffer]
+    buffer = ["%.6f"%x for x in buffer]
     with open(file_name, 'w+') as f:
       f.write(' '.join(buffer))
 
@@ -121,8 +121,9 @@ def is_equal_tensor_from_file(file_1, file_2, label='', epsilon=0.00001):
     input1_flat = [float(x) for x in input1_flat]
     input2_flat = input2.strip().split(' ')
     input2_flat = [float(x) for x in input2_flat]
+    diff_set = set()
     try:
-      np.testing.assert_allclose(input1_flat, input2_flat, rtol=epsilon, atol=0.0)
+      np.testing.assert_allclose(input1_flat, input2_flat, rtol=epsilon, atol=epsilon)
     except Exception as e:
       print('checking equal %s failed, error message: %s' % (label, e))
       raise e 
@@ -376,21 +377,23 @@ class DotCompressorTest(unittest.TestCase):
         file1 = 'test_kernel_updated1.txt'
         # kernel has to be exactly match
         is_equal_tensor_from_file(file1, file2, 'kernel', epsilon=epsilon)
+        # average_error_tolerance(file1, file2, 'kernel', epsilon=epsilon)
         
 
 
-    def test_single_gpu_simple_problem(self):
+    def test_single_gpu_small_problem(self):
         np.random.seed(0)
         num_gpu = 1
+        # batch_size % num_worker == 0 (reshape contraints)
         batch_size = 2
         i_dim = 6
         num_channels = 4
-        projected_num_channels = 3
-        dense_projection_i_dim = 2
+        projected_num_channels = 2
+        dense_projection_i_dim = 3        
         self._run_gpu_test(num_gpu, batch_size, i_dim, \
                            num_channels, projected_num_channels, \
                            dense_projection_i_dim, \
-                           concat_last=False)
+                           concat_last=True)
 
     def test_multi_gpu_small_problem(self):
         np.random.seed(0)
@@ -404,7 +407,7 @@ class DotCompressorTest(unittest.TestCase):
         self._run_gpu_test(num_gpu, batch_size, i_dim, \
                            num_channels, projected_num_channels, \
                            dense_projection_i_dim, \
-                           concat_last=False)
+                           concat_last=True)
 
     def test_multi_gpu_small_small_mid_problem(self):
         np.random.seed(0)
@@ -418,15 +421,27 @@ class DotCompressorTest(unittest.TestCase):
         self._run_gpu_test(num_gpu, batch_size, i_dim, \
                            num_channels, projected_num_channels, \
                            dense_projection_i_dim, \
-                           concat_last=False)
+                           concat_last=True)
 
-
+    def test_single_gpu_small_small_mid_problem(self):
+        np.random.seed(0)
+        num_gpu = 1
+        # batch_size % num_worker == 0 (reshape contraints)
+        batch_size = 4
+        i_dim = 10
+        num_channels = 10
+        projected_num_channels = 6
+        dense_projection_i_dim = 12        
+        self._run_gpu_test(num_gpu, batch_size, i_dim, \
+                           num_channels, projected_num_channels, \
+                           dense_projection_i_dim, \
+                           concat_last=True)
 
     def test_multi_gpu_target_problem_size(self):
         np.random.seed(0)
         num_gpu = 2
         # batch_size % num_worker == 0 (reshape contraints)
-        batch_size = 146
+        batch_size = 128
         i_dim = 64
         num_channels = 265
         projected_num_channels = 15
@@ -434,7 +449,21 @@ class DotCompressorTest(unittest.TestCase):
         self._run_gpu_test(num_gpu, batch_size, i_dim, \
                            num_channels, projected_num_channels, \
                            dense_projection_i_dim, \
-                           concat_last=False)
+                           concat_last=True)
+
+    def test_single_gpu_target_problem_size(self):
+        np.random.seed(0)
+        num_gpu = 1
+        # batch_size % num_worker == 0 (reshape contraints)
+        batch_size = 128
+        i_dim = 64
+        num_channels = 265
+        projected_num_channels = 15
+        dense_projection_i_dim = 512        
+        self._run_gpu_test(num_gpu, batch_size, i_dim, \
+                           num_channels, projected_num_channels, \
+                           dense_projection_i_dim, \
+                           concat_last=True)
 
 
 
@@ -598,7 +627,7 @@ class ConcatTest(unittest.TestCase):
         self._run_gpu_test(num_gpu, batch_size, i_dim, \
                            num_channels, projected_num_channels, \
                            dense_projection_i_dim, \
-                           concat_last=False)
+                           concat_last=True)
 
     def test_multi_gpu_small_working_problem(self):
         np.random.seed(0)
@@ -612,7 +641,7 @@ class ConcatTest(unittest.TestCase):
         self._run_gpu_test(num_gpu, batch_size, i_dim, \
                            num_channels, projected_num_channels, \
                            dense_projection_i_dim, \
-                           concat_last=False, epoch=10)   
+                           concat_last=True, epoch=10)   
 
     def test_multi_gpu_small_problem(self):
         np.random.seed(0)
@@ -626,7 +655,7 @@ class ConcatTest(unittest.TestCase):
         self._run_gpu_test(num_gpu, batch_size, i_dim, \
                            num_channels, projected_num_channels, \
                            dense_projection_i_dim, \
-                           concat_last=False, epoch=10)   
+                           concat_last=True, epoch=10)   
 
 
     def test_multi_gpu_small_small_mid_problem(self):
@@ -641,7 +670,7 @@ class ConcatTest(unittest.TestCase):
         self._run_gpu_test(num_gpu, batch_size, i_dim, \
                            num_channels, projected_num_channels, \
                            dense_projection_i_dim, \
-                           concat_last=False, epoch=10)      
+                           concat_last=True, epoch=10)      
 
     def test_single_gpu_small_small_mid_problem(self):
         np.random.seed(0)
@@ -655,7 +684,7 @@ class ConcatTest(unittest.TestCase):
         self._run_gpu_test(num_gpu, batch_size, i_dim, \
                            num_channels, projected_num_channels, \
                            dense_projection_i_dim, \
-                           concat_last=False, epoch=10)      
+                           concat_last=True, epoch=10)      
 
 class BatchMatmulTest(unittest.TestCase):
     '''

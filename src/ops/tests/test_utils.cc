@@ -1,6 +1,6 @@
 #include "test_utils.h"
 
-#define  PRECISION 16
+#define  PRECISION 6
 #define MAX_DATASET_PATH_LEN 1023
 
 struct ArgsConfig {

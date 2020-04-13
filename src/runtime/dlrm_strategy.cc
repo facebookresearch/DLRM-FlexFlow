@@ -291,5 +291,35 @@ int main(int argc, char **argv)
   }
   std::string output = "dlrm_strategy_emb_" + std::to_string(embs_per_node) + "_gpu_" + std::to_string(gpus_per_node) + "_node_" + std::to_string(num_nodes) + ".pb";
   strategy.export_file(output);
+  output = "dlrm_strategy_" + std::to_string(emb) + "embs_" + std::to_string(gpu) + "gpus.pb";
+  strategy.export_file(output);
   google::protobuf::ShutdownProtobufLibrary();
+  /*
+  // merge conflicts from https://github.com/facebookresearch/DLRM-FlexFlow/commit/20b9d365f993e06a8576d3f57eab3b83b32ad5dd#diff-287e90a56be12d8500e1226c319b5267
+  for (int i = 0; i < emb; i++) {
+    std::string name = "embedding"+std::to_string(i);
+    FFProtoBuf::Op* op = strategy.add_ops();
+    op->set_name(name);
+    op->set_device_type(FFProtoBuf::Op_DeviceType_GPU);
+    op->add_dims(1);
+    op->add_dims(1);
+    op->add_device_ids(i % gpu);
+  }
+  std::vector<std::string> names;
+  names.push_back("linear");
+  names.push_back("mse_loss");
+  names.push_back("concat");
+  for (size_t i = 0; i < names.size(); i++) {
+    FFProtoBuf::Op* op = strategy.add_ops();
+    op->set_name(names[i]);
+    op->set_device_type(FFProtoBuf::Op_DeviceType_GPU);
+    op->add_dims(1);
+    op->add_dims(gpu);
+    for (int j = 0; j < gpu; j++)
+      op->add_device_ids(j);
+  }
+  std::string output = "dlrm_strategy_" + std::to_string(emb) + "embs_" + std::to_string(gpu) + "gpus.pb";
+  std::fstream outputFile(output.c_str(), std::ios::out | std::ios::trunc);
+  strategy.SerializeToOstream(&outputFile);
+  */
 }

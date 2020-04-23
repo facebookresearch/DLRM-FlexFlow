@@ -22,7 +22,9 @@ Tensor FFModel::dense(std::string name,
                       ActiMode activation,
                       bool use_bias, 
                       Initializer* kernel_initializer,
-                      Initializer* bias_initializer)
+                      Initializer* bias_initializer,
+                      Tensor* _weights,
+                      Tensor* _bias)
 {
   if (kernel_initializer == NULL) {
     int seed = std::rand();
@@ -33,6 +35,12 @@ Tensor FFModel::dense(std::string name,
   }
   Linear *li = new Linear(*this, name, input, outDim, activation, use_bias,
                           kernel_initializer, bias_initializer);
+  if (_weights != NULL) {
+    li->kernel = *_weights;
+  }
+  if (_bias != NULL) {
+    li->bias = *_bias;
+  }
   layers.push_back(li);
   Parameter kernel, bias;
   kernel.tensor = li->kernel;
@@ -294,12 +302,17 @@ void Linear::forward_task(const Task *task,
   int in_dim = acc_input.rect.hi[0] - acc_input.rect.lo[0] + 1;
   int out_dim = acc_output.rect.hi[0] - acc_output.rect.lo[0] + 1;
   int batch_size = acc_input.rect.hi[1] - acc_input.rect.lo[1] + 1;
+
   assert(acc_output.rect.volume() == out_dim * batch_size);
   assert(acc_kernel.rect.volume() == in_dim * out_dim);
   assert(acc_bias.rect.volume() == out_dim);
 
   cudaEvent_t t_start, t_end;
   if (linear->profiling) {
+    printf("output volume %d kernel volume %d in %d out %d batch %d\n", 
+      acc_output.rect.volume(), 
+      acc_kernel.rect.volume(), 
+      in_dim, out_dim, batch_size);
     cudaEventCreate(&t_start);
     cudaEventCreate(&t_end);
     cudaEventRecord(t_start);
@@ -333,10 +346,10 @@ void Linear::forward_task(const Task *task,
     cudaEventDestroy(t_start);
     cudaEventDestroy(t_end);
     printf("Linear forward time = %.2lfms\n", elapsed);
-    //print_tensor<2, float>(acc_input.ptr, acc_input.rect, "[Linear:forward:input]");
-    //print_tensor<2, float>(acc_kernel.ptr, acc_kernel.rect, "[Linear:forward:kernel]");
-    //print_tensor<1, float>(acc_bias.ptr, acc_bias.rect, "[Linear:forward:bias]");
-    //print_tensor<2, float>(acc_output.ptr, acc_output.rect, "[Linear:forward:output]");
+    // print_tensor<2, float>(acc_input.ptr, acc_input.rect, "[Linear:forward:input]");
+    // print_tensor<2, float>(acc_kernel.ptr, acc_kernel.rect, "[Linear:forward:kernel]");
+    // print_tensor<1, float>(acc_bias.ptr, acc_bias.rect, "[Linear:forward:bias]");
+    // print_tensor<2, float>(acc_output.ptr, acc_output.rect, "[Linear:forward:output]");
     checkCUDA(cudaDeviceSynchronize());
   }
 }

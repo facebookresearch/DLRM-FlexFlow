@@ -1,58 +1,34 @@
 #include "model.h"
-// #include "test_utils.h"
-#include <sstream>
 #include "test_utils.h"
+#include <sstream>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
-
 using namespace Legion;
-LegionRuntime::Logger::Category log_app("Flat_test");
+LegionRuntime::Logger::Category log_app("linear_test");
 
-struct FlatTestMeta {
-  int i_dim, o_dim;
-  int* i_shape; 
-  int* o_shape;
-  FlatTestMeta(int _i_dim, int _o_dim, int* _i_shape, int* _o_shape) {
-      i_dim = _i_dim;
-      o_dim = _o_dim;
-      i_shape = _i_shape;
-      o_shape = _o_shape;
+struct LinearTestMeta {
+  int batch_size, i_dim, num_channels, dense_projection_o_dim, dense_projection_i_dim;
+  LinearTestMeta(int _batch_size, int _i_dim, int _num_channels,
+    int _dense_projection_o_dim, int _dense_projection_i_dim) {
+      batch_size = _batch_size, num_channels = _num_channels, 
+        i_dim = _i_dim, dense_projection_o_dim = _dense_projection_o_dim,
+        dense_projection_i_dim = _dense_projection_i_dim;
   }
 };
 
-FlatTestMeta get_test_meta(const std::string file_path) {
+LinearTestMeta get_test_meta(const std::string file_path) {
   std::fstream myfile(file_path, std::ios_base::in);
-  int b;
-  std::vector<int> buffer;
-  while (myfile >> b) 
-  { 
-      buffer.push_back(b); 
-  } 
-  int i_dim(buffer[0]), o_dim(buffer[1]);
-  int* i_shape = new int[i_dim];
-  int* o_shape = new int[o_dim];
-  int offset = 2;
-  for (int i = 0; i < i_dim; i++){
-    i_shape[i] = buffer[i+offset];
-  }
-  offset += i_dim;
-  for (int i = 0; i < o_dim; i++){
-    o_shape[i] = buffer[i+offset];
-  }
-  // int m,k,d;
-  // myfile >> m >> k >> d;
-  return FlatTestMeta(i_dim, o_dim, i_shape, o_shape);
+  int batch_size, i_dim, num_channels, dense_projection_o_dim, dense_projection_i_dim;
+  myfile >> batch_size >> i_dim >> num_channels >> dense_projection_o_dim >> dense_projection_i_dim;
+  return LinearTestMeta(batch_size, i_dim, num_channels, dense_projection_o_dim, dense_projection_i_dim);
 }
-
-
-
 
 void top_level_task(const Task* task,
                     const std::vector<PhysicalRegion>& regions,
                     Context ctx, Runtime* runtime)
 {
-  // std::cout<< "test framework launched" << std::endl;
+  std::cout<< "test framework launched" << std::endl;
   auto test_meta = get_test_meta("test_meta.txt");
   FFConfig ffConfig;
   // Parse input arguments
@@ -65,36 +41,89 @@ void top_level_task(const Task* task,
   ffConfig.lg_ctx = ctx;
   ffConfig.lg_hlr = runtime;
   ffConfig.profiling = false;
+  ffConfig.debug = true;
   ffConfig.field_space = runtime->create_field_space(ctx);
   // create ff model object
   FFModel ff(ffConfig);
-  Tensor dense_input;
-#define input_dim 3
-  const int i_dims[input_dim] = {
-    test_meta.i_shape[0], 
-    test_meta.i_shape[1], 
-    test_meta.i_shape[2]
-    // test_meta.i_shape[3]
-  }; 
-  // std::cout << test_meta.i_shape[0] << test_meta.i_shape[1] << test_meta.i_shape[2] << test_meta.i_shape[3] <<  std::endl;
-  dense_input = ff.create_tensor<input_dim>(i_dims, "", DT_FLOAT);
-  Tensor ret = ff.flat("", dense_input);
-  auto input1_file_path = "test_input1.txt";
+  IndexSpace task_is = IndexSpaceT<2>(ff.get_or_create_task_is(2, ""));
+  Initializer* kernel_initializer = new ZeroInitializer();
+  Initializer* bias_initializer = new ZeroInitializer();
+  Tensor weights;
+  {
+    const int dims[2] = {test_meta.dense_projection_o_dim, test_meta.dense_projection_i_dim};
+    weights = ff.create_linear_weight<2>(dims, (IndexSpaceT<2>)task_is, DT_FLOAT, kernel_initializer);
+    auto weights_file_path = "test_kernel1.txt";
+    initialize_tensor_from_file(weights_file_path, 
+        weights, ff, "float", 2);  
+  }
+  Tensor bias;
+  {
+    const int dims[1] = {test_meta.dense_projection_o_dim};
+    bias = ff.create_linear_weight<1>(dims, (IndexSpaceT<2>)task_is, DT_FLOAT, bias_initializer);
+    auto bias_file_path = "test_bias1.txt";
+    initialize_tensor_from_file(bias_file_path, 
+        bias, ff, "float", 1);  
+  }
+
+  auto dense_projection_file_path = "test_input1.txt";
+
+  // create dense projection
+  Tensor dense_projection;
+  {
+    const int dims[2] = {test_meta.batch_size, test_meta.dense_projection_i_dim}; 
+    dense_projection = ff.create_tensor<2>(dims, "", DT_FLOAT);
+    // dense_projection = ff.create_linear_weight<2>(dims, (IndexSpaceT<2>)task_is, DT_FLOAT, kernel_initializer);
+    initialize_tensor_from_file(dense_projection_file_path, 
+        dense_projection, ff, "float", 2);
+  }
+
   auto output_grad_file_path = "test_output_grad.txt";
-  initialize_tensor_from_file(input1_file_path, dense_input, ff, "float", 3);
+
+
+  // build transpose layer
+  Tensor ret = ff.dense("", 
+    dense_projection,
+    test_meta.dense_projection_o_dim,
+    AC_MODE_NONE,
+    true,
+    NULL,
+    NULL,
+    &weights,
+    NULL
+  );
+  // init gradient
   initialize_tensor_gradient_from_file(output_grad_file_path, ret, ff, "float", 2);
+
+  /*
+  TODO
+  1. mid size problem kernels dont match
+  2. test linear consistency with large problems
+     becasue we don't know if SGD perform consistently 
+  */
+  ff.optimizer = new SGDOptimizer(&ff, 0.01f, 0.0f);
   // run forward and backward to produce results
   ff.init_layers();
-  // forward
+  int epochs = 1;
   ff.forward();
+  for (int i = 0; i < epochs; i++) {
+    ff.backward();
+    ff.update();
+  }
+
+  initialize_tensor_from_file(dense_projection_file_path, 
+      dense_projection, ff, "float", 2);
+  ff.forward();
+  // dump results to file for python validation
   dump_region_to_file(ff, ret.region, "output.txt", 2);
+  // dump_region_to_file(ff, dense_projection.region, "dump.txt", 2);
+  auto kernel = ff.parameters[0].tensor;
+  dump_region_to_file(ff, kernel.region, "kernel_updated1.txt", 2);
+  // kernel = ff.parameters[1].tensor;
+  // dump_region_to_file(ff, kernel.region_grad, "kernel_grad2.txt", 1);
 
-  ff.backward();
-  dump_region_to_file(ff, dense_input.region_grad, "input1_grad.txt", 3);
 
-  
-  
 }
+
 
 
 void register_custom_tasks()

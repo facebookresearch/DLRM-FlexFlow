@@ -265,9 +265,7 @@ int main(int argc, char **argv)
     std::vector<int> device_ids;
     for (int i = 0; i < num_nodes * gpus_per_node; i++)
       device_ids.push_back(i);
-    strategy.add_linear_config("linear", "GPU", "FBM"/*input*/, "FBM"/*weight*/,
-        "FBM"/*output*/, 1, num_nodes*gpus_per_node, device_ids);
-    strategy.add_batch_matmul_config("batch_matmul", "GPU", "FBM"/*input1*/, "FBM"/*input2*/,
+      strategy.add_batch_matmul_config("batch_matmul", "GPU", "FBM"/*input1*/, "FBM"/*input2*/,
         "FBM"/*output*/, num_nodes * gpus_per_node, device_ids);
   }
   {
@@ -293,7 +291,11 @@ int main(int argc, char **argv)
   }
   std::string output = "dlrm_strategy_emb_" + std::to_string(embs_per_node) + "_gpu_" + std::to_string(gpus_per_node) + "_node_" + std::to_string(num_nodes) + ".pb";
   strategy.export_file(output);
-=======
+  output = "dlrm_strategy_" + std::to_string(emb) + "embs_" + std::to_string(gpu) + "gpus.pb";
+  strategy.export_file(output);
+  google::protobuf::ShutdownProtobufLibrary();
+  /*
+  // merge conflicts from https://github.com/facebookresearch/DLRM-FlexFlow/commit/20b9d365f993e06a8576d3f57eab3b83b32ad5dd#diff-287e90a56be12d8500e1226c319b5267
   for (int i = 0; i < emb; i++) {
     std::string name = "embedding"+std::to_string(i);
     FFProtoBuf::Op* op = strategy.add_ops();
@@ -319,7 +321,5 @@ int main(int argc, char **argv)
   std::string output = "dlrm_strategy_" + std::to_string(emb) + "embs_" + std::to_string(gpu) + "gpus.pb";
   std::fstream outputFile(output.c_str(), std::ios::out | std::ios::trunc);
   strategy.SerializeToOstream(&outputFile);
->>>>>>> 38349fef05a7998d22727bd5dadf601df5101f3d
-  google::protobuf::ShutdownProtobufLibrary();
+  */
 }
-

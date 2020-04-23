@@ -89,10 +89,12 @@ enum TaskIDs {
   NORMAL_INIT_TASK_ID,
   // tensor helper tasks
   INIT_TENSOR_FROM_FILE_CPU_TASK,
+  INIT_TENSOR_1D_FROM_FILE_CPU_TASK,
   INIT_TENSOR_2D_FROM_FILE_CPU_TASK,
   INIT_TENSOR_3D_FROM_FILE_CPU_TASK,
   INIT_TENSOR_4D_FROM_FILE_CPU_TASK,
   DUMP_TENSOR_CPU_TASK,
+  DUMP_TENSOR_1D_CPU_TASK,
   DUMP_TENSOR_2D_CPU_TASK,
   DUMP_TENSOR_3D_CPU_TASK,
   DUMP_TENSOR_4D_CPU_TASK,
@@ -287,7 +289,10 @@ public:
                ActiMode activation = AC_MODE_NONE,
                bool use_bias = true,
                Initializer* kernel_initializer = NULL,
-               Initializer* bias_initializer = NULL);
+               Initializer* bias_initializer = NULL,
+               Tensor* weights = NULL,
+               Tensor* bias = NULL);
+
   // Add a linear layer
   Tensor linear(std::string name,
                 const Tensor& input,
@@ -296,6 +301,7 @@ public:
                 bool use_bias = true,
                 Initializer* kernel_initializer = NULL,
                 Initializer* bias_initializer = NULL);
+
 
   // Add a batch matmul layer
   Tensor batch_matmul(std::string name,
@@ -317,6 +323,22 @@ public:
 
   // Add a transpose layer
   Tensor transpose(std::string name, Tensor input);
+
+  // Add a dot compressor layer
+  Tensor dot_compressor(std::string name,
+                        int num_dense_embeddings,
+                        int num_sparse_embeddings, 
+                        Tensor* _dense_embeddings, 
+                        Tensor* _sparse_embeddings,
+                        int compressed_num_channels,
+                        Tensor* dense_projection = NULL, 
+                        ActiMode activation = AC_MODE_NONE,
+                        Initializer* kernel_initializer = NULL,
+                        Initializer* bias_initializer = NULL,
+                        bool use_bias = true,
+                        Tensor* _kernel = NULL,
+                        Tensor* _bias = NULL,
+                        bool test = false);
 
   // Add a flat layer
   Tensor flat(std::string name, Tensor input);
@@ -405,6 +427,7 @@ public:
   Future current_metrics;
   //DataLoader *dataLoader;
 private:
+  bool debug;
   std::map<ParallelConfig, IndexSpace, ParaConfigCompare> taskIs;
 };
 
@@ -801,7 +824,7 @@ public:
                           );
 public:
   IndexSpaceT<3> task_is;
-  Tensor output, input1, input2;
+  Tensor input1, input2;
   cublasOperation_t transpose_1, transpose_2;
   bool transpose_1_flag, transpose_2_flag;
   bool profiling;
@@ -837,7 +860,7 @@ public:
                           );
 public:
   IndexSpaceT<3> task_is;
-  Tensor output, input;
+  Tensor input;
   bool profiling;
 };
 

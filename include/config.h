@@ -25,8 +25,8 @@
 #define MAX_NUM_LOCALS 3
 #define MAX_NUM_WORKERS 1024
 #define MAX_DIM 10
-#define MAX_FILENAME 200
-#define MAX_OPNAME 64
+#define MAX_FILENAME 4096
+#define MAX_OPNAME 4096
 // DataLoader
 #define MAX_SAMPLES_PER_LOAD 64
 #define MAX_FILE_LENGTH 128
@@ -81,7 +81,7 @@ public:
   Context lg_ctx;
   Runtime* lg_hlr;
   FieldSpace field_space;
-  bool syntheticInput, profiling;
+  bool syntheticInput, profiling, debug;
   std::string datasetPath, strategyFile;
   // We use MappingTagID has the key since we will pass the tag to the mapper
   std::map<MappingTagID, ParallelConfig> strategies;

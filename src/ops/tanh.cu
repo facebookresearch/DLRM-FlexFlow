@@ -68,7 +68,6 @@ OpMeta* Tanh<DIM>::init_task(const Task *task,
   else if (DIM == 2) {
     int in_dim = acc_input.rect.hi[0] - acc_input.rect.lo[0] + 1;
     int batch_size = acc_input.rect.hi[1] - acc_input.rect.lo[1] + 1;
-    printf("batch size %d, in dim %d\n", batch_size, in_dim);
     checkCUDNN(cudnnSetTensor4dDescriptor(m->inputTensor,
       CUDNN_TENSOR_NCHW,
       CUDNN_DATA_FLOAT,
@@ -89,7 +88,7 @@ OpMeta* Tanh<DIM>::init_task(const Task *task,
     }
     /*
     https://docs.nvidia.com/deeplearning/sdk/cudnn-api/index.html#cudnnSetTensorNdDescriptor
-    Note: Do not use 2 dimensions. Due to historical reasons, the minimum number of dimensions in the filter descriptor is three. For more information, see cudnnGetRNNLinLayerBiasParams().
+    Note: Do not use for 2 dimensional tensors. The minimum number of dimensions in the filter descriptor is three. For more information, see cudnnGetRNNLinLayerBiasParams().
     */
     checkCUDNN(cudnnSetTensorNdDescriptor(m->inputTensor,
                                           CUDNN_DATA_FLOAT,
@@ -132,7 +131,10 @@ void Tanh<DIM>::init(const FFModel& ff)
     FFConfig::get_hash_id(std::string(name)));
   launcher.add_region_requirement(
       RegionRequirement(input_lps[0], 0/*projection id*/,
-                        READ_ONLY, EXCLUSIVE, inputs[0].region));
+                        READ_WRITE, EXCLUSIVE, inputs[0].region));
+
+
+
   launcher.add_field(0, FID_DATA);
   launcher.add_region_requirement(
       RegionRequirement(output.part, 0/*projection id*/,

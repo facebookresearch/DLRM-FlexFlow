@@ -29,7 +29,51 @@ Tanh<DIM>::Tanh(FFModel& model,
 
 }
 
+template <int DIM>
+void Tanh<DIM>::init(const FFModel& ff)
+{
+  ArgumentMap argmap;
+  Context ctx = ff.config.lg_ctx;
+  Runtime* runtime = ff.config.lg_hlr;
+  Rect<DIM> rect = runtime->get_index_space_domain(ctx, task_is);
+  int idx = 0;
+  for (PointInRectIterator<DIM> it(rect); it(); it++) {
+    FFHandler handle = ff.handlers[idx++];
+    argmap.set_point(*it, TaskArgument(&handle, sizeof(FFHandler)));
+  }
+  auto task_id = TANH_3D_INIT_TASK_ID;
+  if (DIM == 3) {
+    task_id = TANH_3D_INIT_TASK_ID;
+  } else if (DIM == 2) {
+    task_id = TANH_2D_INIT_TASK_ID;
+  } else if (DIM == 1) {
+    task_id = TANH_1D_INIT_TASK_ID;
+  }
+  else {
+    printf("idim %d odim %d not supported", DIM, DIM);
+  }
+  IndexLauncher launcher(task_id, task_is,
+    TaskArgument(this, sizeof(Tanh)), argmap,
+    Predicate::TRUE_PRED, false/*must*/, 0/*mapper_id*/,
+    FFConfig::get_hash_id(std::string(name)));
+  launcher.add_region_requirement(
+      RegionRequirement(input_lps[0], 0/*projection id*/,
+                        READ_WRITE, EXCLUSIVE, inputs[0].region));
 
+
+
+  launcher.add_field(0, FID_DATA);
+  launcher.add_region_requirement(
+      RegionRequirement(output.part, 0/*projection id*/,
+                        WRITE_DISCARD, EXCLUSIVE, output.region));
+  launcher.add_field(1, FID_DATA);
+  FutureMap fm = runtime->execute_index_space(ctx, launcher);
+  fm.wait_all_results();
+  idx = 0;
+  for (PointInRectIterator<DIM> it(rect); it(); it++) {
+    meta[idx++] = fm.get_result<OpMeta*>(*it);
+  }
+}
 
 template <int DIM>
 OpMeta* Tanh<DIM>::init_task(const Task *task,
@@ -102,51 +146,7 @@ OpMeta* Tanh<DIM>::init_task(const Task *task,
   return m;
 }
 
-template <int DIM>
-void Tanh<DIM>::init(const FFModel& ff)
-{
-  ArgumentMap argmap;
-  Context ctx = ff.config.lg_ctx;
-  Runtime* runtime = ff.config.lg_hlr;
-  Rect<DIM> rect = runtime->get_index_space_domain(ctx, task_is);
-  int idx = 0;
-  for (PointInRectIterator<DIM> it(rect); it(); it++) {
-    FFHandler handle = ff.handlers[idx++];
-    argmap.set_point(*it, TaskArgument(&handle, sizeof(FFHandler)));
-  }
-  auto task_id = TANH_3D_INIT_TASK_ID;
-  if (DIM == 3) {
-    task_id = TANH_3D_INIT_TASK_ID;
-  } else if (DIM == 2) {
-    task_id = TANH_2D_INIT_TASK_ID;
-  } else if (DIM == 1) {
-    task_id = TANH_1D_INIT_TASK_ID;
-  }
-  else {
-    printf("idim %d odim %d not supported", DIM, DIM);
-  }
-  IndexLauncher launcher(task_id, task_is,
-    TaskArgument(this, sizeof(Tanh)), argmap,
-    Predicate::TRUE_PRED, false/*must*/, 0/*mapper_id*/,
-    FFConfig::get_hash_id(std::string(name)));
-  launcher.add_region_requirement(
-      RegionRequirement(input_lps[0], 0/*projection id*/,
-                        READ_WRITE, EXCLUSIVE, inputs[0].region));
 
-
-
-  launcher.add_field(0, FID_DATA);
-  launcher.add_region_requirement(
-      RegionRequirement(output.part, 0/*projection id*/,
-                        WRITE_DISCARD, EXCLUSIVE, output.region));
-  launcher.add_field(1, FID_DATA);
-  FutureMap fm = runtime->execute_index_space(ctx, launcher);
-  fm.wait_all_results();
-  idx = 0;
-  for (PointInRectIterator<DIM> it(rect); it(); it++) {
-    meta[idx++] = fm.get_result<OpMeta*>(*it);
-  }
-}
 
 
 

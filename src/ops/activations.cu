@@ -3,17 +3,47 @@
 #include "cuda_helper.h"
 
 template <int DIM>
+Tensor FFModel::sigmoid(std::string name, const Tensor& input, const int output_shape[])
+{
+  Activation<DIM> *activation = new Activation<DIM>(*this, name, "sigmoid", input, output_shape);
+  layers.push_back(activation);
+  return activation->output;
+}
+template <int DIM>
+Tensor FFModel::relu(std::string name, const Tensor& input, const int output_shape[])
+{
+  Activation<DIM> *activation = new Activation<DIM>(*this, name, "relu", input, output_shape);
+  layers.push_back(activation);
+  return activation->output;
+}
+template <int DIM>
+Tensor FFModel::elu(std::string name, const Tensor& input, const int output_shape[])
+{
+  Activation<DIM> *activation = new Activation<DIM>(*this, name, "elu", input, output_shape);
+  layers.push_back(activation);
+  return activation->output;
+}
+template <int DIM>
+Tensor FFModel::identity(std::string name, const Tensor& input, const int output_shape[])
+{
+  Activation<DIM> *activation = new Activation<DIM>(*this, name, "identity", input, output_shape);
+  layers.push_back(activation);
+  return activation->output;
+}
+template <int DIM>
 Tensor FFModel::tanh(std::string name, const Tensor& input, const int output_shape[])
 {
-  Tanh<DIM> *tanh = new Tanh<DIM>(*this, name, input, output_shape);
-  layers.push_back(tanh);
-  return tanh->output;
+  Activation<DIM> *activation = new Activation<DIM>(*this, name, "tanh", input, output_shape);
+  layers.push_back(activation);
+  return activation->output;
 }
 
 
+
 template <int DIM>
-Tanh<DIM>::Tanh(FFModel& model,
+Activation<DIM>::Activation(FFModel& model,
   const std::string& pcname,
+  const std::string& _mode,
   const Tensor& _input, 
   const int output_shape[])
   : Op(pcname, _input)
@@ -26,11 +56,11 @@ Tanh<DIM>::Tanh(FFModel& model,
   output = model.create_tensor<DIM>(output_shape, task_is, DT_FLOAT);
   model.create_data_parallel_partition_with_diff_dims<DIM, DIM>(
       _input, task_is, input_lps[0], input_grad_lps[0]);
-
+  mode = _mode;
 }
 
 template <int DIM>
-void Tanh<DIM>::init(const FFModel& ff)
+void Activation<DIM>::init(const FFModel& ff)
 {
   ArgumentMap argmap;
   Context ctx = ff.config.lg_ctx;
@@ -39,21 +69,34 @@ void Tanh<DIM>::init(const FFModel& ff)
   int idx = 0;
   for (PointInRectIterator<DIM> it(rect); it(); it++) {
     FFHandler handle = ff.handlers[idx++];
+    if (mode == "relu") {
+      handle.mode = CUDNN_ACTIVATION_RELU;
+    } else if (mode == "sigmoid") {
+      handle.mode = CUDNN_ACTIVATION_SIGMOID;
+    } else if (mode == "elu") {
+      handle.mode = CUDNN_ACTIVATION_ELU;
+    } else if (mode == "tanh") {
+      handle.mode = CUDNN_ACTIVATION_TANH;
+    } else if (mode == "idendity") {
+      handle.mode = CUDNN_ACTIVATION_IDENTITY;
+    } else {
+      throw 255;
+    }
     argmap.set_point(*it, TaskArgument(&handle, sizeof(FFHandler)));
   }
-  auto task_id = TANH_3D_INIT_TASK_ID;
+  auto task_id = ACTIVATION_3D_INIT_TASK_ID;
   if (DIM == 3) {
-    task_id = TANH_3D_INIT_TASK_ID;
+    task_id = ACTIVATION_3D_INIT_TASK_ID;
   } else if (DIM == 2) {
-    task_id = TANH_2D_INIT_TASK_ID;
+    task_id = ACTIVATION_2D_INIT_TASK_ID;
   } else if (DIM == 1) {
-    task_id = TANH_1D_INIT_TASK_ID;
+    task_id = ACTIVATION_1D_INIT_TASK_ID;
   }
   else {
     printf("idim %d odim %d not supported", DIM, DIM);
   }
   IndexLauncher launcher(task_id, task_is,
-    TaskArgument(this, sizeof(Tanh)), argmap,
+    TaskArgument(this, sizeof(Activation)), argmap,
     Predicate::TRUE_PRED, false/*must*/, 0/*mapper_id*/,
     FFConfig::get_hash_id(std::string(name)));
   launcher.add_region_requirement(
@@ -76,12 +119,12 @@ void Tanh<DIM>::init(const FFModel& ff)
 }
 
 template <int DIM>
-OpMeta* Tanh<DIM>::init_task(const Task *task,
+OpMeta* Activation<DIM>::init_task(const Task *task,
                         const std::vector<PhysicalRegion> &regions,
                         Context ctx, Runtime *runtime)
 {
   FFHandler handle = *((const FFHandler*) task->local_args);
-  TanhMeta* m = new TanhMeta(handle);
+  ActivationMeta* m = new ActivationMeta(handle);
   assert(regions.size() == 2);
   assert(task->regions.size() == 2);
   TensorAccessorR<float, DIM> acc_input(regions[0], task->regions[0], FID_DATA, ctx, runtime);
@@ -98,7 +141,8 @@ OpMeta* Tanh<DIM>::init_task(const Task *task,
   checkCUDNN(cudnnCreateActivationDescriptor(&m->activation));
   checkCUDNN(cudnnSetActivationDescriptor(
     m->activation,
-    CUDNN_ACTIVATION_TANH,
+    // CUDNN_ACTIVATION_TANH,
+    m->handle.mode,
     CUDNN_NOT_PROPAGATE_NAN,
     0.0
   ));   
@@ -155,14 +199,14 @@ OpMeta* Tanh<DIM>::init_task(const Task *task,
   regions[1](O): output
 */  
 template <int DIM>
-void Tanh<DIM>::forward_task(const Task *task,
+void Activation<DIM>::forward_task(const Task *task,
                         const std::vector<PhysicalRegion> &regions,
                         Context ctx, Runtime *runtime)
 {
   assert(regions.size() == 2);
   assert(task->regions.size() == 2);
   float alpha = 1.0f, beta = 0.0f;
-  const TanhMeta* m = *((TanhMeta**) task->local_args);
+  const ActivationMeta* m = *((ActivationMeta**) task->local_args);
   TensorAccessorR<float, DIM> acc_input(
     regions[0], task->regions[0], FID_DATA, ctx, runtime);
   TensorAccessorW<float, DIM> acc_output(
@@ -184,7 +228,7 @@ void Tanh<DIM>::forward_task(const Task *task,
 }
 
 template <int DIM>
-void Tanh<DIM>::forward(const FFModel& ff)
+void Activation<DIM>::forward(const FFModel& ff)
 {
   ArgumentMap argmap;
   Context ctx = ff.config.lg_ctx;
@@ -195,13 +239,13 @@ void Tanh<DIM>::forward(const FFModel& ff)
     OpMeta* mp = meta[idx++];
     argmap.set_point(*it, TaskArgument(&mp, sizeof(OpMeta*)));
   }
-  auto task_id = TANH_3D_FWD_TASK_ID;
+  auto task_id = ACTIVATION_3D_FWD_TASK_ID;
   if (DIM == 3) {
-    task_id = TANH_3D_FWD_TASK_ID;
+    task_id = ACTIVATION_3D_FWD_TASK_ID;
   } else if (DIM == 2) {
-    task_id = TANH_2D_FWD_TASK_ID;
+    task_id = ACTIVATION_2D_FWD_TASK_ID;
   } else if (DIM == 1) {
-    task_id = TANH_1D_FWD_TASK_ID;
+    task_id = ACTIVATION_1D_FWD_TASK_ID;
   } else {
     printf("idim %d odim %d not supported", DIM, DIM);
   }
@@ -228,14 +272,14 @@ void Tanh<DIM>::forward(const FFModel& ff)
   regions[3](I) : output_grad
 */
 template <int DIM>
-void Tanh<DIM>::backward_task(const Task *task,
+void Activation<DIM>::backward_task(const Task *task,
                          const std::vector<PhysicalRegion> &regions,
                          Context ctx, Runtime *runtime)
 {
   assert(regions.size() == 4);
   assert(task->regions.size() == 4);
   float alpha = 1.0f, beta = 0.0f;
-  const TanhMeta* m = *((TanhMeta**) task->local_args);
+  const ActivationMeta* m = *((ActivationMeta**) task->local_args);
   TensorAccessorR<float, DIM> acc_input(
     regions[0], task->regions[0], FID_DATA, ctx, runtime);
   TensorAccessorR<float, DIM> acc_output(
@@ -265,7 +309,7 @@ void Tanh<DIM>::backward_task(const Task *task,
 }
 
 template <int DIM>
-void Tanh<DIM>::backward(const FFModel& ff)
+void Activation<DIM>::backward(const FFModel& ff)
 {
   ArgumentMap argmap;
   Context ctx = ff.config.lg_ctx;
@@ -276,13 +320,13 @@ void Tanh<DIM>::backward(const FFModel& ff)
     OpMeta* mp = meta[idx++];
     argmap.set_point(*it, TaskArgument(&mp, sizeof(OpMeta*)));
   }
-  auto task_id = TANH_3D_BWD_TASK_ID;
+  auto task_id = ACTIVATION_3D_BWD_TASK_ID;
   if (DIM == 3) {
-    task_id = TANH_3D_BWD_TASK_ID;
+    task_id = ACTIVATION_3D_BWD_TASK_ID;
   } else if (DIM == 2) {
-    task_id = TANH_2D_BWD_TASK_ID;
+    task_id = ACTIVATION_2D_BWD_TASK_ID;
   } else if (DIM == 1) {
-    task_id = TANH_1D_BWD_TASK_ID;
+    task_id = ACTIVATION_1D_BWD_TASK_ID;
   } else {
     printf("idim %d odim %d not supported", DIM, DIM);
   }
@@ -311,54 +355,70 @@ void Tanh<DIM>::backward(const FFModel& ff)
 }
 
 
-template Tanh<1>::Tanh(FFModel& model,
+template Activation<1>::Activation(FFModel& model,
   const std::string& pcname,
+  const std::string& _mode,
   const Tensor& _input,
   const int output_shape[]);
-template Tanh<2>::Tanh(FFModel& model,
+template Activation<2>::Activation(FFModel& model,
   const std::string& pcname,
+  const std::string& _mode,
   const Tensor& _input,
   const int output_shape[]);
-template Tanh<3>::Tanh(FFModel& model,
+template Activation<3>::Activation(FFModel& model,
   const std::string& pcname,
+  const std::string& _mode,
   const Tensor& _input,
   const int output_shape[]);
-template OpMeta* Tanh<1>::init_task(const Task *task,
+template OpMeta* Activation<1>::init_task(const Task *task,
   const std::vector<PhysicalRegion> &regions,
   Context ctx, Runtime *runtime);  
-template OpMeta* Tanh<2>::init_task(const Task *task,
+template OpMeta* Activation<2>::init_task(const Task *task,
   const std::vector<PhysicalRegion> &regions,
   Context ctx, Runtime *runtime);
-template OpMeta* Tanh<3>::init_task(const Task *task,
+template OpMeta* Activation<3>::init_task(const Task *task,
   const std::vector<PhysicalRegion> &regions,
   Context ctx, Runtime *runtime);
-template void Tanh<1>::init(const FFModel& ff);
-template void Tanh<2>::init(const FFModel& ff);
-template void Tanh<3>::init(const FFModel& ff);
-template void Tanh<1>::forward_task(const Task *task,
+template void Activation<1>::init(const FFModel& ff);
+template void Activation<2>::init(const FFModel& ff);
+template void Activation<3>::init(const FFModel& ff);
+template void Activation<1>::forward_task(const Task *task,
   const std::vector<PhysicalRegion> &regions,
   Context ctx, Runtime *runtime);
-template void Tanh<2>::forward_task(const Task *task,
+template void Activation<2>::forward_task(const Task *task,
   const std::vector<PhysicalRegion> &regions,
   Context ctx, Runtime *runtime);
-template void Tanh<3>::forward_task(const Task *task,
+template void Activation<3>::forward_task(const Task *task,
   const std::vector<PhysicalRegion> &regions,
   Context ctx, Runtime *runtime);
-template void Tanh<1>::forward(const FFModel& ff);
-template void Tanh<2>::forward(const FFModel& ff);
-template void Tanh<3>::forward(const FFModel& ff);
-template void Tanh<1>::backward_task(const Task *task,
+template void Activation<1>::forward(const FFModel& ff);
+template void Activation<2>::forward(const FFModel& ff);
+template void Activation<3>::forward(const FFModel& ff);
+template void Activation<1>::backward_task(const Task *task,
   const std::vector<PhysicalRegion> &regions,
   Context ctx, Runtime *runtime);
-template void Tanh<2>::backward_task(const Task *task,
+template void Activation<2>::backward_task(const Task *task,
   const std::vector<PhysicalRegion> &regions,
   Context ctx, Runtime *runtime);
-template void Tanh<3>::backward_task(const Task *task,
+template void Activation<3>::backward_task(const Task *task,
   const std::vector<PhysicalRegion> &regions,
   Context ctx, Runtime *runtime);
-template void Tanh<1>::backward(const FFModel& ff);
-template void Tanh<2>::backward(const FFModel& ff);
-template void Tanh<3>::backward(const FFModel& ff);
+template void Activation<1>::backward(const FFModel& ff);
+template void Activation<2>::backward(const FFModel& ff);
+template void Activation<3>::backward(const FFModel& ff);
+
+template Tensor FFModel::relu<3>(std::string name, const Tensor& input, const int output_shape[]);
+template Tensor FFModel::relu<2>(std::string name, const Tensor& input, const int output_shape[]);
+template Tensor FFModel::relu<1>(std::string name, const Tensor& input, const int output_shape[]);
+template Tensor FFModel::elu<3>(std::string name, const Tensor& input, const int output_shape[]);
+template Tensor FFModel::elu<2>(std::string name, const Tensor& input, const int output_shape[]);
+template Tensor FFModel::elu<1>(std::string name, const Tensor& input, const int output_shape[]);
+template Tensor FFModel::sigmoid<3>(std::string name, const Tensor& input, const int output_shape[]);
+template Tensor FFModel::sigmoid<2>(std::string name, const Tensor& input, const int output_shape[]);
+template Tensor FFModel::sigmoid<1>(std::string name, const Tensor& input, const int output_shape[]);
+template Tensor FFModel::identity<3>(std::string name, const Tensor& input, const int output_shape[]);
+template Tensor FFModel::identity<2>(std::string name, const Tensor& input, const int output_shape[]);
+template Tensor FFModel::identity<1>(std::string name, const Tensor& input, const int output_shape[]);
 template Tensor FFModel::tanh<3>(std::string name, const Tensor& input, const int output_shape[]);
 template Tensor FFModel::tanh<2>(std::string name, const Tensor& input, const int output_shape[]);
 template Tensor FFModel::tanh<1>(std::string name, const Tensor& input, const int output_shape[]);

@@ -1290,67 +1290,67 @@ int main(int argc, char** argv)
   }
   // Tanh task
   {
-    TaskVariantRegistrar registrar(TANH_3D_FWD_TASK_ID, "tanh_fwd_task");
+    TaskVariantRegistrar registrar(ACTIVATION_3D_FWD_TASK_ID, "activation_fwd_task");
     registrar.add_constraint(ProcessorConstraint(Processor::TOC_PROC));
     registrar.set_leaf();
-    Runtime::preregister_task_variant<Tanh<3>::forward_task>(
-        registrar, "tanh_fwd_task");
+    Runtime::preregister_task_variant<Activation<3>::forward_task>(
+        registrar, "activation_fwd_task");
   }
   {
-    TaskVariantRegistrar registrar(TANH_2D_FWD_TASK_ID, "tanh_fwd_task");
+    TaskVariantRegistrar registrar(ACTIVATION_2D_FWD_TASK_ID, "activation_fwd_task");
     registrar.add_constraint(ProcessorConstraint(Processor::TOC_PROC));
     registrar.set_leaf();
-    Runtime::preregister_task_variant<Tanh<2>::forward_task>(
-        registrar, "tanh_fwd_task");
+    Runtime::preregister_task_variant<Activation<2>::forward_task>(
+        registrar, "activation_fwd_task");
   }
   {
-    TaskVariantRegistrar registrar(TANH_1D_FWD_TASK_ID, "tanh_fwd_task");
+    TaskVariantRegistrar registrar(ACTIVATION_1D_FWD_TASK_ID, "activation_fwd_task");
     registrar.add_constraint(ProcessorConstraint(Processor::TOC_PROC));
     registrar.set_leaf();
-    Runtime::preregister_task_variant<Tanh<1>::forward_task>(
-        registrar, "tanh_fwd_task");
+    Runtime::preregister_task_variant<Activation<1>::forward_task>(
+        registrar, "activation_fwd_task");
   }
   {
-    TaskVariantRegistrar registrar(TANH_3D_BWD_TASK_ID, "tanh_bwd_task");
+    TaskVariantRegistrar registrar(ACTIVATION_3D_BWD_TASK_ID, "activation_bwd_task");
     registrar.add_constraint(ProcessorConstraint(Processor::TOC_PROC));
     registrar.set_leaf();
-    Runtime::preregister_task_variant<Tanh<3>::backward_task>(
-        registrar, "tanh_bwd_task");
+    Runtime::preregister_task_variant<Activation<3>::backward_task>(
+        registrar, "activation_bwd_task");
   }
   {
-    TaskVariantRegistrar registrar(TANH_2D_BWD_TASK_ID, "tanh_bwd_task");
+    TaskVariantRegistrar registrar(ACTIVATION_2D_BWD_TASK_ID, "activation_bwd_task");
     registrar.add_constraint(ProcessorConstraint(Processor::TOC_PROC));
     registrar.set_leaf();
-    Runtime::preregister_task_variant<Tanh<2>::backward_task>(
-        registrar, "tanh_bwd_task");
+    Runtime::preregister_task_variant<Activation<2>::backward_task>(
+        registrar, "activation_bwd_task");
   }
   {
-    TaskVariantRegistrar registrar(TANH_1D_BWD_TASK_ID, "tanh_bwd_task");
+    TaskVariantRegistrar registrar(ACTIVATION_1D_BWD_TASK_ID, "activation_bwd_task");
     registrar.add_constraint(ProcessorConstraint(Processor::TOC_PROC));
     registrar.set_leaf();
-    Runtime::preregister_task_variant<Tanh<1>::backward_task>(
-        registrar, "tanh_bwd_task");
+    Runtime::preregister_task_variant<Activation<1>::backward_task>(
+        registrar, "activation_bwd_task");
   }
   {
-    TaskVariantRegistrar registrar(TANH_3D_INIT_TASK_ID, "tanh_init_task");
+    TaskVariantRegistrar registrar(ACTIVATION_3D_INIT_TASK_ID, "activation_init_task");
     registrar.add_constraint(ProcessorConstraint(Processor::TOC_PROC));
     registrar.set_leaf();
-    Runtime::preregister_task_variant<OpMeta*, Tanh<3>::init_task>(
-        registrar, "tanh_init_task");
+    Runtime::preregister_task_variant<OpMeta*, Activation<3>::init_task>(
+        registrar, "activation_init_task");
   }
   {
-    TaskVariantRegistrar registrar(TANH_2D_INIT_TASK_ID, "tanh_init_task");
+    TaskVariantRegistrar registrar(ACTIVATION_2D_INIT_TASK_ID, "activation_init_task");
     registrar.add_constraint(ProcessorConstraint(Processor::TOC_PROC));
     registrar.set_leaf();
-    Runtime::preregister_task_variant<OpMeta*, Tanh<2>::init_task>(
-        registrar, "tanh_init_task");
+    Runtime::preregister_task_variant<OpMeta*, Activation<2>::init_task>(
+        registrar, "activation_init_task");
   }
   {
-    TaskVariantRegistrar registrar(TANH_1D_INIT_TASK_ID, "tanh_init_task");
+    TaskVariantRegistrar registrar(ACTIVATION_1D_INIT_TASK_ID, "activation_init_task");
     registrar.add_constraint(ProcessorConstraint(Processor::TOC_PROC));
     registrar.set_leaf();
-    Runtime::preregister_task_variant<OpMeta*, Tanh<1>::init_task>(
-        registrar, "tanh_init_task");
+    Runtime::preregister_task_variant<OpMeta*, Activation<1>::init_task>(
+        registrar, "activation_init_task");
   }
   // Optimizer
   {

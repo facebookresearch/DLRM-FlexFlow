@@ -167,15 +167,15 @@ enum TaskIDs2 {
   RESHAPE_3_TO_2_BWD_TASK_ID,
   RESHAPE_3_TO_2_INIT_TASK_ID,
   RESHAPE_2_TO_3_BWD_TASK_ID,
-  TANH_1D_INIT_TASK_ID,
-  TANH_2D_INIT_TASK_ID,
-  TANH_3D_INIT_TASK_ID,
-  TANH_1D_FWD_TASK_ID,
-  TANH_2D_FWD_TASK_ID,
-  TANH_3D_FWD_TASK_ID,
-  TANH_1D_BWD_TASK_ID,
-  TANH_2D_BWD_TASK_ID,
-  TANH_3D_BWD_TASK_ID,
+  ACTIVATION_1D_INIT_TASK_ID,
+  ACTIVATION_2D_INIT_TASK_ID,
+  ACTIVATION_3D_INIT_TASK_ID,
+  ACTIVATION_1D_FWD_TASK_ID,
+  ACTIVATION_2D_FWD_TASK_ID,
+  ACTIVATION_3D_FWD_TASK_ID,
+  ACTIVATION_1D_BWD_TASK_ID,
+  ACTIVATION_2D_BWD_TASK_ID,
+  ACTIVATION_3D_BWD_TASK_ID,
   First = FIRST_TASK_ID
   // Last = RESHAPE_2_TO_3_BWD_TASK_ID
 };
@@ -190,6 +190,9 @@ struct FFHandler {
   cublasHandle_t blas;
   void *workSpace;
   size_t workSpaceSize;
+#ifndef DISABLE_COMPUTATION
+  cudnnActivationMode_t mode;
+#endif
 };
 
 struct Tensor {
@@ -354,12 +357,44 @@ public:
     const Tensor& input,
     const int output_shape[]);
 
+  // Add a sigmoid layer
+  template<int DIM>
+  Tensor sigmoid(std::string name, 
+    const Tensor& input,
+    const int output_shape[]);
+
+  // Add a relu layer
+  template<int DIM>
+  Tensor relu(std::string name, 
+    const Tensor& input,
+    const int output_shape[]);
+
+  // Add a elu layer
+  template<int DIM>
+  Tensor elu(std::string name, 
+    const Tensor& input,
+    const int output_shape[]);
+
+  // Add a identity layer
+  template<int DIM>
+  Tensor identity(std::string name, 
+    const Tensor& input,
+    const int output_shape[]);
+
+
+  // mse loss layer
   void mse_loss(const std::string& name,
                 const Tensor& logits,
                 const Tensor& labels,
                 const std::string& reduction);
 
   void mse_loss3d(const std::string& name,
+                const Tensor& logits,
+                const Tensor& labels,
+                const std::string& reduction);
+
+  // sigmoid loss layer
+  void sigmoid_cross_entropy_loss(const std::string& name,
                 const Tensor& logits,
                 const Tensor& labels,
                 const std::string& reduction);
@@ -939,5 +974,44 @@ public:
 #endif
 };
 
+
+template <int DIM>
+class Activation : public Op {
+public:
+  Activation(FFModel& model,
+         const std::string& pcname,
+         const std::string& _mode,
+         const Tensor& _input, const int output_shape[]);
+  void init(const FFModel&);
+  void forward(const FFModel&);
+  void backward(const FFModel&);
+  static void forward_task(const Task *task,
+                           const std::vector<PhysicalRegion> &regions,
+                           Context ctx, Runtime *runtime);
+  static void backward_task(
+                          const Task *task,
+                          const std::vector<PhysicalRegion> &regions,
+                          Context ctx, Runtime *runtime
+                          );
+  static OpMeta* init_task(const Task *task,
+                        const std::vector<PhysicalRegion> &regions,
+                        Context ctx, Runtime *runtime);
+public:
+  Tensor input;
+  bool profiling;
+  std::string pcname;
+  IndexSpaceT<DIM> task_is;
+  std::string mode;
+};
+
+class ActivationMeta : public OpMeta {
+public:
+  ActivationMeta(FFHandler handle) : OpMeta(handle) {};
+#ifndef DISABLE_COMPUTATION
+  cudnnTensorDescriptor_t inputTensor;
+  cudnnActivationDescriptor_t activation;
+  // cudnnActivationMode_t mode;
+#endif
+};
 
 #endif//_FLEXFLOW_RUNTIME_H_

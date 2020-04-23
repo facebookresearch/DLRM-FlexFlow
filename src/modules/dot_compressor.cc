@@ -122,7 +122,8 @@ Tensor FFModel::dot_compressor(
   layers.push_back(flattened_bmm);
   
   // tanh
-  Tanh<2> *tanh = new Tanh<2>(*this, 
+  Activation<2> *tanh = new Activation<2>(*this, 
+    "tanh_act",
     "tanh", 
     flattened_bmm->output, 
     l4_shape);

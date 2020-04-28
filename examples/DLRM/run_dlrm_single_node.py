@@ -20,7 +20,7 @@ TOP_CONFIGS  = [(1024,9), (4096,8)]
 DENSE_FEATURES = 1024
 BOT_MLP_SIZE = 1024
 NUM_BOT_MLPS = 3
-NUM_EMBDDING = 1
+NUM_EMBEDDING = 1
 repeat = 1
 
 per_gpu_batch_sizes = [2 ** i for i in range(6, 14)]
@@ -87,7 +87,7 @@ with open("res_single_node.csv", "w") as csvfile:
                       write_cmd = 0
 
                   try:
-                      gen_strategy_cmd = 'cd ~/DLRM_FlexFlow/src/runtime && ./gen_strategy.sh %d %d %d' % (gpus, NUM_EMBDDING, nodes)
+                      gen_strategy_cmd = 'cd ~/DLRM_FlexFlow/src/runtime && ./gen_strategy.sh %d %d %d' % (gpus, NUM_EMBEDDING, nodes)
                       st_out = subprocess.check_output(gen_strategy_cmd, stderr=subprocess.STDOUT, shell=True)
                       print(st_out)
                       out = subprocess.check_output(cmd, stderr=subprocess.STDOUT, shell=True)

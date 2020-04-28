@@ -1,3 +1,6 @@
 #!/bin/bash
 # request 8 gpus resource for testing
-srun --nodes=1 --gres=gpu:8 --cpus-per-task=80 --partition=dev --time=30 --pty /bin/bash -l
+numgpu="$1"
+numnode="$2"
+lifetime="$3"
+srun --nodes=${numnode} --gres=gpu:${numgpu} --cpus-per-task=80 --partition=dev --time=${lifetime} --pty /bin/bash -l

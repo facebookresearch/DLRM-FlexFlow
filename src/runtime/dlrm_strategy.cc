@@ -291,7 +291,7 @@ int main(int argc, char **argv)
   }
   std::string output = "dlrm_strategy_emb_" + std::to_string(embs_per_node) + "_gpu_" + std::to_string(gpus_per_node) + "_node_" + std::to_string(num_nodes) + ".pb";
   strategy.export_file(output);
-  output = "dlrm_strategy_" + std::to_string(emb) + "embs_" + std::to_string(gpu) + "gpus.pb";
+  output = "dlrm_strategy_" + std::to_string(embs_per_node) + "embs_" + std::to_string(gpus_per_node) + "gpus.pb";
   strategy.export_file(output);
   google::protobuf::ShutdownProtobufLibrary();
   /*

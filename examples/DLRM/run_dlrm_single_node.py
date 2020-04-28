@@ -87,7 +87,7 @@ with open("res_single_node.csv", "w") as csvfile:
                       write_cmd = 0
 
                   try:
-                      gen_strategy_cmd = 'cd ~/DLRM_FlexFlow/src/runtime && ./gen_strategy.sh %d %d %d' % (gpus, NUM_EMBEDDING, nodes)
+                      gen_strategy_cmd = 'cd ../../src/runtime && ./gen_strategy.sh %d %d %d' % (gpus, NUM_EMBEDDING, nodes)
                       st_out = subprocess.check_output(gen_strategy_cmd, stderr=subprocess.STDOUT, shell=True)
                       print(st_out)
                       out = subprocess.check_output(cmd, stderr=subprocess.STDOUT, shell=True)

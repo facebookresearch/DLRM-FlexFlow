@@ -64,6 +64,17 @@ Op::Op(const std::string& _name,
   }
 }
 
+Op::Op(const std::string& _name)
+: numLocals(0), numInputs(1)
+{
+  assert(_name.length() < MAX_OPNAME);
+  std::strcpy(name, _name.c_str());
+  for (int i = 0; i < numInputs; i++) {
+    trainableInputs[i] = true;
+    resetInputGrads[i] = true;
+  }
+}
+
 FFModel::FFModel(FFConfig& _config)
 : config(_config)
 {
@@ -1157,7 +1168,7 @@ int main(int argc, char** argv)
     TaskVariantRegistrar registrar(SOFTMAX_BWD_TASK_ID, "softmax_bwd_task");
     registrar.add_constraint(ProcessorConstraint(Processor::TOC_PROC));
     registrar.set_leaf();
-    Runtime::preregister_task_variant<Softmax::backward_task>(
+    Runtime::preregister_task_variant<PerfMetrics, Softmax::backward_task>(
         registrar, "softmax_bwd_task");
   }
   // MSELoss

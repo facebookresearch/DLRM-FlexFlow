@@ -29,8 +29,7 @@ Tensor FFModel::conv2d(std::string name,
 {
   if (kernel_initializer == NULL) {
     int seed = std::rand();
-    //kernel_initializer = new GlorotUniform(seed);
-    kernel_initializer = new ZeroInitializer();
+    kernel_initializer = new GlorotUniform(seed);
   }
   if (bias_initializer == NULL) {
     bias_initializer = new ZeroInitializer();
@@ -40,17 +39,33 @@ Tensor FFModel::conv2d(std::string name,
   Conv2D *conv = new Conv2D(*this, name, input, outChannels, kernelH, kernelW,
                             strideH, strideW, paddingH, paddingW, activation,
                             use_bias, kernel_initializer, bias_initializer);
-  layers.push_back(conv);
-  Parameter kernel, bias;
-  kernel.tensor = conv->kernel;
-  kernel.op = conv;
-  parameters.push_back(kernel);
-  if (use_bias) {
-    bias.tensor = conv->bias;
-    bias.op = conv;
-    parameters.push_back(bias);
-  }
+  conv->add_to_model(*this);
   return conv->output;
+}
+
+Conv2D* FFModel::conv2d(std::string name,
+                       int inChannels,
+                       int outChannels,
+                       int kernelH, int kernelW,
+                       int strideH, int strideW,
+                       int paddingH, int paddingW,
+                       ActiMode activation,
+                       bool use_bias,
+                       Initializer* kernel_initializer,
+                       Initializer* bias_initializer)
+{
+  if (kernel_initializer == NULL) {
+    int seed = std::rand();
+    kernel_initializer = new GlorotUniform(seed);
+  }
+  if (bias_initializer == NULL) {
+    bias_initializer = new ZeroInitializer();
+  }
+
+  Conv2D *conv = new Conv2D(*this, name, inChannels, outChannels, kernelH, kernelW,
+                            strideH, strideW, paddingH, paddingW, activation,
+                            use_bias, kernel_initializer, bias_initializer);
+  return conv;
 }
 
 /*
@@ -76,50 +91,8 @@ Conv2D::Conv2D(FFModel& model,
   activation(_activation), profiling(model.config.profiling)
 {
   assert(_input.numDim == 4);
-    // Retrive the task indexspace for the op
-  task_is = IndexSpaceT<4>(model.get_or_create_task_is(4, pcname));
-
-  Context ctx = model.config.lg_ctx;
-  Runtime* runtime = model.config.lg_hlr;
-  Rect<4> part_rect = runtime->get_index_space_domain(ctx, task_is);
-  // Create output tensor
-  int input_w = _input.adim[0];
-  int input_h = _input.adim[1];
-  int input_c = _input.adim[2];
-  int output_w = 1 + (input_w + 2 * padding_w - kernel_w) / stride_w;
-  int output_h = 1 + (input_h + 2 * padding_h - kernel_h) / stride_h;
-  int output_c = out_dim;
-  int output_n = _input.adim[3];
-  int num_par_w = part_rect.hi[0] - part_rect.lo[0] + 1;
-  int num_par_h = part_rect.hi[1] - part_rect.lo[1] + 1;
-  int num_par_c = part_rect.hi[2] - part_rect.lo[2] + 1;
-  int num_par_n = part_rect.hi[3] - part_rect.lo[3] + 1;
-  {
-    const int dims[4] = {output_n, output_c, output_h, output_w};
-    output = model.create_tensor<4>(dims, task_is, DT_FLOAT);
-  }
-  // Create kernel
-  {
-    const int dims[4] = {output_c, input_c, kernel_h, kernel_w};
-    kernel = model.create_conv_weight<4>(dims, (IndexSpaceT<4>)task_is, DT_FLOAT, kernel_initializer);
-  }
-  // Create bias tensor
-  if (use_bias) {
-    const int dims[1] = {output_c};
-    bias = model.create_conv_weight<1>(dims, (IndexSpaceT<4>)task_is, DT_FLOAT, bias_initializer);
-  }
-  // Compute partition bound for input
-  Rect<4> input_rect = runtime->get_index_partition_color_space(
-      ctx, inputs[0].part.get_index_partition());
-  // Currently assume we didn't split across the channel dimension
-  assert(num_par_c == 1);
-  if (input_rect == part_rect) {
-    input_lps[0] = inputs[0].part;
-    input_grad_lps[0] = inputs[0].part_grad;
-  } else {
-    model.create_disjoint_partition<4>(
-        inputs[0], task_is, input_lps[0], input_grad_lps[0]);
-  }
+  create_kernel_bias(model, use_bias, kernel_initializer, bias_initializer);
+  create_output_and_partition(model);
 #ifdef DEADCODE
   IndexSpaceT<4> output_is;
   {
@@ -256,6 +229,107 @@ Conv2D::Conv2D(FFModel& model,
 #endif
 }
 
+Conv2D::Conv2D(FFModel& model,
+               const std::string& pcname,
+               int in_dim,
+               int out_dim,
+               int _kernel_h, int _kernel_w,
+               int _stride_h, int _stride_w,
+               int _padding_h, int _padding_w,
+               ActiMode _activation,
+               bool use_bias,
+               Initializer* kernel_initializer,
+               Initializer* bias_initializer)
+: Op(pcname),
+  in_channels(in_dim), out_channels(out_dim),
+  kernel_h(_kernel_h), kernel_w(_kernel_w),
+  stride_h(_stride_h), stride_w(_stride_w),
+  padding_h(_padding_h), padding_w(_padding_w),
+  activation(_activation), profiling(model.config.profiling)
+{
+  create_kernel_bias(model, use_bias, kernel_initializer, bias_initializer);
+}
+
+Tensor Conv2D::init_inout(FFModel& model, const Tensor& _input)
+{
+  add_to_model(model);
+  assert(_input.numDim == 4);
+  assert(_input.adim[2] == in_channels);
+  inputs[0] = _input;
+  create_output_and_partition(model);
+  return output;
+}
+
+void Conv2D::add_to_model(FFModel& model)
+{
+  model.layers.push_back(this);
+  Parameter _kernel, _bias;
+  _kernel.tensor = kernel;
+  _kernel.op = this;
+  model.parameters.push_back(_kernel);
+  if (bias.numDim != 0) { // bias is used
+    _bias.tensor = bias;
+    _bias.op = this;
+    model.parameters.push_back(_bias);
+  }
+}
+
+void Conv2D::create_kernel_bias(FFModel& model, bool use_bias, Initializer* kernel_initializer, Initializer* bias_initializer)
+{
+  // Retrive the task indexspace for the op
+  std::string pcname = name;
+  task_is = IndexSpaceT<4>(model.get_or_create_task_is(4, pcname));
+  
+  // Create kernel
+  {
+    const int dims[4] = {out_channels, in_channels, kernel_h, kernel_w};
+    kernel = model.create_conv_weight<4>(dims, (IndexSpaceT<4>)task_is, DT_FLOAT, kernel_initializer);
+  }
+  // Create bias tensor
+  if (use_bias) {
+    const int dims[1] = {out_channels};
+    bias = model.create_conv_weight<1>(dims, (IndexSpaceT<4>)task_is, DT_FLOAT, bias_initializer);
+  }
+}
+
+void Conv2D::create_output_and_partition(FFModel& model)
+{
+  // Retrive the task indexspace for the op
+  std::string pcname = name;
+  task_is = IndexSpaceT<4>(model.get_or_create_task_is(4, pcname));
+
+  Context ctx = model.config.lg_ctx;
+  Runtime* runtime = model.config.lg_hlr;
+  Rect<4> part_rect = runtime->get_index_space_domain(ctx, task_is);
+  // Create output tensor
+  int input_w = inputs[0].adim[0];
+  int input_h = inputs[0].adim[1];
+  int output_w = 1 + (input_w + 2 * padding_w - kernel_w) / stride_w;
+  int output_h = 1 + (input_h + 2 * padding_h - kernel_h) / stride_h;
+  int output_c = out_channels;
+  int output_n = inputs[0].adim[3];
+  int num_par_w = part_rect.hi[0] - part_rect.lo[0] + 1;
+  int num_par_h = part_rect.hi[1] - part_rect.lo[1] + 1;
+  int num_par_c = part_rect.hi[2] - part_rect.lo[2] + 1;
+  int num_par_n = part_rect.hi[3] - part_rect.lo[3] + 1;
+  {
+    const int dims[4] = {output_n, output_c, output_h, output_w};
+    output = model.create_tensor<4>(dims, task_is, DT_FLOAT);
+  }
+  // Compute partition bound for input
+  Rect<4> input_rect = runtime->get_index_partition_color_space(
+      ctx, inputs[0].part.get_index_partition());
+  // Currently assume we didn't split across the channel dimension
+  assert(num_par_c == 1);
+  if (input_rect == part_rect) {
+    input_lps[0] = inputs[0].part;
+    input_grad_lps[0] = inputs[0].part_grad;
+  } else {
+    model.create_disjoint_partition<4>(
+        inputs[0], task_is, input_lps[0], input_grad_lps[0]);
+  }
+}
+
 cudnnConvolutionFwdAlgo_t
 selectConvolutionForwardAlgorithm(cudnnHandle_t handle,
                                   const cudnnTensorDescriptor_t xDesc, const void* x,
@@ -282,14 +356,16 @@ selectConvolutionBackwardDataAlgorithm(cudnnHandle_t handle,
   regions[1]: output
   regions[2](I): filter
   regions[3](I): bias
+  regions[4](O): filter_grad
+  regions[5](O): input_grad
 */
 __host__
 OpMeta* Conv2D::init_task(const Task *task,
                           const std::vector<PhysicalRegion> &regions,
                           Context ctx, Runtime *runtime)
 {
-  assert(regions.size() == 4);
-  assert(task->regions.size() == 4);
+  assert(regions.size() == 6);
+  assert(task->regions.size() == 6);
   const Conv2D* conv = (Conv2D*) task->args;
   FFHandler handle = *((const FFHandler*) task->local_args);
   TensorAccessorR<float, 4> acc_input(
@@ -301,7 +377,13 @@ OpMeta* Conv2D::init_task(const Task *task,
       regions[2], task->regions[2], FID_DATA, ctx, runtime);
   TensorAccessorR<float, 1> acc_bias(
       regions[3], task->regions[3], FID_DATA, ctx, runtime);
-
+  TensorAccessorW<float, 4> acc_kernel_grad(
+      regions[4], task->regions[4], FID_DATA, ctx, runtime,
+      false/*readOutput*/);
+  TensorAccessorW<float, 4> acc_input_grad(
+      regions[5], task->regions[5], FID_DATA, ctx, runtime,
+      false/*readOutput*/);
+ 
   Conv2DMeta* m = new Conv2DMeta(handle);
   m->relu = conv->activation == AC_MODE_RELU;
   checkCUDNN(cudnnCreateTensorDescriptor(&m->inputTensor));
@@ -334,7 +416,7 @@ OpMeta* Conv2D::init_task(const Task *task,
                                         1,
                                         1));
 
-  printf("filterDim: kernel(%d %d) c_out(%d)\n", conv->kernel_h, conv->kernel_w, conv->output.pdim[2]);
+  printf("filterDim: kernel(%d %d) c_in(%d), c_out(%d)\n", conv->kernel_h, conv->kernel_w, conv->inputs[0].pdim[2], conv->output.pdim[2]);
   checkCUDNN(cudnnSetFilter4dDescriptor(m->filterDesc,
                                         CUDNN_DATA_FLOAT,
                                         CUDNN_TENSOR_NCHW,
@@ -385,13 +467,13 @@ OpMeta* Conv2D::init_task(const Task *task,
                          m->handle.dnn, m->inputTensor, acc_input.ptr,
                          m->outputTensor, acc_output.ptr,
                          m->convDesc, m->handle.workSpace, m->handle.workSpaceSize,
-                         m->filterDesc, (void*)acc_kernel.ptr);
+                         m->filterDesc, acc_kernel_grad.ptr);
   // select backward data algorithm
   m->bwdDataAlgo = selectConvolutionBackwardDataAlgorithm(
                        m->handle.dnn, m->filterDesc, acc_kernel.ptr,
                        m->outputTensor, acc_output.ptr,
                        m->convDesc, m->handle.workSpace, m->handle.workSpaceSize,
-                       m->inputTensor, (void*)acc_input.ptr);
+                       m->inputTensor, acc_input_grad.ptr);
   if (m->relu) {
     checkCUDNN(cudnnCreateActivationDescriptor(&m->actiDesc));
     checkCUDNN(cudnnSetActivationDescriptor(m->actiDesc, CUDNN_ACTIVATION_RELU,
@@ -431,6 +513,14 @@ void Conv2D::init(const FFModel& ff)
       RegionRequirement(bias.part, 0/*projection id*/,
                         READ_ONLY, EXCLUSIVE, bias.region));
   launcher.add_field(3, FID_DATA);
+  launcher.add_region_requirement(
+      RegionRequirement(kernel.part_grad, 0/*projection id*/,
+                        WRITE_ONLY, EXCLUSIVE, kernel.region_grad));
+  launcher.add_field(4, FID_DATA);
+  launcher.add_region_requirement(
+      RegionRequirement(input_grad_lps[0], 0/*projection id*/,
+                        WRITE_ONLY, EXCLUSIVE, inputs[0].region_grad));
+  launcher.add_field(5, FID_DATA);
   FutureMap fm = runtime->execute_index_space(ctx, launcher);
   fm.wait_all_results();
   idx = 0;

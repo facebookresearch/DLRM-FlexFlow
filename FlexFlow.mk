@@ -28,8 +28,8 @@ GEN_GPU_SRC	+= ${FF_HOME}/src/ops/conv_2d.cu ${FF_HOME}/src/runtime/model.cu\
 		${FF_HOME}/src/runtime/initializer_kernel.cu ${FF_HOME}/src/runtime/optimizer_kernel.cu\
 		${FF_HOME}/src/runtime/accessor_kernel.cu ${FF_HOME}/src/runtime/cuda_helper.cu# .cu files
 
-INC_FLAGS	?= -I${FF_HOME}/include/ -I${CUDNN}/include 
-LD_FLAGS        ?= -L/usr/local/lib -L${CUDNN}/lib64 -lcudnn -lcublas -lcurand -lprotobuf #-mavx2 -mfma -mf16c
+INC_FLAGS	?= -I${FF_HOME}/include/ -I${FF_HOME}/protobuf/src -I${CUDNN}/include 
+LD_FLAGS        ?= -L/usr/local/lib -L${FF_HOME}/protobuf/src/.libs -L${CUDNN}/lib64 -lcudnn -lcublas -lcurand -lprotobuf #-mavx2 -mfma -mf16c
 CC_FLAGS	?=
 NVCC_FLAGS	?=
 GASNET_FLAGS	?=

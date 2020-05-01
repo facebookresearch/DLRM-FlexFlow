@@ -138,12 +138,12 @@ void Linear::create_kernel_bias(FFModel& model, bool use_bias, Initializer* kern
   // Create kernel tensor
   {
     const int dims[2] = {out_channels, in_channels};
-    kernel = model.create_linear_weight<2>(dims, task_is, DT_FLOAT, kernel_initializer);
+    kernel = model.create_linear_weight<2>(dims, (IndexSpaceT<2>)task_is, DT_FLOAT, kernel_initializer);
   }
   // Create bias tensor
   if (use_bias) {
     const int dims[1] = {out_channels};
-    bias = model.create_linear_weight<1>(dims, task_is, DT_FLOAT, bias_initializer);
+    bias = model.create_linear_weight<1>(dims, (IndexSpaceT<2>)task_is, DT_FLOAT, bias_initializer);
   }
 }
 

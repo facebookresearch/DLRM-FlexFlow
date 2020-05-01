@@ -32,7 +32,15 @@ Reshape<IDIM, ODIM>::Reshape(FFModel& model,
 
 }
 
-
+template <int IDIM, int ODIM>
+Tensor Reshape<IDIM, ODIM>::init_inout(FFModel& model, const Tensor& _input)
+{
+  // TODO: This function is designed for support functional APIs
+  // as used in PyTorch and Keras
+  // TO BE IMPLEMENTED...
+  assert(false);
+  return Tensor();
+}
 
 template <int IDIM, int ODIM>
 OpMeta* Reshape<IDIM, ODIM>::init_task(const Task *task,

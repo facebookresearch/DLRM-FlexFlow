@@ -317,12 +317,6 @@ public:
                ActiMode activation = AC_MODE_NONE,
                bool use_bias = true,
                Initializer* kernel_initializer = NULL,
-<<<<<<< HEAD
-               Initializer* bias_initializer = NULL,
-               Tensor* weights = NULL,
-               Tensor* bias = NULL);
-
-=======
                Initializer* bias_initializer = NULL);
   Linear* dense(std::string name,
                 int inDim,
@@ -331,7 +325,6 @@ public:
                 bool use_bias = true,
                 Initializer* kernel_initializer = NULL,
                 Initializer* bias_initializer = NULL);
->>>>>>> 4c0dc59907797c7f3b1ed1bc38d9105c628ba8a7
   // Add a linear layer
   Tensor linear(std::string name,
                 const Tensor& input,
@@ -340,8 +333,6 @@ public:
                 bool use_bias = true,
                 Initializer* kernel_initializer = NULL,
                 Initializer* bias_initializer = NULL);
-
-
   // Add a batch matmul layer
   Tensor batch_matmul(std::string name,
                       const Tensor& input1,
@@ -381,11 +372,7 @@ public:
 
   // Add a flat layer
   Tensor flat(std::string name, Tensor input);
-<<<<<<< HEAD
-
-=======
   Flat* flat(std::string name);
->>>>>>> 4c0dc59907797c7f3b1ed1bc38d9105c628ba8a7
   // Add a softmax layer
   Tensor softmax(std::string name,
                  const Tensor& input,
@@ -509,15 +496,12 @@ public:
   static void backward_task(const Task *task,
                             const std::vector<PhysicalRegion> &regions,
                             Context ctx, HighLevelRuntime *runtime);
-<<<<<<< HEAD
-=======
   //static void update_task(const Task *task,
   //                        const std::vector<PhysicalRegion> &regions,
   //                        Context ctx, HighLevelRuntime *runtime);
 private:
   void create_kernel_bias(FFModel& model, bool use_bias, Initializer* kernel_initializer, Initializer* bias_initializer);
   void create_output_and_partition(FFModel& model);
->>>>>>> 4c0dc59907797c7f3b1ed1bc38d9105c628ba8a7
 public:
   int in_channels, out_channels, kernel_h, kernel_w, stride_h, stride_w, padding_h, padding_w;
   Tensor kernel, bias;
@@ -674,11 +658,7 @@ private:
   void create_kernel_bias(FFModel& model, bool use_bias, Initializer* kernel_initializer, Initializer* bias_initializer);
   void create_output_and_partition(FFModel& model);
 public:
-<<<<<<< HEAD
-=======
-  IndexSpaceT<2> task_is;
   int in_channels, out_channels;
->>>>>>> 4c0dc59907797c7f3b1ed1bc38d9105c628ba8a7
   Tensor kernel, bias, replica;
   bool profiling;
   ActiMode activation;
@@ -731,11 +711,7 @@ private:
   void create_kernel(FFModel& model, int num_entries, Initializer* kernel_initializer);
   void create_output_and_partition(FFModel& model);
 public:
-<<<<<<< HEAD
-=======
-  IndexSpaceT<2> task_is;
   int out_channels;
->>>>>>> 4c0dc59907797c7f3b1ed1bc38d9105c628ba8a7
   Tensor kernel;
   AggrMode aggr;
   bool profiling;
@@ -922,6 +898,7 @@ public:
          const Tensor& input2,
          const bool trans1=true, // default matmul is C=A^T*B , where assume input layout are (d,k,m) , (d,k,n) and (d,m,n)
          const bool trans2=false);
+  Tensor init_inout(FFModel& model, const Tensor& input);
   void init(const FFModel&);
   void forward(const FFModel&);
   void backward(const FFModel&);
@@ -959,6 +936,7 @@ public:
   Transpose(FFModel& model,
          const std::string& pcname,
          const Tensor& _input);
+  Tensor init_inout(FFModel& model, const Tensor& input);
   void init(const FFModel&);
   void forward(const FFModel&);
   void backward(const FFModel&);
@@ -991,6 +969,7 @@ public:
          const std::string& pcname,
          const Tensor& _input,
          const int output_shape[]);
+  Tensor init_inout(FFModel& model, const Tensor& input);
   void init(const FFModel&);
   void forward(const FFModel&);
   void backward(const FFModel&);
@@ -1024,6 +1003,7 @@ public:
   Tanh(FFModel& model,
          const std::string& pcname,
          const Tensor& _input, const int output_shape[]);
+  Tensor init_inout(FFModel& model, const Tensor& input);
   void init(const FFModel&);
   void forward(const FFModel&);
   void backward(const FFModel&);

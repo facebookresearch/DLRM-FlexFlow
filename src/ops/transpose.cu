@@ -73,6 +73,15 @@ Transpose::Transpose(
 
 }
 
+Tensor Transpose::init_inout(FFModel& model, const Tensor& _input)
+{
+  // TODO: This function is designed for support functional APIs
+  // as used in PyTorch and Keras
+  // TO BE IMPLEMENTED...
+  assert(false);
+  return Tensor();
+}
+
 void Transpose::init(const FFModel& ff) {
   ArgumentMap argmap;
   Context ctx = ff.config.lg_ctx;

@@ -29,6 +29,15 @@ Tanh<DIM>::Tanh(FFModel& model,
 
 }
 
+template <int DIM>
+Tensor Tanh<DIM>::init_inout(FFModel& model, const Tensor& _input)
+{
+  // TODO: This function is designed for support functional APIs
+  // as used in PyTorch and Keras
+  // TO BE IMPLEMENTED...
+  assert(false);
+  return Tensor();
+}
 
 
 template <int DIM>

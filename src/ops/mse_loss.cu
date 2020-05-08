@@ -165,6 +165,7 @@ PerfMetrics MSELoss::backward_task(const Task *task,
 
   checkCUDA(cudaMalloc(&perf, sizeof(PerfMetrics)));
   checkCUDA(cudaMemcpy(perf, &perf_zc, sizeof(PerfMetrics), cudaMemcpyHostToDevice));
+  // calculate loss
   if (out_dim == 1) {
     single_category_calc_loss<<<GET_BLOCKS(batch_size), CUDA_NUM_THREADS>>>(
         accLogits.ptr, accLabels.ptr, perf, batch_size, out_dim, scale);

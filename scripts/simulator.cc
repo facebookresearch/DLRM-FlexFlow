@@ -54,6 +54,7 @@ class Tensor {
 public:
   Tensor(void)
   : nDims(0), owner(NULL), idx(-1) {}
+
   Tensor(int _nDims, int* _dim, Op* _owner, int _idx)
   : nDims(_nDims), owner(_owner), idx(_idx) {
     for (int i = 0; i < nDims; i++)

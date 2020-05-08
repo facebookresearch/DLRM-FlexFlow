@@ -23,6 +23,7 @@
 #include <cuda_runtime.h>
 #include <curand.h>
 #include <cublas_v2.h>
+#include <cuda_fp16.h>
 #include <unistd.h>
 
 using namespace Legion;
@@ -394,10 +395,10 @@ public:
                 const std::string& reduction);
 
   // sigmoid loss layer
+  template<int NDIM>
   void sigmoid_cross_entropy_loss(const std::string& name,
                 const Tensor& logits,
-                const Tensor& labels,
-                const std::string& reduction);
+                const Tensor& labels);
 
   template<int NDIM>
   Tensor create_tensor(const int* dims,
@@ -974,6 +975,38 @@ public:
 #endif
 };
 
+template <int DIM>
+class SigmoidBinaryCrossEntropyWithLogic : public Op {
+public:
+  SigmoidBinaryCrossEntropyWithLogic(
+    FFModel& model,
+    const std::string& pc_name, 
+    const Tensor& logits,
+    const Tensor& labels,
+    const int output_shape[]
+  );
+  void init(const FFModel&);
+  void forward(const FFModel&);
+  void backward(const FFModel&);
+  static PerfMetrics backward_task(const Task *task,
+                           const std::vector<PhysicalRegion> &regions,
+                           Context ctx, Runtime *runtime);
+public:
+  Tensor input;
+  bool profiling;
+  std::string pcname;
+  IndexSpaceT<DIM> task_is;
+};
+
+class SigmoidBinaryCrossEntropyWithLogicMeta : public OpMeta {
+public:
+  SigmoidBinaryCrossEntropyWithLogicMeta(FFHandler handle) : OpMeta(handle) {};
+#ifndef DISABLE_COMPUTATION
+  cudnnTensorDescriptor_t inputTensor;
+  cudnnActivationDescriptor_t activation;
+  // cudnnActivationMode_t mode;
+#endif
+};
 
 template <int DIM>
 class Activation : public Op {

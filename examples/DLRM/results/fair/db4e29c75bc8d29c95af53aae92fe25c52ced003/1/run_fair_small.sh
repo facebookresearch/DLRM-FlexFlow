@@ -37,7 +37,7 @@
 module purge
 
 # Load what we need
-source ../../FC_env_setup.sh
+source ../../../../../../FC_env_setup.sh
 module load protobuf
 
 ### Section 3:
@@ -71,10 +71,13 @@ do
 done
 echo $embsizes
 
-strategy_file=../../src/runtime/dlrm_strategy_emb_${pnemb}_gpu_${pngpu}_node_${nnodes}.pb
+strategy_file=../../../../../../src/runtime/dlrm_strategy_emb_${pnemb}_gpu_${pngpu}_node_${nnodes}.pb
 echo $strategy_file
 
-./dlrm -ll:gpu ${pngpu} -ll:cpu 1 -ll:dma 4 -ll:ahandlers 2 -ll:fsize 12000 -ll:zsize 20000 -ll:util 8 --nodes ${nnodes} --arch-sparse-feature-size ${sparse_feature_size} --arch-embedding-size ${embsizes} --arch-mlp-bot 64-1024-1024-1024-${sparse_feature_size} --arch-mlp-top ${first_top_mlp_size}-1024-1024-1024-1024-1 --epochs 5 --batch-size ${batchsize} --strategy ${strategy_file}
+# echo dlrm -ll:gpu ${pngpu} -ll:cpu 1 -ll:dma 4 -ll:ahandlers 2 -ll:fsize 12000 -ll:zsize 20000 -ll:util 8 --nodes ${nnodes} --arch-sparse-feature-size ${sparse_feature_size} --arch-embedding-size ${embsizes} --arch-mlp-bot 64-1024-1024-1024-${sparse_feature_size} --arch-mlp-top ${first_top_mlp_size}-1024-1024-1024-1024-1 --epochs 5 --batch-size ${batchsize} --strategy ${strategy_file}
+# ../../../../dlrm -ll:gpu ${pngpu} -ll:cpu 1 -ll:dma 4 -ll:ahandlers 2 -ll:fsize 12000 -ll:zsize 20000 -ll:util 8 --nodes ${nnodes} --arch-sparse-feature-size ${sparse_feature_size} --arch-embedding-size ${embsizes} --arch-mlp-bot 64-1024-1024-1024-${sparse_feature_size} --arch-mlp-top ${first_top_mlp_size}-1024-1024-1024-1024-1 --epochs 5 --batch-size ${batchsize} --strategy ${strategy_file}
+
+../../../../dlrm -ll:cpu 8 -ll:fsize 14000 -ll:zsize 20000 --arch-sparse-feature-size 64 --arch-embedding-size 3000000-3000000-3000000-3000000-3000000-3000000-3000000-3000000 --embedding-bag-size 38 --arch-mlp-bot 1024-1024-1024-64 --arch-mlp-top 576-1024-1024-1024-1024-1024-1024-1024-1024-1 --epochs 20 --batch-size 64 --data-size 64 -dm:memorize -ll:gpu 8 -ll:util 12 -ll:dma 4 --strategy ../../../../../../src/runtime/dlrm_strategy_emb_8_gpu_8_node_2.pb
 
 #./dlrm -ll:gpu ${pngpu} -ll:cpu 1 -ll:dma 4 -ll:ahandlers 2  -ll:fsize 12000 -ll:zsize 20000 -ll:util 8 --nodes ${nnodes} --embedding-bag-size 100 --arch-sparse-feature-size 64 --arch-embedding-size ${embsizes} --arch-mlp-bot 2048-4096-4096-4096-4096-4096 --arch-mlp-top 8192-4096-4096-4096-4096-1 --epochs 15 --batch-size ${batchsize} --strategy ${strategy_file} 
 #-dm:memoize  

@@ -128,6 +128,7 @@ void top_level_task(const Task* task,
     ff.backward();
     ff.update();
   }
+  // have to reinitilize the input tensor
   for(int i = 0; i < dense_embedding_channels; i++) {
     initialize_tensor_from_file(dense_embedding_file_path, 
       dense_embeddings[i], ff, "float", 2);

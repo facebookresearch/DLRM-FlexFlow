@@ -77,6 +77,7 @@ Tensor FFModel::dot_compressor(
   if (bias_initializer == NULL) {
     bias_initializer = new ZeroInitializer();
   }
+  
   Linear *compressed_channels = new Linear(*this, "compressed_rtrc_input", 
     reshape_transpose_reshape_cat_input->output, 
     compressed_num_channels, activation, use_bias,

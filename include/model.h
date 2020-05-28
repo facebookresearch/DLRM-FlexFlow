@@ -177,6 +177,7 @@ enum TaskIDs2 {
   ACTIVATION_1D_BWD_TASK_ID,
   ACTIVATION_2D_BWD_TASK_ID,
   ACTIVATION_3D_BWD_TASK_ID,
+  SIGMOID_CROSS_ENTROPY_WITH_LOGIT_BWD_TASK_ID,
   First = FIRST_TASK_ID
   // Last = RESHAPE_2_TO_3_BWD_TASK_ID
 };
@@ -361,8 +362,7 @@ public:
   // Add a sigmoid layer
   template<int DIM>
   Tensor sigmoid(std::string name, 
-    const Tensor& input,
-    const int output_shape[]);
+    const Tensor& input);
 
   // Add a relu layer
   template<int DIM>
@@ -397,6 +397,12 @@ public:
   // sigmoid loss layer
   template<int NDIM>
   void sigmoid_cross_entropy_loss(const std::string& name,
+                const Tensor& logits,
+                const Tensor& labels);
+
+  // sigmoid loss layer
+  template<int NDIM>
+  void cross_entropy_loss(const std::string& name,
                 const Tensor& logits,
                 const Tensor& labels);
 
@@ -976,14 +982,14 @@ public:
 };
 
 template <int DIM>
-class SigmoidBinaryCrossEntropyWithLogic : public Op {
+class Loss : public Op {
 public:
-  SigmoidBinaryCrossEntropyWithLogic(
+  Loss(
     FFModel& model,
     const std::string& pc_name, 
     const Tensor& logits,
     const Tensor& labels,
-    const int output_shape[]
+    const std::string& loss
   );
   void init(const FFModel&);
   void forward(const FFModel&);
@@ -996,6 +1002,7 @@ public:
   bool profiling;
   std::string pcname;
   IndexSpaceT<DIM> task_is;
+  std::string loss;
 };
 
 class SigmoidBinaryCrossEntropyWithLogicMeta : public OpMeta {

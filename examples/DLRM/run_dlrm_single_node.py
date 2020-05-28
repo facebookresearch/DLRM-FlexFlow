@@ -22,7 +22,7 @@ DENSE_FEATURES = 1024
 BOT_MLP_SIZE = 1024
 NUM_BOT_MLPS = 3
 NUM_EMBEDDING = 8
-NODE = 2
+NODE = 1
 repeat = 1
 
 per_gpu_batch_sizes = [2 ** i for i in range(6, 14)]

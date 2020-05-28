@@ -302,9 +302,9 @@ void Linear::forward_task(const Task *task,
   int in_dim = acc_input.rect.hi[0] - acc_input.rect.lo[0] + 1;
   int out_dim = acc_output.rect.hi[0] - acc_output.rect.lo[0] + 1;
   int batch_size = acc_input.rect.hi[1] - acc_input.rect.lo[1] + 1;
-
-  assert(acc_output.rect.volume() == out_dim * batch_size);
+  std::cout << acc_kernel.rect.volume() << " " << in_dim  << " " << out_dim << std::endl;
   assert(acc_kernel.rect.volume() == in_dim * out_dim);
+  assert(acc_output.rect.volume() == out_dim * batch_size);
   assert(acc_bias.rect.volume() == out_dim);
 
   cudaEvent_t t_start, t_end;

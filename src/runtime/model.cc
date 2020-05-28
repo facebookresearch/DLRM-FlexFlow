@@ -1288,6 +1288,14 @@ int main(int argc, char** argv)
     Runtime::preregister_task_variant<OpMeta*, Reshape<2,3>::init_task>(
         registrar, "reshape_init_task");
   }
+  // sigmoid cross entropy with logit task
+  {
+    TaskVariantRegistrar registrar(SIGMOID_CROSS_ENTROPY_WITH_LOGIT_BWD_TASK_ID, "sigmoid_ce_logit_bwd_task");
+    registrar.add_constraint(ProcessorConstraint(Processor::TOC_PROC));
+    registrar.set_leaf();
+    Runtime::preregister_task_variant<PerfMetrics, Loss<2>::backward_task>(
+        registrar, "sigmoid_ce_logit_bwd_task");    
+  }
   // Tanh task
   {
     TaskVariantRegistrar registrar(ACTIVATION_3D_FWD_TASK_ID, "activation_fwd_task");

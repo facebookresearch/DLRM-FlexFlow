@@ -25,6 +25,7 @@ GEN_GPU_SRC	+= ${FF_HOME}/src/ops/conv_2d.cu ${FF_HOME}/src/runtime/model.cu\
 		${FF_HOME}/src/ops/flat.cu ${FF_HOME}/src/ops/embedding.cu\
 		${FF_HOME}/src/ops/mse_loss.cu ${FF_HOME}/src/ops/transpose.cu\
 		${FF_HOME}/src/ops/reshape.cu ${FF_HOME}/src/ops/tanh.cu\
+		${FF_HOME}/src/ops/element_binary.cu ${FF_HOME}/src/ops/element_unary.cu\
 		${FF_HOME}/src/runtime/initializer_kernel.cu ${FF_HOME}/src/runtime/optimizer_kernel.cu\
 		${FF_HOME}/src/runtime/accessor_kernel.cu ${FF_HOME}/src/runtime/cuda_helper.cu# .cu files
 

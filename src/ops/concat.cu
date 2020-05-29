@@ -139,6 +139,26 @@ OpMeta* Concat::init_task(const Task *task,
 
 void Concat::init(const FFModel& ff)
 {
+  ArgumentMap argmap;
+  Context ctx = ff.config.lg_ctx;
+  Runtime* runtime = ff.config.lg_hlr;
+  IndexLauncher launcher(CONCAT_INIT_TASK_ID, task_is,
+    TaskArgument(this, sizeof(Concat)), argmap,
+    Predicate::TRUE_PRED, false/*must*/, 0/*mapper_id*/,
+    FFConfig::get_hash_id(std::string(name)));
+ 
+  launcher.add_region_requirement(
+    RegionRequirement(output.part, 0/*projection id*/,
+      WRITE_ONLY, EXCLUSIVE, output.region));
+  launcher.add_field(0, FID_DATA);
+  for (int i = 0; i < numInputs; i++) {
+    launcher.add_region_requirement(
+      RegionRequirement(input_lps[i], 0/*projection id*/,
+        READ_ONLY, EXCLUSIVE, inputs[i].region));
+    launcher.add_field(i + 1, FID_DATA);
+  }
+  FutureMap fm = runtime->execute_index_space(ctx, launcher);
+  fm.wait_all_results();
 }
 
 __global__

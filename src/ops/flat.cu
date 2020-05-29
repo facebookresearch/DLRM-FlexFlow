@@ -18,7 +18,7 @@
 
 Tensor FFModel::flat(std::string name, Tensor input)
 {
-  assert(input.numDim == 3);
+  assert(input.numDim == 4);
   //assert(strategies.find(name) != strategies.end());
   //ParallelConfig pc = strategies[name];
   Flat *flat = new Flat(*this, name, input);
@@ -221,7 +221,7 @@ void Flat::forward_task(const Task *task,
 {
   assert(regions.size() == 2);
   assert(task->regions.size() == 2);
-  TensorAccessorR<float, 3> acc_input(
+  TensorAccessorR<float, 4> acc_input(
     regions[0], task->regions[0], FID_DATA, ctx, runtime);
   TensorAccessorW<float, 2> acc_output(
     regions[1], task->regions[1], FID_DATA, ctx, runtime,

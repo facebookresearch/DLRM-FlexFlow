@@ -40,6 +40,10 @@ enum TaskIDs {
   LABEL_INIT_TASK_ID,
   LOAD_IMAGES_TASK_ID,
   NORMALIZE_IMAGES_TASK_ID,
+  ELEMENTBINARY_FWD_TASK_ID,
+  ELEMENTBINARY_BWD_TASK_ID,
+  ELEMENTUNARY_FWD_TASK_ID,
+  ELEMENTUNARY_BWD_TASK_ID,
   CONV2D_INIT_TASK_ID,
   CONV2D_INIT_PARA_TASK_ID,
   CONV2D_FWD_TASK_ID,
@@ -85,6 +89,7 @@ enum TaskIDs {
   // Initializer
   GLOROT_INIT_TASK_ID,
   ZERO_INIT_TASK_ID,
+  CONSTANT_INIT_TASK_ID,
   UNIFORM_INIT_TASK_ID,
   NORMAL_INIT_TASK_ID,
   // tensor helper tasks
@@ -259,6 +264,8 @@ public:
   int numLocals, numInputs;
 };
 
+class ElementBinary;
+class ElementUnary;
 class Conv2D;
 class Pool2D;
 class Flat;
@@ -268,8 +275,31 @@ class Embedding;
 class FFModel {
 public:
   FFModel(FFConfig &config);
-
-  // Add a 2D convolutional layer
+  // Add an exp layer
+  Tensor exp(std::string name,
+             const Tensor& x);
+  ElementUnary* exp(std::string name);
+  // Add an add layer
+  Tensor add(std::string name,
+             const Tensor& x,
+             const Tensor& y);
+  ElementBinary* add(std::string name);
+  // Add a subtract layer
+  Tensor subtract(std::string name,
+                  const Tensor& x,
+                  const Tensor& y);
+  ElementBinary* subtract(std::string name);
+  // Add a multiply layer
+  Tensor multiply(std::string name,
+                  const Tensor& x,
+                  const Tensor& y);
+  ElementBinary* multiply(std::string name);
+  // Add a divide layer
+  Tensor divide(std::string name,
+                const Tensor& x,
+                const Tensor& y);
+  ElementBinary* divide(std::string name);
+  // Add a 2D convolutional layer 
   Tensor conv2d(std::string name,
                 const Tensor& input,
                 int outChannels,
@@ -407,7 +437,11 @@ public:
                        const std::string& pc_name,
                        DataType data_type,
                        bool create_grad = true);
-
+  template<int NDIM>
+  Tensor create_constant(const int* dims,
+                         const std::string& pc_name,
+                         float value,
+                         DataType date_type);
   template<int NDIM>
   void create_disjoint_partition(const Tensor& tensor,
                                  const IndexSpace& part_is,
@@ -470,6 +504,73 @@ private:
   bool debug;
   std::map<ParallelConfig, IndexSpace, ParaConfigCompare> taskIs;
 };
+
+class ElementBinary : public Op {
+public:
+  enum OpType {
+    OP_ADD,
+    OP_SUB,
+    OP_MUL,
+    OP_DIV,
+  };
+  ElementBinary(FFModel& model,
+                OpType type,
+                const std::string& pcname,
+                const Tensor& x,
+                const Tensor& y);
+  ElementBinary(FFModel& model,
+                OpType type,
+                const std::string& pcname);
+  Tensor init_inout(FFModel& model, const Tensor& input);
+  void add_to_model(FFModel& model);
+  void init(const FFModel&);
+  void forward(const FFModel&);
+  void backward(const FFModel&);
+  static void forward_task(const Task *task,
+                           const std::vector<PhysicalRegion> &regions,
+                           Context ctx, Runtime *runtime);
+  static void backward_task(const Task *task,
+                            const std::vector<PhysicalRegion> &regions,
+                            Context ctx, HighLevelRuntime *runtime);
+private:
+  template<int NDIM>
+  void create_output_and_partition(FFModel& model);
+public:
+  IndexSpace task_is;
+  OpType op_type;
+};
+
+class ElementUnary : public Op {
+public:
+  enum OpType {
+    OP_EXP,
+  };
+  ElementUnary(FFModel& model,
+               OpType type,
+               const std::string& pcname,
+               const Tensor& x);
+  ElementUnary(FFModel& model,
+                OpType type,
+                const std::string& pcname);
+  Tensor init_inout(FFModel& model, const Tensor& input);
+  void add_to_model(FFModel& model);
+  void init(const FFModel&);
+  void forward(const FFModel&);
+  void backward(const FFModel&);
+  static void forward_task(const Task *task,
+                           const std::vector<PhysicalRegion> &regions,
+                           Context ctx, Runtime *runtime);
+  static void backward_task(const Task *task,
+                            const std::vector<PhysicalRegion> &regions,
+                            Context ctx, HighLevelRuntime *runtime);
+private:
+  template<int NDIM>
+  void create_output_and_partition(FFModel& model);
+public:
+  IndexSpace task_is;
+  OpType op_type;
+};
+
 
 class Conv2D : public Op {
 public:

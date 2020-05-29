@@ -362,7 +362,8 @@ public:
   // Add a sigmoid layer
   template<int DIM>
   Tensor sigmoid(std::string name, 
-    const Tensor& input);
+    const Tensor& input,
+    const int output_shape[]);
 
   // Add a relu layer
   template<int DIM>

@@ -16,6 +16,11 @@ TensorAccessorR<DT, dim>::TensorAccessorR(PhysicalRegion region,
   ptr = acc.ptr(rect);
 }
 
+template<typename DT, int dim>
+TensorAccessorR<DT, dim>::TensorAccessorR()
+{
+}
+
 template<typename DT>
 __global__
 void zero_array(DT* ptr, coord_t size)
@@ -51,12 +56,17 @@ TensorAccessorW<DT, dim>::TensorAccessorW(PhysicalRegion region,
   }
 }
 
+template<typename DT, int dim>
+TensorAccessorW<DT, dim>::TensorAccessorW()
+{
+}
+
 template<typename DT>
-const DT* helperGetTensorPointerR(PhysicalRegion region,
-                                  RegionRequirement req,
-                                  FieldID fid,
-                                  Context ctx,
-                                  Runtime* runtime)
+const DT* helperGetTensorPointerRO(PhysicalRegion region,
+                                   RegionRequirement req,
+                                   FieldID fid,
+                                   Context ctx,
+                                   Runtime* runtime)
 {
   Domain domain = runtime->get_index_space_domain(
       ctx, req.region.get_index_space());
@@ -79,6 +89,46 @@ const DT* helperGetTensorPointerR(PhysicalRegion region,
     case 4:
     {
       TensorAccessorR<DT, 4> acc(region, req, fid, ctx, runtime);
+      return acc.ptr;
+    }
+    default:
+    {
+      fprintf(stderr, "Unsupported accessor dimension");
+      assert(false);
+      return NULL;
+    }
+  }
+}
+
+template<typename DT>
+DT* helperGetTensorPointerRW(PhysicalRegion region,
+                             RegionRequirement req,
+                             FieldID fid,
+                             Context ctx,
+                             Runtime* runtime)
+{
+  Domain domain = runtime->get_index_space_domain(
+      ctx, req.region.get_index_space());
+  switch (domain.get_dim()) {
+    case 1:
+    {
+      TensorAccessorW<DT, 1> acc(region, req, fid, ctx, runtime, true/*readOutput*/);
+      return acc.ptr;
+    }
+    case 2:
+    {
+      TensorAccessorW<DT, 2> acc(region, req, fid, ctx, runtime, true/*readOutput*/);
+
+      return acc.ptr;
+    }
+    case 3:
+    {
+      TensorAccessorW<DT, 3> acc(region, req, fid, ctx, runtime, true/*readOutput*/);
+      return acc.ptr;
+    }
+    case 4:
+    {
+      TensorAccessorW<DT, 4> acc(region, req, fid, ctx, runtime, true/*readOutput*/);
       return acc.ptr;
     }
     default:
@@ -156,7 +206,10 @@ template class TensorAccessorW<int64_t, 2>;
 template class TensorAccessorW<int64_t, 3>;
 template class TensorAccessorW<int64_t, 4>;
 
-template const float* helperGetTensorPointerR(
+template const float* helperGetTensorPointerRO(
+  PhysicalRegion region, RegionRequirement req, FieldID fid, Context ctx, Runtime* runtime);
+
+template float* helperGetTensorPointerRW(
   PhysicalRegion region, RegionRequirement req, FieldID fid, Context ctx, Runtime* runtime);
 
 template float* helperGetTensorPointerWO(

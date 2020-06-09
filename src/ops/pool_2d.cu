@@ -28,7 +28,7 @@ Tensor FFModel::pool2d(const std::string& name,
                             strideH, strideW, paddingH, paddingW,
                             type, activation);
   pool->add_to_model(*this);
-  return pool->output;
+  return pool->outputs[0];
 }
 
 Pool2D* FFModel::pool2d(const std::string& name,
@@ -80,7 +80,7 @@ Tensor Pool2D::init_inout(FFModel& model, const Tensor& _input)
   add_to_model(model);
   inputs[0] = _input;
   create_output_and_partition(model);
-  return output;  
+  return outputs[0];
 }
 
 void Pool2D::add_to_model(FFModel& model)
@@ -104,7 +104,7 @@ void Pool2D::create_output_and_partition(FFModel& model)
   int output_n = inputs[0].adim[3];
   {
     const int dims[4] = {output_n, output_c, output_h, output_w};
-    output = model.create_tensor<4>(dims, task_is, DT_FLOAT);
+    outputs[0] = model.create_tensor<4>(dims, (IndexSpaceT<4>)task_is, DT_FLOAT);
   }
   int num_par_c = part_rect.hi[2] - part_rect.lo[2] + 1;
   Rect<4> input_rect = runtime->get_index_partition_color_space(
@@ -146,8 +146,8 @@ OpMeta* Pool2D::init_task(const Task *task,
   int output_h = rect_output.hi[1] - rect_output.lo[1] + 1;
   printf("init pool (input): n(%d) c(%d) h(%d) w(%d)\n", pool->inputs[0].pdim[3],
         pool->inputs[0].pdim[2], input_h, input_w);
-  printf("init pool (output): n(%d) c(%d) h(%d) w(%d)\n", pool->output.pdim[3],
-        pool->output.pdim[2], output_h, output_w);
+  printf("init pool (output): n(%d) c(%d) h(%d) w(%d)\n", pool->outputs[0].pdim[3],
+        pool->outputs[0].pdim[2], output_h, output_w);
   checkCUDNN(cudnnSetTensor4dDescriptor(m->inputTensor,
                                         CUDNN_TENSOR_NCHW,
                                         CUDNN_DATA_FLOAT,
@@ -182,8 +182,8 @@ OpMeta* Pool2D::init_task(const Task *task,
   checkCUDNN(cudnnGetPooling2dForwardOutputDim(m->poolDesc,
                                                m->inputTensor,
                                                &n, &c, &h, &w));
-  assert(n == pool->output.pdim[3]);
-  assert(c == pool->output.pdim[2]);
+  assert(n == pool->outputs[0].pdim[3]);
+  assert(c == pool->outputs[0].pdim[2]);
   assert(h == output_h);
   assert(w == output_w);
 
@@ -214,8 +214,8 @@ void Pool2D::init(const FFModel& ff)
                         READ_ONLY, EXCLUSIVE, inputs[0].region));
   init_launcher.add_field(0, FID_DATA);
   init_launcher.add_region_requirement(
-      RegionRequirement(output.part, 0/*projection id*/,
-                        WRITE_DISCARD, EXCLUSIVE, output.region));
+      RegionRequirement(outputs[0].part, 0/*projection id*/,
+                        WRITE_DISCARD, EXCLUSIVE, outputs[0].region));
   init_launcher.add_field(1, FID_DATA);
   FutureMap fm = runtime->execute_index_space(ctx, init_launcher);
   fm.wait_all_results();
@@ -238,22 +238,19 @@ void Pool2D::forward_task(const Task *task,
   assert(task->regions.size() == 2);
   float alpha = 1.0f, beta = 0.0f;
   const Pool2DMeta* m = *((Pool2DMeta**) task->local_args);
-  const AccessorRO<float, 4> acc_input(regions[0], FID_DATA);
-  const AccessorWO<float, 4> acc_output(regions[1], FID_DATA);
-  Rect<4> rect_input, rect_output;
-  rect_input = runtime->get_index_space_domain(ctx, task->regions[0].region.get_index_space());
-  rect_output = runtime->get_index_space_domain(ctx, task->regions[1].region.get_index_space());
-  assert(acc_input.accessor.is_dense_arbitrary(rect_input));
-  assert(acc_output.accessor.is_dense_arbitrary(rect_output));
-  const float *input_ptr = acc_input.ptr(rect_input.lo);
-  float *output_ptr = acc_output.ptr(rect_output.lo);
+  TensorAccessorR<float, 4> acc_input(
+      regions[0], task->regions[0], FID_DATA, ctx, runtime);
+  TensorAccessorW<float, 4> acc_output(
+      regions[1], task->regions[1], FID_DATA, ctx, runtime,
+      false/*readOutput*/);
+#ifndef DISABLE_LEGION_CUDA_HIJACK
   cudaStream_t stream;
   checkCUDA(cudaStreamCreate(&stream));
   checkCUDNN(cudnnSetStream(m->handle.dnn, stream));
-
+#endif
   checkCUDNN(cudnnPoolingForward(m->handle.dnn, m->poolDesc,
-                                 &alpha, m->inputTensor, input_ptr,
-                                 &beta, m->outputTensor, output_ptr));
+                                 &alpha, m->inputTensor, acc_input.ptr,
+                                 &beta, m->outputTensor, acc_output.ptr));
 }
 
 void Pool2D::forward(const FFModel& ff)
@@ -276,8 +273,8 @@ void Pool2D::forward(const FFModel& ff)
                         READ_ONLY, EXCLUSIVE, inputs[0].region));
   launcher.add_field(0, FID_DATA);
   launcher.add_region_requirement(
-      RegionRequirement(output.part, 0/*projection id*/,
-                        WRITE_DISCARD, EXCLUSIVE, output.region));
+      RegionRequirement(outputs[0].part, 0/*projection id*/,
+                        WRITE_DISCARD, EXCLUSIVE, outputs[0].region));
   launcher.add_field(1, FID_DATA);
 
   runtime->execute_index_space(ctx, launcher);
@@ -285,7 +282,7 @@ void Pool2D::forward(const FFModel& ff)
 
 /*
   regions[0](I): input
-  regions[1](O): input_grad
+  regions[1](I/O): input_grad
   regions[2](I): output
   regions[3](I): output_grad
 */
@@ -295,30 +292,18 @@ void Pool2D::backward_task(const Task *task,
 {
   assert(regions.size() == 4);
   assert(task->regions.size() == 4);
-  float alpha = 1.0f, beta = 0.0f;
+  float alpha = 1.0f;
   const Pool2D* pool = (Pool2D*) task->args;
   const Pool2DMeta* m = *((Pool2DMeta**) task->local_args);
-  const AccessorRO<float, 4> acc_input(regions[0], FID_DATA);
-  const AccessorWO<float, 4> acc_input_grad(regions[1], FID_DATA);
-  const AccessorRO<float, 4> acc_output(regions[2], FID_DATA);
-  const AccessorRO<float, 4> acc_output_grad(regions[3], FID_DATA);
-  Rect<4> rect_input, rect_input_grad, rect_output, rect_output_grad;
-  rect_input =
-    runtime->get_index_space_domain(ctx, task->regions[0].region.get_index_space());
-  rect_input_grad =
-    runtime->get_index_space_domain(ctx, task->regions[1].region.get_index_space());
-  rect_output =
-    runtime->get_index_space_domain(ctx, task->regions[2].region.get_index_space());
-  rect_output_grad =
-    runtime->get_index_space_domain(ctx, task->regions[3].region.get_index_space());
-  assert(acc_input.accessor.is_dense_arbitrary(rect_input));
-  assert(acc_input_grad.accessor.is_dense_arbitrary(rect_input_grad));
-  assert(acc_output.accessor.is_dense_arbitrary(rect_output));
-  assert(acc_output_grad.accessor.is_dense_arbitrary(rect_output_grad));
-  const float *input_ptr = acc_input.ptr(rect_input.lo);
-  float *input_grad_ptr = acc_input_grad.ptr(rect_input_grad.lo);
-  const float *output_ptr = acc_output.ptr(rect_output.lo);
-  const float *output_grad_ptr = acc_output_grad.ptr(rect_output_grad.lo);
+  TensorAccessorR<float, 4> acc_input(
+      regions[0], task->regions[0], FID_DATA, ctx, runtime);
+  TensorAccessorW<float, 4> acc_input_grad(
+      regions[1], task->regions[1], FID_DATA, ctx, runtime,
+      true/*readOutput*/);
+  TensorAccessorR<float, 4> acc_output(
+      regions[2], task->regions[2], FID_DATA, ctx, runtime);
+  TensorAccessorR<float, 4> acc_output_grad(
+      regions[3], task->regions[3], FID_DATA, ctx, runtime);
 
   cudaEvent_t t_start, t_end;
   if (pool->profiling) {
@@ -326,15 +311,16 @@ void Pool2D::backward_task(const Task *task,
     cudaEventCreate(&t_end);
     cudaEventRecord(t_start);
   }
+#ifndef DISABLE_LEGION_CUDA_HIJACK
   cudaStream_t stream;
   checkCUDA(cudaStreamCreate(&stream));
   checkCUDNN(cudnnSetStream(m->handle.dnn, stream));
-
+#endif
   checkCUDNN(cudnnPoolingBackward(m->handle.dnn, m->poolDesc,
-                                  &alpha, m->outputTensor, output_ptr,
-                                  m->outputTensor, output_grad_ptr,
-                                  m->inputTensor, input_ptr,
-                                  &beta, m->inputTensor, input_grad_ptr));
+                                  &alpha, m->outputTensor, acc_output.ptr,
+                                  m->outputTensor, acc_output_grad.ptr,
+                                  m->inputTensor, acc_input.ptr,
+                                  &alpha, m->inputTensor, acc_input_grad.ptr));
   if (pool->profiling) {
     cudaEventRecord(t_end);
     checkCUDA(cudaEventSynchronize(t_end));
@@ -366,20 +352,20 @@ void Pool2D::backward(const FFModel& ff)
       RegionRequirement(inputs[0].part, 0/*projection id*/,
                         READ_ONLY, EXCLUSIVE, inputs[0].region));
   launcher.add_field(0, FID_DATA);
-  // regions[1](O): input_grad
+  // regions[1](I/O): input_grad
   launcher.add_region_requirement(
       RegionRequirement(inputs[0].part_grad, 0/*projection id*/,
-                        WRITE_DISCARD, EXCLUSIVE, inputs[0].region_grad));
+                        READ_WRITE, EXCLUSIVE, inputs[0].region_grad));
   launcher.add_field(1, FID_DATA);
   // regions[2](I): output
   launcher.add_region_requirement(
-      RegionRequirement(output.part, 0/*projection id*/,
-                        READ_ONLY, EXCLUSIVE, output.region));
+      RegionRequirement(outputs[0].part, 0/*projection id*/,
+                        READ_ONLY, EXCLUSIVE, outputs[0].region));
   launcher.add_field(2, FID_DATA);
   // regions[3](I): output_grad
   launcher.add_region_requirement(
-      RegionRequirement(output.part_grad, 0/*projection id*/,
-                        READ_ONLY, EXCLUSIVE, output.region_grad));
+      RegionRequirement(outputs[0].part_grad, 0/*projection id*/,
+                        READ_ONLY, EXCLUSIVE, outputs[0].region_grad));
   launcher.add_field(3, FID_DATA);
 
   runtime->execute_index_space(ctx, launcher);

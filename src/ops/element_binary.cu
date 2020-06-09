@@ -22,7 +22,7 @@ Tensor FFModel::add(std::string name,
 {
   ElementBinary *ele = new ElementBinary(*this, ElementBinary::OP_ADD, name, in1, in2);
   ele->add_to_model(*this);
-  return ele->output;
+  return ele->outputs[0];
 }
 
 ElementBinary* FFModel::add(std::string name)
@@ -37,7 +37,7 @@ Tensor FFModel::subtract(std::string name,
 {
   ElementBinary *ele = new ElementBinary(*this, ElementBinary::OP_SUB, name, in1, in2);
   ele->add_to_model(*this);
-  return ele->output;
+  return ele->outputs[0];
 }
 
 ElementBinary* FFModel::subtract(std::string name)
@@ -52,7 +52,7 @@ Tensor FFModel::multiply(std::string name,
 {
   ElementBinary *ele = new ElementBinary(*this, ElementBinary::OP_MUL, name, in1, in2);
   ele->add_to_model(*this);
-  return ele->output;
+  return ele->outputs[0];
 }
 
 ElementBinary* FFModel::multiply(std::string name)
@@ -67,7 +67,7 @@ Tensor FFModel::divide(std::string name,
 {
   ElementBinary *ele = new ElementBinary(*this, ElementBinary::OP_DIV, name, in1, in2);
   ele->add_to_model(*this);
-  return ele->output;
+  return ele->outputs[0];
 }
 
 ElementBinary* FFModel::divide(std::string name)
@@ -174,7 +174,7 @@ Tensor ElementBinary::init_inout(FFModel& model,
       assert(false);
     }
   }
-  return output;
+  return outputs[0];
 }
 
 void ElementBinary::add_to_model(FFModel& model)
@@ -193,7 +193,7 @@ void ElementBinary::create_output_and_partition(FFModel& model)
   int dims[NDIM];
   for (int i = 0; i < NDIM; i++)
     dims[i] = inputs[0].adim[NDIM-1-i];
-  output = model.create_tensor<NDIM>(dims, IndexSpaceT<NDIM>(task_is), DT_FLOAT);
+  outputs[0] = model.create_tensor<NDIM>(dims, IndexSpaceT<NDIM>(task_is), DT_FLOAT);
   Rect<NDIM> input_rect;
   for (int i = 0; i < 2; i++) {
     input_rect = runtime->get_index_partition_color_space(
@@ -208,38 +208,66 @@ void ElementBinary::create_output_and_partition(FFModel& model)
   }
 }
 
+__host__
+void ElementBinary::init_task(const Task* task,
+                              const std::vector<PhysicalRegion> &regions,
+                              Context ctx, Runtime* runtime)
+{}
+
 void ElementBinary::init(const FFModel& ff)
 {
+  ArgumentMap argmap;
+  Context ctx = ff.config.lg_ctx;
+  Runtime* runtime = ff.config.lg_hlr;
+  IndexLauncher launcher(ELEMENTBINARY_FWD_TASK_ID, task_is,
+                         TaskArgument(this, sizeof(ElementBinary)), argmap,
+                         Predicate::TRUE_PRED, false/*must*/, 0/*mapper_id*/,
+                         FFConfig::get_hash_id(std::string(name)));
+  launcher.add_region_requirement(
+    RegionRequirement(input_lps[0], 0/*projection id*/,
+      READ_ONLY, EXCLUSIVE, inputs[0].region));
+  launcher.add_field(0, FID_DATA);
+  launcher.add_region_requirement(
+    RegionRequirement(input_lps[1], 0/*projection id*/,
+      READ_ONLY, EXCLUSIVE, inputs[1].region));
+  launcher.add_field(1, FID_DATA);
+  launcher.add_region_requirement(
+    RegionRequirement(outputs[0].part, 0/*projection id*/,
+      WRITE_ONLY, EXCLUSIVE, outputs[0].region));
+  launcher.add_field(2, FID_DATA);
+  runtime->execute_index_space(ctx, launcher);
 }
 
 __global__
 void elewise_binary_forward_kernel(coord_t volume,
-                                 ElementBinary::OpType type,
-                                 const float* in1,
-                                 const float* in2,
-                                 float* out)
+                                   const float alpha,
+                                   const float beta,
+                                   ElementBinary::OpType type,
+                                   const float* in1,
+                                   const float* in2,
+                                   float* out)
 {
   CUDA_KERNEL_LOOP(i, volume)
   {
     switch (type) {
       case ElementBinary::OP_ADD:
       {
-        out[i] = in1[i] + in2[i];
+        out[i] = alpha * (in1[i] + in2[i]) + beta * out[i];
         break;
       }
       case ElementBinary::OP_SUB:
       {
-        out[i] = in1[i] - in2[i];
+        out[i] = alpha * (in1[i] - in2[i]) + beta * out[i];
         break;
       }
       case ElementBinary::OP_MUL:
       {
-        out[i] = in1[i] * in2[i];
+        out[i] = alpha * in1[i] * in2[i] + beta * out[i];
         break;
       }
       case ElementBinary::OP_DIV:
       {
-        out[i] = in1[i] / in2[i];
+        out[i] = alpha * (in1[i] / in2[i]) + beta * out[i];
         break;
       }
       default:
@@ -258,6 +286,8 @@ void ElementBinary::forward_task(const Task* task,
                                  const std::vector<PhysicalRegion> &regions,
                                  Context ctx, Runtime* runtime)
 {
+  float alpha = 1.0f;
+  float beta = 0.0f;
   assert(regions.size() == 3);
   assert(task->regions.size() == 3);
   const ElementBinary* ele = (const ElementBinary*) task->args;
@@ -270,14 +300,14 @@ void ElementBinary::forward_task(const Task* task,
   assert(in1_domain == in2_domain);
   assert(out_domain == in1_domain);
 
-  const float* in1_ptr = helperGetTensorPointerR<float>(
+  const float* in1_ptr = helperGetTensorPointerRO<float>(
     regions[0], task->regions[0], FID_DATA, ctx, runtime);
-  const float* in2_ptr = helperGetTensorPointerR<float>(
+  const float* in2_ptr = helperGetTensorPointerRO<float>(
     regions[1], task->regions[1], FID_DATA, ctx, runtime);
   float* out_ptr = helperGetTensorPointerWO<float>(
     regions[2], task->regions[2], FID_DATA, ctx, runtime);
   elewise_binary_forward_kernel<<<GET_BLOCKS(out_domain.get_volume()), CUDA_NUM_THREADS>>>(
-  out_domain.get_volume(), ele->op_type, in1_ptr, in2_ptr, out_ptr);
+      out_domain.get_volume(), alpha, beta, ele->op_type, in1_ptr, in2_ptr, out_ptr);
 }
 
 void ElementBinary::forward(const FFModel& ff)
@@ -298,14 +328,16 @@ void ElementBinary::forward(const FFModel& ff)
       READ_ONLY, EXCLUSIVE, inputs[1].region));
   launcher.add_field(1, FID_DATA);
   launcher.add_region_requirement(
-    RegionRequirement(output.part, 0/*projection id*/,
-      WRITE_ONLY, EXCLUSIVE, output.region));
+    RegionRequirement(outputs[0].part, 0/*projection id*/,
+      WRITE_ONLY, EXCLUSIVE, outputs[0].region));
   launcher.add_field(2, FID_DATA);
   runtime->execute_index_space(ctx, launcher);
 }
 
 __global__
 void elewise_binary_backward_kernel(coord_t volume,
+                                    const float alpha,
+                                    const float beta,
                                     ElementBinary::OpType type,
                                     const float* out_grad,
                                     const float* in1,
@@ -318,26 +350,26 @@ void elewise_binary_backward_kernel(coord_t volume,
     switch (type) {
       case ElementBinary::OP_ADD:
       {
-        in1_grad[i] = out_grad[i];
-        in2_grad[i] = out_grad[i];
+        in1_grad[i] = alpha * out_grad[i] + beta * in1_grad[i];
+        in2_grad[i] = alpha * out_grad[i] + beta * in2_grad[i];
         break;
       }
       case ElementBinary::OP_SUB:
       {
-        in1_grad[i] = out_grad[i];
-        in2_grad[i] = -out_grad[i];
+        in1_grad[i] = alpha * out_grad[i] + beta * in1_grad[i];
+        in2_grad[i] = - alpha * out_grad[i] + beta * in2_grad[i];
         break;
       }
       case ElementBinary::OP_MUL:
       {
-        in1_grad[i] = out_grad[i] * in2[i];
-        in2_grad[i] = out_grad[i] * in1[i];
+        in1_grad[i] = alpha * out_grad[i] * in2[i] + beta * in1_grad[i];
+        in2_grad[i] = alpha * out_grad[i] * in1[i] + beta * in2_grad[i];
         break;
       }
       case ElementBinary::OP_DIV:
       {
-        in1_grad[i] = out_grad[i] / in2[i];
-        in2_grad[i] = - out_grad[i] * in1[i] / (in2[i] * in2[i]);
+        in1_grad[i] = alpha * out_grad[i] / in2[i] + beta * in1_grad[i];
+        in2_grad[i] = - alpha * out_grad[i] * in1[i] / (in2[i] * in2[i]) + beta * in2_grad[i];
         break;
       }
       default:
@@ -349,16 +381,17 @@ void elewise_binary_backward_kernel(coord_t volume,
   regions[0](I): out_grad
   regions[1](I): in0
   regions[2](I): in1
-  regions[3](O): in0_grad
-  regions[4](O): in1_grad
+  regions[3](I/O): in0_grad
+  regions[4](I/O): in1_grad
 */
 void ElementBinary::backward_task(const Task *task,
                             const std::vector<PhysicalRegion> &regions,
                             Context ctx, Runtime* runtime)
 {
+  float alpha = 1.0f;
   const ElementBinary* ele = (const ElementBinary*) task->args;
-  assert(regions.size() == 3);
-  assert(task->regions.size() == 3);
+  assert(regions.size() == 5);
+  assert(task->regions.size() == 5);
   Domain out_grad_domain = runtime->get_index_space_domain(
     ctx, task->regions[0].region.get_index_space());
   Domain in0_domain = runtime->get_index_space_domain(
@@ -374,19 +407,19 @@ void ElementBinary::backward_task(const Task *task,
   assert(out_grad_domain == in0_grad_domain);
   assert(out_grad_domain == in1_grad_domain);
 
-  const float* out_grad_ptr = helperGetTensorPointerR<float>(
+  const float* out_grad_ptr = helperGetTensorPointerRO<float>(
     regions[0], task->regions[0], FID_DATA, ctx, runtime);
-  const float* in1_ptr = helperGetTensorPointerR<float>(
+  const float* in1_ptr = helperGetTensorPointerRO<float>(
     regions[1], task->regions[1], FID_DATA, ctx, runtime);
-  const float* in2_ptr = helperGetTensorPointerR<float>(
+  const float* in2_ptr = helperGetTensorPointerRO<float>(
     regions[2], task->regions[2], FID_DATA, ctx, runtime);
-  float* in1_grad_ptr = helperGetTensorPointerWO<float>(
-    regions[1], task->regions[1], FID_DATA, ctx, runtime);
-  float* in2_grad_ptr = helperGetTensorPointerWO<float>(
-    regions[2], task->regions[2], FID_DATA, ctx, runtime);
+  float* in1_grad_ptr = helperGetTensorPointerRW<float>(
+    regions[3], task->regions[3], FID_DATA, ctx, runtime);
+  float* in2_grad_ptr = helperGetTensorPointerRW<float>(
+    regions[4], task->regions[4], FID_DATA, ctx, runtime);
 
   elewise_binary_backward_kernel<<<GET_BLOCKS(out_grad_domain.get_volume()), CUDA_NUM_THREADS>>>(
-    out_grad_domain.get_volume(), ele->op_type, out_grad_ptr, in1_ptr, in2_ptr,
+    out_grad_domain.get_volume(), alpha, alpha, ele->op_type, out_grad_ptr, in1_ptr, in2_ptr,
     in1_grad_ptr, in2_grad_ptr);
 }
 
@@ -401,8 +434,8 @@ void ElementBinary::backward(const FFModel& ff)
                          FFConfig::get_hash_id(std::string(name)));
   // regions[0](I): output_grad
   launcher.add_region_requirement(
-    RegionRequirement(output.part_grad, 0/*projection id*/,
-                      READ_ONLY, EXCLUSIVE, output.region_grad));
+    RegionRequirement(outputs[0].part_grad, 0/*projection id*/,
+                      READ_ONLY, EXCLUSIVE, outputs[0].region_grad));
   launcher.add_field(0, FID_DATA);
   // regions[1](I): input0
   launcher.add_region_requirement(
@@ -414,15 +447,15 @@ void ElementBinary::backward(const FFModel& ff)
     RegionRequirement(input_lps[1], 0/*projection id*/,
                       READ_ONLY, EXCLUSIVE, inputs[1].region));
   launcher.add_field(2, FID_DATA);
-  // regions[3](O): input0_grad
+  // regions[3](I/O): input0_grad
   launcher.add_region_requirement(
     RegionRequirement(input_grad_lps[0], 0/*projection id*/,
-                      WRITE_ONLY, EXCLUSIVE, inputs[0].region_grad));
+                      READ_WRITE, EXCLUSIVE, inputs[0].region_grad));
   launcher.add_field(3, FID_DATA);
-  // regions[4](O): input1_grad
+  // regions[4](I/O): input1_grad
   launcher.add_region_requirement(
     RegionRequirement(input_grad_lps[1], 0/*projection id*/,
-                      WRITE_ONLY, EXCLUSIVE, inputs[1].region_grad));
+                      READ_WRITE, EXCLUSIVE, inputs[1].region_grad));
   launcher.add_field(4, FID_DATA);
   runtime->execute_index_space(ctx, launcher);
 }

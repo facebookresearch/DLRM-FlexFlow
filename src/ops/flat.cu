@@ -23,7 +23,7 @@ Tensor FFModel::flat(std::string name, Tensor input)
   //ParallelConfig pc = strategies[name];
   Flat *flat = new Flat(*this, name, input);
   flat->add_to_model(*this);
-  return flat->output;
+  return flat->outputs[0];
 }
 
 Flat* FFModel::flat(std::string name)
@@ -148,7 +148,7 @@ Tensor Flat::init_inout(FFModel& model, const Tensor& _input)
   add_to_model(model);
   inputs[0] = _input;
   create_output_and_partition(model);
-  return output;
+  return outputs[0];
 }
 
 void Flat::add_to_model(FFModel& model)
@@ -173,7 +173,7 @@ void Flat::create_output_and_partition(FFModel& model)
   // Create output tensor
   {
     const int dims[2] = {batch_size, out_dim};
-    output = model.create_tensor<2>(dims, task_is, DT_FLOAT);
+    outputs[0] = model.create_tensor<2>(dims, (IndexSpaceT<2>)task_is, DT_FLOAT);
   }
   model.create_data_parallel_partition_with_diff_dims<4, 2>(
       inputs[0], (IndexSpaceT<2>)task_is, input_lps[0], input_grad_lps[0]);
@@ -252,20 +252,21 @@ void Flat::forward(const FFModel& ff)
       READ_ONLY, EXCLUSIVE, inputs[0].region));
   launcher.add_field(0, FID_DATA);
   launcher.add_region_requirement(
-    RegionRequirement(output.part, 0/*projection id*/,
-      WRITE_ONLY, EXCLUSIVE, output.region));
+      RegionRequirement(outputs[0].part, 0/*projection id*/,
+                        WRITE_ONLY, EXCLUSIVE, outputs[0].region));
   launcher.add_field(1, FID_DATA);
   runtime->execute_index_space(ctx, launcher);
 }
 
 /*
-  regions[0](O) : input_grad
+  regions[0](I/O) : input_grad
   regions[1](I) : output_grad
 */
 void Flat::backward_task(const Task *task,
                          const std::vector<PhysicalRegion> &regions,
                          Context ctx, Runtime *runtime)
 {
+  float alpha = 1.0f;
   assert(regions.size() == 2);
   assert(task->regions.size() == 2);
   TensorAccessorW<float, 4> acc_input_grad(
@@ -274,9 +275,11 @@ void Flat::backward_task(const Task *task,
   TensorAccessorR<float, 2> acc_output_grad(
     regions[1], task->regions[1], FID_DATA, ctx, runtime);
   assert(acc_input_grad.rect.volume() == acc_output_grad.rect.volume());
-  checkCUDA(cudaMemcpyAsync(acc_input_grad.ptr, acc_output_grad.ptr,
-    acc_input_grad.rect.volume() * sizeof(float),
-    cudaMemcpyDeviceToDevice));
+  apply_add_with_scale<<<GET_BLOCKS(acc_input_grad.rect.volume()), CUDA_NUM_THREADS>>>(
+      acc_input_grad.ptr, acc_output_grad.ptr, acc_input_grad.rect.volume(), alpha);
+  //checkCUDA(cudaMemcpyAsync(acc_input_grad.ptr, acc_output_grad.ptr,
+  //                          acc_input_grad.rect.volume() * sizeof(float),
+  //                          cudaMemcpyDeviceToDevice));
 }
 
 void Flat::backward(const FFModel& ff)
@@ -295,12 +298,12 @@ void Flat::backward(const FFModel& ff)
     Predicate::TRUE_PRED, false/*must*/, 0/*mapper_id*/,
     FFConfig::get_hash_id(std::string(name)));
   launcher.add_region_requirement(
-    RegionRequirement(input_grad_lps[0], 0/*projection id*/,
-      WRITE_ONLY, EXCLUSIVE, inputs[0].region_grad));
+      RegionRequirement(input_grad_lps[0], 0/*projection id*/,
+                        READ_WRITE, EXCLUSIVE, inputs[0].region_grad));
   launcher.add_field(0, FID_DATA);
   launcher.add_region_requirement(
-    RegionRequirement(output.part_grad, 0/*projection id*/,
-      READ_ONLY, EXCLUSIVE, output.region_grad));
+      RegionRequirement(outputs[0].part_grad, 0/*projection id*/,
+                        READ_ONLY, EXCLUSIVE, outputs[0].region_grad));
   launcher.add_field(1, FID_DATA);
   runtime->execute_index_space(ctx, launcher);
 }

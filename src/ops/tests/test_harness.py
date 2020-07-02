@@ -157,6 +157,106 @@ class LinearLogLossWithLogitSelfReferenceTest(unittest.TestCase):
         
         # only check kernel
         file2 = 'kernel_updated1.txt'
+        file1 = 'kernel_updated2.txt'
+        # kernel has to be exactly match
+        is_equal_tensor_from_file(file1, file2, 'kernel', epsilon=epsilon)
+        # average_error_tolerance(file1, file2, 'kernel', epsilon=epsilon)
+        
+
+
+    def test_single_gpu_small_problem(self):
+        np.random.seed(0)
+        num_gpu = 1
+        # batch_size % num_worker == 0 (reshape contraints)
+        i_dim = 2
+        o_dim = 2 
+        i_shape = [2,6]
+        o_shape = [2,1] 
+        self._run_gpu_test(num_gpu, i_dim, o_dim, i_shape, o_shape)
+
+    def test_multi_gpu_small_problem(self):
+        np.random.seed(0)
+        num_gpu = 2
+        # batch_size % num_worker == 0 (reshape contraints)
+        i_dim = 2
+        o_dim = 2 
+        i_shape = [2,6]
+        o_shape = [2,1] 
+        self._run_gpu_test(num_gpu, i_dim, o_dim, i_shape, o_shape)
+
+class LinearLogLossWithLogit2Test(unittest.TestCase):
+    '''
+    Dot Compressor shapes:
+    input1: list of 2d tensors (batch_size, i_dim), the size of list is channel dimension
+    output: in shape 
+    (batch_size, i_dim * out_channel_dim )
+    example:
+  
+    '''
+    TEST_TARGET = 'sigmoid_ce_with_logit_2_test'
+    def _dump_meta(self,i_dim, o_dim, i_shape, o_shape):
+        i_shape = [str(x) for x in i_shape]
+        o_shape = [str(x) for x in o_shape]
+        with open('test_meta.txt', 'w+') as f:
+          f.write(' '.join([str(i_dim), str(o_dim)]+i_shape+o_shape))
+
+    def _run_gpu_test(self, num_gpu, i_dim, o_dim, i_shape, \
+                      o_shape, \
+                      epsilon=0.01, \
+                      l=-1.0, r=1.0, epoch=1):
+        self._dump_meta(i_dim, o_dim, i_shape, o_shape)
+        linear_weight = np.random.uniform(l,r, (o_shape[1], i_shape[1]))
+        dump_numpy_array_to_file(linear_weight, "test_kernel1.txt")
+        linear_bias = np.zeros(o_dim)
+        dump_numpy_array_to_file(linear_bias, "test_bias1.txt")
+        pretrained_weights = [linear_weight, linear_bias]
+        # pretrained_weights = None
+        linear_input = np.random.uniform(l, r, i_shape)
+        dump_numpy_array_to_file(linear_input, "test_input1.txt")
+
+
+
+        linear_input = torch.from_numpy(linear_input).float()
+        # print('chunk dense embedded', chunk_dense_embedded.shape, "chunk sparse embedded", chunk_sparse_embedded.shape)
+        m = LinearWithSigmoid(
+          i_shape[-1], 
+          1, # output dimension 1
+          pretrained_weights, 
+          False 
+        )
+        ret = m(linear_input)
+        dump_numpy_array_to_file(ret.data.cpu().numpy(), "test_output2.txt")
+        labels = np.random.randint(2, size=ret.data.cpu().numpy().shape)
+        dump_numpy_array_to_file(labels, "test_label1.txt")
+        labels_t = torch.from_numpy(labels).float()
+        # use output as grad just for testing 
+
+        optimizer = optim.SGD(m.parameters(), lr=0.01, momentum=0.0)
+        criterion = nn.BCELoss(reduction='sum')
+
+        for _ in range(epoch):
+          optimizer.zero_grad()
+          outputs = m(linear_input)
+          loss = criterion(outputs, labels_t)
+          loss.backward(retain_graph=True)
+          optimizer.step()
+        optimizer.zero_grad()
+        # print(dir(dense_projection))
+        linear_weights_updated = m.linear_layer.weight.data.numpy()
+        dump_numpy_array_to_file(linear_weights_updated, 'test_kernel_updated1.txt')
+
+
+
+        # 2nd forward run after weights update
+        ret = m(linear_input)
+        dump_numpy_array_to_file(ret.data.cpu().numpy(), "test_output.txt")
+
+        # generate FF results
+        gen_FF_result(LinearLogLossWithLogit2Test.TEST_TARGET, num_gpu)
+
+        
+        # only check kernel
+        file2 = 'kernel_updated2.txt'
         file1 = 'test_kernel_updated1.txt'
         # kernel has to be exactly match
         is_equal_tensor_from_file(file1, file2, 'kernel', epsilon=epsilon)
@@ -182,6 +282,16 @@ class LinearLogLossWithLogitSelfReferenceTest(unittest.TestCase):
         o_dim = 2 
         i_shape = [2,6]
         o_shape = [2,1] 
+        self._run_gpu_test(num_gpu, i_dim, o_dim, i_shape, o_shape)
+        
+    def test_multi_gpu_mid_problem(self):
+        np.random.seed(0)
+        num_gpu = 2
+        # batch_size % num_worker == 0 (reshape contraints)
+        i_dim = 2
+        o_dim = 2 
+        i_shape = [20,60]
+        o_shape = [20,1] 
         self._run_gpu_test(num_gpu, i_dim, o_dim, i_shape, o_shape)
 
 class LinearLogLossWithLogitTest(unittest.TestCase):
@@ -232,7 +342,7 @@ class LinearLogLossWithLogitTest(unittest.TestCase):
         # use output as grad just for testing 
 
         optimizer = optim.SGD(m.parameters(), lr=0.01, momentum=0.0)
-        criterion = nn.BCELoss()
+        criterion = nn.BCELoss(reduction='sum')
 
         for _ in range(epoch):
           optimizer.zero_grad()

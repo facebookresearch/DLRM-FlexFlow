@@ -66,6 +66,7 @@ void top_level_task(const Task* task,
         bias, ff, "float", 1);  
   }
 
+<<<<<<< HEAD
   Tensor weights;
   {
     const int dims[2] = {test_meta.projected_num_channels, test_meta.num_channels};
@@ -82,16 +83,24 @@ void top_level_task(const Task* task,
     initialize_tensor_from_file(bias_file_path, 
         bias, ff, "float", 1);  
   }
+=======
+>>>>>>> 347fc90c85fac4a6d3e54977cafb932b925a9867
 
   // create dense projection
   Tensor dense_projection;
   {
     const int dims[2] = {test_meta.batch_size, test_meta.dense_projection_i_dim}; 
     dense_projection = ff.create_tensor<2>(dims, "", DT_FLOAT);
+<<<<<<< HEAD
     auto dense_projection_file_path = "test_input1.txt";
     initialize_tensor_from_file(dense_projection_file_path, 
         dense_projection, ff, "float", 2);
 
+=======
+    // dense_projection = ff.create_linear_weight<2>(dims, (IndexSpaceT<2>)task_is, DT_FLOAT, kernel_initializer);
+    initialize_tensor_from_file(dense_projection_file_path, 
+        dense_projection, ff, "float", 2);
+>>>>>>> 347fc90c85fac4a6d3e54977cafb932b925a9867
   }
   // create embeddings
   int dense_embedding_channels = test_meta.num_channels / 2;
@@ -124,7 +133,10 @@ void top_level_task(const Task* task,
     sparse_embedding_channels,
     dense_embeddings,
     sparse_embeddings,
+<<<<<<< HEAD
     dense_projection, 
+=======
+>>>>>>> 347fc90c85fac4a6d3e54977cafb932b925a9867
     test_meta.projected_num_channels,
     &dense_projection, // dense projection
     AC_MODE_NONE,
@@ -161,6 +173,10 @@ void top_level_task(const Task* task,
   ff.forward();
   // dump results to file for python validation
   dump_region_to_file(ff, ret.region, "output.txt", 2);
+<<<<<<< HEAD
+=======
+  // dump_region_to_file(ff, dense_projection.region, "dump.txt", 2);
+>>>>>>> 347fc90c85fac4a6d3e54977cafb932b925a9867
   auto kernel = ff.parameters[0].tensor;
   dump_region_to_file(ff, kernel.region, "kernel_updated1.txt", 2);
 

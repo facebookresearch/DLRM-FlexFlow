@@ -5,78 +5,6 @@ import torch
 import torch.optim as optim
 import torch.nn as nn
 
-class DotCompressor(torch.nn.Module):
-    def __init__(self, in_features, out_features, weights=None, bias=False):
-        super(DotCompressor, self).__init__()
-        self.projected_rtc_layer = torch.nn.Linear(in_features, out_features, bias=bias)
-        self.h_channel_dim = out_features
-        if weights is not None:
-            assert len(weights) == 2
-            # weights shape  (out_features,in_features)
-            # bias shape (out_features)
-            self.projected_rtc_layer.weight = torch.nn.Parameter(torch.from_numpy(weights[0]), requires_grad=True)
-            if bias:
-              self.projected_rtc_layer.bias = torch.nn.Parameter(torch.from_numpy(weights[1]), requires_grad=True)
-
-    def forward(self, dense_embeddings, sparse_embeddings, dense_projection, debug=False):
-        assert len(dense_projection.shape) == 2
-        assert len(dense_embeddings[0].shape) == 2
-        assert len(sparse_embeddings[0].shape) == 2
-        assert len(dense_embeddings) > 0, 'embeddings to be compressed can not be empty'
-        assert len(sparse_embeddings) > 0, 'embeddings to be compressed can not be empty'
-        num_channels = len(dense_embeddings) + len(sparse_embeddings)
-        batch_size = dense_embeddings[0].shape[0]
-        i_dim = dense_embeddings[0].shape[1]
-        if debug:
-            # print("dense embeddings", dense_embeddings.data.cpu().numpy())
-            print("dense embeddings", dense_embeddings[0].shape, len(dense_embeddings))
-            # print("sparse embeddings", sparse_embeddings.data.cpu().numpy())
-            print("sparse embeddings", sparse_embeddings[0].shape, len(sparse_embeddings))
-        # concat embeddings
-        cat_input = torch.cat(sparse_embeddings+dense_embeddings, dim=1)
-        if debug:
-            print("concatenated inputs", cat_input.shape)
-        # reshape to add channel dimension
-        cat_input_reshape = cat_input.reshape(batch_size, num_channels, i_dim)
-        if debug:
-            print('reshaped input', cat_input_reshape.shape)
-        # transpose
-        transpose_cat = torch.transpose(cat_input_reshape, 2, 1)
-        if debug:
-            print('transposed', transpose_cat.shape)
-            print('transposed input\n', cat_input_reshape.data.cpu().numpy())
-            print('transposed output\n', transpose_cat.data.cpu().numpy())
-        # reshape 3 to 2
-        batched_input_size = batch_size * i_dim
-        reshape_transpose_cat = torch.reshape(transpose_cat, (batched_input_size, num_channels))
-        if debug:
-            print('reshaped', reshape_transpose_cat.shape)
-        # linear layer
-        projected_rtc = self.projected_rtc_layer(reshape_transpose_cat.double())
-        if debug:
-            print('projected batch:', projected_rtc.shape)
-        # unpack inputs reshape 2 to 3
-        unpacked_projected_rtc = torch.reshape(projected_rtc, (batch_size, i_dim, self.h_channel_dim))
-        if debug:
-            print('unpacked_projected_rtc', unpacked_projected_rtc.shape)
-        # bmm
-        batch_pairwise = torch.bmm(transpose_cat.transpose(-1, -2).float(), unpacked_projected_rtc.float())
-        if debug:
-            print('bmm input1', transpose_cat.shape, 'bmm input2', unpacked_projected_rtc.shape)
-            print('batch_pairwise', batch_pairwise.shape)
-            print('input1', transpose_cat.data.cpu().numpy())
-            print('input2', unpacked_projected_rtc.data.cpu().numpy())
-            print('output', batch_pairwise.data.cpu().numpy())
-        flattened_pairwise = batch_pairwise.flatten(1, 2)
-        if debug:
-            print('flattened_pairwise', flattened_pairwise.shape)
-        tanh_flatteded_pairwise = torch.tanh(flattened_pairwise)
-        if debug:
-            print('tanh_flatteded_pairwise', tanh_flatteded_pairwise.shape)
-        if debug:
-            print('dense_projection', dense_projection.shape)
-        cat_compression_ret = torch.cat([tanh_flatteded_pairwise, dense_projection], 1)
-        return cat_compression_ret
 
 def dump_numpy_array_to_file(ndarray, file_name):
     buffer = []
@@ -578,32 +506,10 @@ class DotCompressorTest(unittest.TestCase):
     '''
     Dot Compressor shapes:
     input1: list of 2d tensors (batch_size, i_dim), the size of list is channel dimension
-    input2: another 2d tensor that we want to concat with the projected input1, input2 shape (batch_size, i2_dim)
     output: in shape 
-    (batch_size, i_dim * out_channel_dim + i2_dim)
+    (batch_size, i_dim * out_channel_dim )
     example:
-    ```
-      batch_size = 145
-      i_dim = 64
-      num_channels = 265
-      projected_num_channels = 15
-      dense_projection_i_dim = 512
-      linear_weight = np.random.uniform(0,1, (projected_num_channels, num_channels, ))
-      linear_bias = np.random.uniform(0,1, projected_num_channels)
-
-      dense_projection = np.random.uniform(0, 1, (batch_size, dense_projection_i_dim))
-      dense_projection = torch.from_numpy(dense_projection).float()
-      chunk_dense_embedded = np.random.uniform(0, 1, (batch_size, num_channels // 2, i_dim))
-      chunk_sparse_embedded = np.random.uniform(0, 1, (batch_size, num_channels - num_channels // 2, i_dim))
-      print('chunk dense embedded', chunk_dense_embedded.shape, "chunk sparse embedded", chunk_sparse_embedded.shape)
-      chunk_dense_embedded = torch.from_numpy(chunk_dense_embedded)
-      chunk_sparse_embedded = torch.from_numpy(chunk_sparse_embedded)
-      pretrained_weights = [linear_weight, linear_bias]
-      m = DotCompressor(num_channels, projected_num_channels, pretrained_weights)
-      ret = m(chunk_dense_embedded, chunk_sparse_embedded, dense_projection, debug=False)
-      print(num_channels, chunk_dense_embedded.shape, chunk_sparse_embedded.shape, dense_projection.shape)
-      print(ret.shape)
-    ```
+  
     '''
     TEST_TARGET = 'dot_compressor_test'
     def _dump_meta(self, batch_size, i_dim, num_channels, projected_num_channels, dense_projection_i_dim):
@@ -625,16 +531,16 @@ class DotCompressorTest(unittest.TestCase):
         linear_bias = np.zeros(projected_num_channels)
         dump_numpy_array_to_file(linear_bias, "test_bias1.txt")
 
-        dense_projection = np.random.uniform(0, 1, (batch_size, dense_projection_i_dim))
+        dense_projection = np.random.uniform(l, r, (batch_size, dense_projection_i_dim))
         dense_projection = torch.from_numpy(dense_projection).float()
         dump_numpy_array_to_file(dense_projection, "test_input1.txt")
 
-        dense_embedding = np.random.uniform(0, 1, (batch_size, i_dim))
+        dense_embedding = np.random.uniform(l, r, (batch_size, i_dim))
         chunk_dense_embedded = [torch.from_numpy(dense_embedding) for _ in range(num_channels // 2)]
         # print(chunk_dense_embedded[0].shape)
         dump_numpy_array_to_file(dense_embedding, "test_input2.txt")
 
-        sparse_embedding = np.random.uniform(0, 1, (batch_size, i_dim))
+        sparse_embedding = np.random.uniform(l, r, (batch_size, i_dim))
         chunk_sparse_embedded = [torch.from_numpy(sparse_embedding) for _ in range(num_channels - num_channels // 2)]
         # print(chunk_sparse_embedded[0].shape)
         dump_numpy_array_to_file(sparse_embedding, "test_input3.txt")
@@ -714,8 +620,8 @@ class DotCompressorTest(unittest.TestCase):
         np.random.seed(0)
         num_gpu = 2
         # batch_size % num_worker == 0 (reshape contraints)
-        batch_size = 4
-        i_dim = 3
+        batch_size = 2
+        i_dim = 6
         num_channels = 4
         projected_num_channels = 2
         dense_projection_i_dim = 3        

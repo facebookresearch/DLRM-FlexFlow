@@ -197,6 +197,9 @@ class DotCompressorTest(unittest.TestCase):
     example:
   
     '''
+    '''
+    We are missing https://github.com/facebookresearch/DLRM-FlexFlow/blob/master/src/modules/dot_compressor.cc source file for this target
+    '''
     TEST_TARGET = 'dot_compressor_test'
     def _dump_meta(self, batch_size, i_dim, num_channels, projected_num_channels, dense_projection_i_dim):
         with open('test_meta.txt', 'w+') as f:

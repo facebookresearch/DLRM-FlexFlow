@@ -1,3 +1,5 @@
+Copyright (c) Facebook, Inc. and its affiliates.
+
 # FlexFlow
 
 FlexFlow is a deep learning framework that accelerates distributed DNN training by automatically discovering fast parallelization strategies.
@@ -64,3 +66,10 @@ Publication
 * Zhihao Jia, Matei Zaharia, and Alex Aiken. [Beyond Data and Model Parallelism for Deep Neural Networks](https://cs.stanford.edu/~zhihao/papers/sysml19a.pdf). In Proceedings of the 2nd Conference on Machine Learning and Systems (MLSys), Palo Alto, CA, April 2019.
 
 * Zhihao Jia, Sina Lin, Charles R. Qi, and Alex Aiken. [Exploring Hidden Dimensions in Parallelizing Convolutional Neural Networks](http://proceedings.mlr.press/v80/jia18a/jia18a.pdf). In Proceedings of the International Conference on Machine Learning (ICML), Stockholm, Sweden, July 2018.
+
+License
+-----------
+Apache License Version 2.0, January 2004
+http://www.apache.org/licenses/
+See the LICENSE file for more details.
+

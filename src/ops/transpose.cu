@@ -3,74 +3,17 @@
 #include "cuda_helper.h"
 #include <iostream>
 
-Tensor FFModel::transpose(std::string name, Tensor input) {
-  Transpose *trans = new Transpose(*this, name, input);
+Tensor FFModel::transpose(const Tensor& input)
+{
+  Transpose *trans = new Transpose(*this, input);
   layers.push_back(trans);
-  return trans->output;
+  return trans->outputs[0];
 }
 
-Transpose::Transpose(
-    FFModel& model,
-    const std::string& pcname,
-    const Tensor& _input
-): Op(pcname, _input), profiling(model.config.profiling){
-  // Retrive the task indexspace for the op
-  task_is = model.get_or_create_task_is(3, pcname);
-  ArgumentMap argmap;
-  Context ctx = model.config.lg_ctx;
-  Runtime* runtime = model.config.lg_hlr;
-  FieldSpace fs = model.config.field_space;
-  // inputs[0] (k,m,d)
-  int k = inputs[0].adim[0];
-  int m = inputs[0].adim[1];
-  int d = inputs[0].adim[2];
-  if (profiling){ 
-      printf("transpose input shape d(%d) m(%d) k(%d) \n", d,m,k);
-  }
-  const int dims[] = {d,k,m};
-  output = model.create_tensor<3>(dims, pcname, DT_FLOAT);
-  // Compute partition bound for input
-  // TODO the input partition check can be refactored into a helper function
-  // Domain domain = runtime->get_index_space_domain(ctx, task_is);
-  // Rect<3> part_rect = domain;
-  // Rect<3> input_rect = runtime->get_index_partition_color_space(
-  //   ctx, inputs[0].part.get_index_partition());
-  // if (input_rect == part_rect) {
-  //   input_lps[0] = inputs[0].part;
-  //   input_grad_lps[0] = inputs[0].part_grad;
-  // } else {
-  //   model.create_disjoint_partition<3>(
-  //     inputs[0],
-  //     IndexSpaceT<3>(task_is),
-  //     input_lps[0],
-  //     input_grad_lps[0]
-  //   );
-  // }
-  model.create_data_parallel_partition_with_diff_dims<3, 3>(
-    inputs[0], IndexSpaceT<3>(task_is), input_lps[0], input_grad_lps[0]);
-  /*
-  We zero-init the gradience of the output tensor 
-  in constructor to bypass Legion tensor unitialized runtime error
-  */
-  Rect<3> rect = runtime->get_index_space_domain(ctx, task_is);
-  int idx = 0;
-  for (PointInRectIterator<3> it(rect); it(); it++) {
-    OpMeta* mp = meta[idx++];
-    argmap.set_point(*it, TaskArgument(&mp, sizeof(OpMeta*)));
-  }
-  Domain output_grad_domain = runtime->get_index_partition_color_space(
-    ctx, output.part_grad.get_index_partition());
-  IndexSpace output_grad_task_is = model.get_or_create_task_is(output_grad_domain);
-  IndexLauncher launcher(ZERO_INIT_TASK_ID, output_grad_task_is,
-              TaskArgument(NULL, 0), argmap,
-              Predicate::TRUE_PRED, false/*must*/, 0/*mapper_id*/,
-              FFConfig::get_hash_id(std::string("init output gradients")));
-  launcher.add_region_requirement(
-    RegionRequirement(output.part_grad, 0/*projection*/,
-              WRITE_ONLY, EXCLUSIVE, output.region_grad));
-  launcher.add_field(0, FID_DATA);
-  runtime->execute_index_space(ctx, launcher);
-
+Transpose::Transpose(FFModel& model,
+                     const Tensor& _input)
+: Op(model, OP_TRANSPOSE, "Transpose_", _input), profiling(model.config.profiling)
+{
 }
 
 Tensor Transpose::init_inout(FFModel& model, const Tensor& _input)
@@ -80,6 +23,30 @@ Tensor Transpose::init_inout(FFModel& model, const Tensor& _input)
   // TO BE IMPLEMENTED...
   assert(false);
   return Tensor();
+}
+
+void Transpose::create_weights(FFModel& model)
+{
+  // Do nothing
+}
+
+void Transpose::create_output_and_partition(FFModel& model)
+{
+  // Retrive the task indexspace for the op
+  std::string pcname = name;
+  task_is = IndexSpaceT<3>(model.get_or_create_task_is(3, pcname));
+  {
+    int k = inputs[0].adim[0];
+    int m = inputs[0].adim[1];
+    int d = inputs[0].adim[2];
+    const int dims[] = {d,k,m};
+    outputs[0] = model.create_tensor<3>(dims, (IndexSpaceT<3>)task_is, DT_FLOAT);
+    outputs[0].owner_op = this;
+    outputs[0].owner_idx = 0;
+  }
+
+  model.create_data_parallel_partition_with_diff_dims<3, 3>(
+    inputs[0], IndexSpaceT<3>(task_is), input_lps[0], input_grad_lps[0]);
 }
 
 void Transpose::init(const FFModel& ff) {
@@ -98,8 +65,8 @@ void Transpose::init(const FFModel& ff) {
     Predicate::TRUE_PRED, false/*must*/, 0/*mapper_id*/,
     FFConfig::get_hash_id(std::string(name)));
   launcher.add_region_requirement(
-  RegionRequirement(output.part, 0/*projection id*/,
-    WRITE_ONLY, EXCLUSIVE, output.region));
+  RegionRequirement(outputs[0].part, 0/*projection id*/,
+    WRITE_ONLY, EXCLUSIVE, outputs[0].region));
   launcher.add_field(0, FID_DATA);
   launcher.add_region_requirement(
   RegionRequirement(inputs[0].part, 0/*projection id*/,
@@ -163,8 +130,8 @@ void Transpose::forward(const FFModel& ff) {
       READ_ONLY, EXCLUSIVE, inputs[0].region));
   launcher.add_field(0, FID_DATA);
   launcher.add_region_requirement(
-    RegionRequirement(output.part, 0/*projection id*/,
-      WRITE_ONLY, EXCLUSIVE, output.region));
+    RegionRequirement(outputs[0].part, 0/*projection id*/,
+      WRITE_ONLY, EXCLUSIVE, outputs[0].region));
   launcher.add_field(1, FID_DATA);
   runtime->execute_index_space(ctx, launcher);
 }
@@ -252,8 +219,8 @@ void Transpose::backward(const FFModel& ff) {
       WRITE_ONLY, EXCLUSIVE, inputs[0].region_grad));
   launcher.add_field(0, FID_DATA);
   launcher.add_region_requirement(
-    RegionRequirement(output.part_grad, 0/*projection id*/,
-      READ_ONLY, EXCLUSIVE, output.region_grad));
+    RegionRequirement(outputs[0].part_grad, 0/*projection id*/,
+      READ_ONLY, EXCLUSIVE, outputs[0].region_grad));
   launcher.add_field(1, FID_DATA);
   runtime->execute_index_space(ctx, launcher);
 }
@@ -317,3 +284,15 @@ void Transpose::backward_task(
     print_tensor<3, float>(acc_output.ptr, acc_output.rect, "[Transpose:backward:output]");
   }
 }
+
+void Transpose::print_layer(const FFModel& model)
+{}
+
+bool Transpose::measure_compute_time(Simulator* sim,
+                                     const ParallelConfig& pc,
+                                     float& forward_time,
+                                     float& backward_time)
+{
+  return false;
+}
+

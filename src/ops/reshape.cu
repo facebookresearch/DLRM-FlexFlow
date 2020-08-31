@@ -3,33 +3,24 @@
 #include "cuda_helper.h"
 
 template <int IDIM, int ODIM>
-Tensor FFModel::reshape(std::string name, const Tensor& input, const int output_shape[])
+Tensor FFModel::reshape(const Tensor& input, const int output_shape[])
 {
-  Reshape<IDIM,ODIM> *reshape = new Reshape<IDIM,ODIM>(*this, name, input, output_shape);
+  Reshape<IDIM,ODIM> *reshape = new Reshape<IDIM,ODIM>(*this, input, output_shape);
   layers.push_back(reshape);
-  return reshape->output;
+  return reshape->outputs[0];
 }
 
 
 template <int IDIM, int ODIM>
 Reshape<IDIM, ODIM>::Reshape(FFModel& model,
-  const std::string& pcname,
   const Tensor& _input,
-  const int output_shape[])
-  : Op(pcname, _input)
+  const int _output_shape[])
+: Op(model, OP_RESHAPE, "Reshape_",  _input)
 {
-  task_is = IndexSpaceT<ODIM>(model.get_or_create_task_is(ODIM, pcname));
-  Context ctx = model.config.lg_ctx;
-  Runtime* runtime = model.config.lg_hlr;
-  Rect<ODIM> part_rect = runtime->get_index_space_domain(ctx, task_is);
-  int num_tasks = part_rect.volume();
-  // number batches has to be divisible by partitions
-  assert(_input.adim[_input.numDim-1] % num_tasks == 0);
-  // Create output tensor
-  output = model.create_tensor<ODIM>(output_shape, task_is, DT_FLOAT);
-  model.create_data_parallel_partition_with_diff_dims<IDIM, ODIM>(
-      _input, task_is, input_lps[0], input_grad_lps[0]);
-
+  outputs[0].numDim = ODIM;
+  for (int i = 0; i < ODIM; i++)
+    outputs[0].adim[i] = _output_shape[ODIM-1-i];
+  numWeights = 0;
 }
 
 template <int IDIM, int ODIM>
@@ -40,6 +31,32 @@ Tensor Reshape<IDIM, ODIM>::init_inout(FFModel& model, const Tensor& _input)
   // TO BE IMPLEMENTED...
   assert(false);
   return Tensor();
+}
+
+template <int IDIM, int ODIM>
+void Reshape<IDIM, ODIM>::create_weights(FFModel& model)
+{
+  // Do nothing
+}
+
+template <int IDIM, int ODIM>
+void Reshape<IDIM, ODIM>::create_output_and_partition(FFModel& model)
+{
+  std::string pcname = name;
+  task_is = IndexSpaceT<ODIM>(model.get_or_create_task_is(ODIM, pcname));
+  Context ctx = model.config.lg_ctx;
+  Runtime* runtime = model.config.lg_hlr;
+  Rect<ODIM> part_rect = runtime->get_index_space_domain(ctx, task_is);
+  int num_tasks = part_rect.volume();
+  // number batches has to be divisible by partitions
+  assert(inputs[0].adim[inputs[0].numDim-1] % num_tasks == 0);
+  // Create output tensor
+  int output_shape[ODIM];
+  for (int i = 0; i < ODIM; i++)
+    output_shape[i] = outputs[0].adim[ODIM-1-i];
+  outputs[0] = model.create_tensor<ODIM>(output_shape, task_is, DT_FLOAT);
+  model.create_data_parallel_partition_with_diff_dims<IDIM, ODIM>(
+      inputs[0], (IndexSpaceT<ODIM>)task_is, input_lps[0], input_grad_lps[0]);
 }
 
 template <int IDIM, int ODIM>
@@ -136,8 +153,8 @@ void Reshape<IDIM, ODIM>::forward(const FFModel& ff)
                         READ_ONLY, EXCLUSIVE, inputs[0].region));
   launcher.add_field(0, FID_DATA);
   launcher.add_region_requirement(
-      RegionRequirement(output.part /*3D->2D partitions*/, 0/*projection id*/,
-        WRITE_ONLY, EXCLUSIVE, output.region));
+      RegionRequirement(outputs[0].part /*3D->2D partitions*/, 0/*projection id*/,
+        WRITE_ONLY, EXCLUSIVE, outputs[0].region));
   launcher.add_field(1, FID_DATA);
 
   runtime->execute_index_space(ctx, launcher);
@@ -194,21 +211,31 @@ void Reshape<IDIM, ODIM>::backward(const FFModel& ff)
       WRITE_ONLY, EXCLUSIVE, inputs[0].region_grad));
   launcher.add_field(0, FID_DATA);
   launcher.add_region_requirement(
-    RegionRequirement(output.part_grad, 0/*projection id*/,
-                        READ_ONLY, EXCLUSIVE, output.region_grad));
+    RegionRequirement(outputs[0].part_grad, 0/*projection id*/,
+                      READ_ONLY, EXCLUSIVE, outputs[0].region_grad));
   launcher.add_field(1, FID_DATA);
 
   runtime->execute_index_space(ctx, launcher);
 }
 
+template <int IDIM, int ODIM>
+void Reshape<IDIM, ODIM>::print_layer(const FFModel& ff)
+{
+}
 
+template <int IDIM, int ODIM>
+bool Reshape<IDIM, ODIM>::measure_compute_time(Simulator* sim,
+                                  const ParallelConfig& pc,
+                                  float& forward_time,
+                                  float& backward_time)
+{
+  return false;
+}
 
 template Reshape<3,2>::Reshape(FFModel& model,
-  const std::string& pcname,
   const Tensor& _input,
   const int output_shape[]);
 template Reshape<2,3>::Reshape(FFModel& model,
-  const std::string& pcname,
   const Tensor& _input,
   const int output_shape[]);
 template OpMeta* Reshape<3,2>::init_task(const Task *task,
@@ -235,5 +262,14 @@ template void Reshape<2,3>::backward_task(const Task *task,
   Context ctx, Runtime *runtime);
 template void Reshape<3,2>::backward(const FFModel& ff);
 template void Reshape<2,3>::backward(const FFModel& ff);
-template Tensor FFModel::reshape<3,2>(std::string name, const Tensor& input, const int output_shape[]);
-template Tensor FFModel::reshape<2,3>(std::string name, const Tensor& input, const int output_shape[]);
+template void Reshape<3,2>::print_layer(const FFModel& ff);
+template void Reshape<2,3>::print_layer(const FFModel& ff);
+template bool Reshape<3,2>::measure_compute_time(Simulator* sim,
+  const ParallelConfig& pc, float& forward_time,
+  float& backward_time);
+template bool Reshape<2,3>::measure_compute_time(Simulator* sim,
+  const ParallelConfig& pc, float& forward_time,
+  float& backward_time);
+
+template Tensor FFModel::reshape<3,2>(const Tensor& input, const int output_shape[]);
+template Tensor FFModel::reshape<2,3>(const Tensor& input, const int output_shape[]);

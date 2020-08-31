@@ -13,7 +13,6 @@
 # limitations under the License.
 #
 
-<<<<<<< HEAD
 GEN_SRC		+= ${FF_HOME}/src/runtime/model.cc\
 		${FF_HOME}/src/mapper/mapper.cc\
 		${FF_HOME}/src/runtime/initializer.cc\
@@ -22,7 +21,7 @@ GEN_SRC		+= ${FF_HOME}/src/runtime/model.cc\
 		${FF_HOME}/src/runtime/strategy.pb.cc\
 		${FF_HOME}/src/runtime/strategy.cc\
 		${FF_HOME}/src/runtime/simulator.cc\
-		${FF_HOME}/src/ops/tests/test_utils.cc
+		${FF_HOME}/src/ops/tests/test_utils.cc\
 		${FF_HOME}/src/metrics_functions/metrics_functions.cc
 
 GEN_GPU_SRC	+= ${FF_HOME}/src/ops/conv_2d.cu\
@@ -40,7 +39,6 @@ GEN_GPU_SRC	+= ${FF_HOME}/src/ops/conv_2d.cu\
 		${FF_HOME}/src/ops/element_unary.cu\
 		${FF_HOME}/src/ops/transpose.cu\
 		${FF_HOME}/src/ops/reshape.cu\
-		${FF_HOME}/src/ops/tanh.cu\
 		${FF_HOME}/src/loss_functions/loss_functions.cu\
 		${FF_HOME}/src/metrics_functions/metrics_functions.cu\
 		${FF_HOME}/src/runtime/initializer_kernel.cu\
@@ -79,9 +77,8 @@ ifndef PROTOBUF
 #$(error PROTOBUF variable is not defined, aborting build)
 endif
 
-PROTOBUF	?= protobuf
-INC_FLAGS	+= -I${PROTOBUF}/src
-LD_FLAGS	+= -L${PROTOBUF}/src/.libs
+INC_FLAGS	+= -I${FF_HOME}/protobuf/src
+LD_FLAGS	+= -L${FF_HOME}/protobuf/src/.libs
 
 ifndef HDF5
 HDF5_inc	?= /usr/include/hdf5/serial

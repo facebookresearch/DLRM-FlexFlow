@@ -3,30 +3,25 @@
 #include "cuda_helper.h"
 #include <iostream>
 
-Tensor FFModel::batch_matmul(std::string name,
-             const Tensor& input1, const Tensor& input2,
-             const bool trans1,
-             const bool trans2)
+Tensor FFModel::batch_matmul(const Tensor& input1,
+                             const Tensor& input2,
+                             const bool trans1,
+                             const bool trans2)
 {
-  BatchMatmul *bmm = new BatchMatmul(*this, name, input1, input2, trans1, trans2);
+  BatchMatmul *bmm = new BatchMatmul(*this, input1, input2, trans1, trans2);
   layers.push_back(bmm);
-  return bmm->output;
+  return bmm->outputs[0];
 }
 
 BatchMatmul::BatchMatmul(
   FFModel& model,
-  const std::string& pcname,
   const Tensor& input1,
   const Tensor& input2,
   const bool trans1,
-  const bool trans2
-): Op(pcname, input1, input2), profiling(model.config.profiling){
-  ArgumentMap argmap;
-  // Retrive the task indexspace for the op
-  task_is = model.get_or_create_task_is(3, pcname);
-  Context ctx = model.config.lg_ctx;
-  Runtime* runtime = model.config.lg_hlr;
-  FieldSpace fs = model.config.field_space;
+  const bool trans2)
+: Op(model, OP_LINEAR, "BatchMatMul_", input1, input2),
+  profiling(model.config.profiling)
+{
   /*
   input1 (m,k,d)
   input2 (n,k,d)
@@ -36,7 +31,6 @@ BatchMatmul::BatchMatmul(
   int m = input1.adim[0];
   int n = input2.adim[0];
   int k = input1.adim[1];
-  const int dims[] = {d,m,n};
   if (profiling){ 
     printf("batch_matmul inputs:\n");
     printf("input 1 shape d(%d) k(%d) m(%d)\n", d,k,m);
@@ -46,62 +40,11 @@ BatchMatmul::BatchMatmul(
   transpose_2_flag = trans2;
   transpose_1 = trans1 ? CUBLAS_OP_T : CUBLAS_OP_N;
   transpose_2 = trans2 ? CUBLAS_OP_T : CUBLAS_OP_N;
-  // create 3-dimensional output tensor for this layer to hold the results
-  output = model.create_tensor<3>(dims, pcname, DT_FLOAT);
-
-  // Compute partition bound for input
-  // TODO the input partition check can be refactored into a helper function
-  Domain domain = runtime->get_index_space_domain(ctx, task_is);
-  Rect<3> part_rect = domain;
-  Rect<3> input1_rect = runtime->get_index_partition_color_space(
-    ctx, input1.part.get_index_partition());
-  if (input1_rect == part_rect) {
-    input_lps[0] = input1.part;
-    input_grad_lps[0] = input1.part_grad;
-  } else {
-    model.create_disjoint_partition<3>(
-      input1,
-      IndexSpaceT<3>(task_is),
-      input_lps[0],
-      input_grad_lps[0] 
-    );
-  }
-  Rect<3> input2_rect = runtime->get_index_partition_color_space(
-    ctx, input2.part.get_index_partition());
-  if (input2_rect == part_rect) {
-    input_lps[1] = input2.part;
-    input_grad_lps[1] = input2.part_grad;
-  } else {
-    model.create_disjoint_partition<3>(
-      input2,
-      IndexSpaceT<3>(task_is),
-      input_lps[1],
-      input_grad_lps[1]
-    );
-  }
-  /*
-  We zero-init the gradience of the output tensor 
-  in constructor to bypass Legion tensor unitialized runtime error
-  */
-  Rect<3> rect = runtime->get_index_space_domain(ctx, task_is);
-  int idx = 0;
-  for (PointInRectIterator<3> it(rect); it(); it++) {
-    OpMeta* mp = meta[idx++];
-    argmap.set_point(*it, TaskArgument(&mp, sizeof(OpMeta*)));
-  }
-  Domain output_grad_domain = runtime->get_index_partition_color_space(
-    ctx, output.part_grad.get_index_partition());
-  IndexSpace output_grad_task_is = model.get_or_create_task_is(output_grad_domain);
-  IndexLauncher launcher(ZERO_INIT_TASK_ID, output_grad_task_is,
-               TaskArgument(NULL, 0), argmap,
-               Predicate::TRUE_PRED, false/*must*/, 0/*mapper_id*/,
-               FFConfig::get_hash_id(std::string("init output gradients")));
-  launcher.add_region_requirement(
-    RegionRequirement(output.part_grad, 0/*projection*/,
-              WRITE_ONLY, EXCLUSIVE, output.region_grad));
-  launcher.add_field(0, FID_DATA);
-  runtime->execute_index_space(ctx, launcher);
-
+  outputs[0].numDim = 3;
+  outputs[0].adim[0] = n;
+  outputs[0].adim[1] = m;
+  outputs[0].adim[2] = d;
+  numWeights = 0;
 }
 
 Tensor BatchMatmul::init_inout(FFModel& model, const Tensor& _input)
@@ -111,6 +54,61 @@ Tensor BatchMatmul::init_inout(FFModel& model, const Tensor& _input)
   // TO BE IMPLEMENTED...
   assert(false);
   return Tensor();
+}
+
+void BatchMatmul::create_weights(FFModel& model)
+{
+  // Do nothing
+  return;
+}
+
+void BatchMatmul::create_output_and_partition(FFModel& model)
+{
+  // create 3-dimensional output tensor for this layer to hold the results
+  // Retrive the task indexspace for the op
+  std::string pcname = name;
+  task_is = IndexSpaceT<3>(model.get_or_create_task_is(3, pcname));
+
+  Context ctx = model.config.lg_ctx;
+  Runtime* runtime = model.config.lg_hlr;
+  Rect<3> part_rect = runtime->get_index_space_domain(ctx, task_is);
+  {
+    int d = inputs[0].adim[2];
+    int m = inputs[0].adim[0];
+    int n = inputs[1].adim[0];
+    const int dims[] = {d,m,n};
+    outputs[0] = model.create_tensor<3>(dims, pcname, DT_FLOAT);
+    outputs[0].owner_op = this;
+    outputs[0].owner_idx = 0;
+  }
+  // Compute partition bound for input
+  Rect<3> input0_rect = runtime->get_index_partition_color_space(
+      ctx, inputs[0].part.get_index_partition());
+  Rect<3> input1_rect = runtime->get_index_partition_color_space(
+      ctx, inputs[1].part.get_index_partition());
+
+  if (input0_rect == part_rect) {
+    input_lps[0] = inputs[0].part;
+    input_grad_lps[0] = inputs[0].part_grad;
+  } else {
+    model.create_disjoint_partition<3>(
+      inputs[0],
+      IndexSpaceT<3>(task_is),
+      input_lps[0],
+      input_grad_lps[0] 
+    );
+  }
+  if (input1_rect == part_rect) {
+    input_lps[1] = inputs[1].part;
+    input_grad_lps[1] = inputs[1].part_grad;
+  } else {
+    model.create_disjoint_partition<3>(
+      inputs[1],
+      IndexSpaceT<3>(task_is),
+      input_lps[1],
+      input_grad_lps[1]
+    );
+  }
 }
 
 void BatchMatmul::init(const FFModel& ff){
@@ -129,8 +127,8 @@ void BatchMatmul::init(const FFModel& ff){
     Predicate::TRUE_PRED, false/*must*/, 0/*mapper_id*/,
     FFConfig::get_hash_id(std::string(name)));
   launcher.add_region_requirement(
-  RegionRequirement(output.part, 0/*projection id*/,
-    WRITE_ONLY, EXCLUSIVE, output.region));
+  RegionRequirement(outputs[0].part, 0/*projection id*/,
+    WRITE_ONLY, EXCLUSIVE, outputs[0].region));
   launcher.add_field(0, FID_DATA);
   launcher.add_region_requirement(
   RegionRequirement(inputs[0].part, 0/*projection id*/,
@@ -331,8 +329,8 @@ void BatchMatmul::forward(const FFModel& ff){
                Predicate::TRUE_PRED, false/*must*/, 0/*mapper_id*/,
                FFConfig::get_hash_id(std::string(name)));
   launcher.add_region_requirement(
-    RegionRequirement(output.part, 0/*projection id*/,
-              WRITE_ONLY, EXCLUSIVE, output.region));
+    RegionRequirement(outputs[0].part, 0/*projection id*/,
+              WRITE_ONLY, EXCLUSIVE, outputs[0].region));
   launcher.add_field(0, FID_DATA);
   for (int i = 0; i < 2; i++) {
     launcher.add_region_requirement(
@@ -483,8 +481,8 @@ void BatchMatmul::backward(const FFModel& ff){
               Predicate::TRUE_PRED, false/*must*/, 0/*mapper_id*/,
               FFConfig::get_hash_id(std::string(name)));
   launcher.add_region_requirement(
-    RegionRequirement(output.part_grad, 0/*projection id*/,
-              READ_ONLY, EXCLUSIVE, output.region_grad));
+    RegionRequirement(outputs[0].part_grad, 0/*projection id*/,
+              READ_ONLY, EXCLUSIVE, outputs[0].region_grad));
   launcher.add_field(0, FID_DATA);
   // input1 grad
   launcher.add_region_requirement(
@@ -509,3 +507,14 @@ void BatchMatmul::backward(const FFModel& ff){
   runtime->execute_index_space(ctx, launcher);
 }
 
+
+void BatchMatmul::print_layer(const FFModel& ff)
+{}
+
+bool BatchMatmul::measure_compute_time(Simulator* sim,
+                                       const ParallelConfig& pc,
+                                       float& forward_time,
+                                       float& backward_time)
+{
+  return false;
+}

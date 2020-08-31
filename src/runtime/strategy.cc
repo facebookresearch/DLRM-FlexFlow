@@ -93,7 +93,7 @@ bool load_strategies_from_file(const std::string& filename,
     std::cerr << "Failed to parse strategy file" << std::endl;
     return false;
   }
- 
+
   for (int i = 0; i < strategyPb.ops_size(); i++) {
     const FFProtoBuf::Op& op = strategyPb.ops(i);
     ParallelConfig config;
@@ -161,4 +161,3 @@ bool save_strategies_to_file(const std::string& filename,
   }
   return true;
 }
-

@@ -158,6 +158,35 @@ Op::Op(FFModel& model,
 
 Op::Op(FFModel& model,
        OperatorType _op_type,
+       const Op* shared_op,
+       const std::string& _name,
+       const Tensor& _input)
+: op_type(_op_type), numInputs(1), numWeights(0), numOutputs(1)
+{
+  std::string pcname;
+  if (shared_op == NULL) {
+    pcname = _name + "_" + std::to_string(model.op_global_guid++);
+  } else {
+    pcname = std::string(shared_op->name);
+  }
+  assert(pcname.length() < MAX_OPNAME);
+  std::strcpy(name, pcname.c_str());
+  inputs[0] = _input;
+  //for (int i = 0; i < numInputs; i++) {
+  //  trainableInputs[i] = true;
+  //  resetInputGrads[i] = true;
+  //}
+  for (int i = 0; i < MAX_NUM_OUTPUTS; i++) {
+    outputs[i].owner_op = this;
+    outputs[i].owner_idx = i;
+  }
+  for (int i = 0; i < numOutputs; i++) {
+    outputs[i].data_type = inputs[0].data_type;
+  }
+}
+
+Op::Op(FFModel& model,
+       OperatorType _op_type,
        const std::string& _name,
        const Tensor& _input1,
        const Tensor& _input2)
@@ -276,12 +305,20 @@ ParallelConfig Op::get_data_parallel_config(const FFModel& ff) const
 ParallelConfig Op::get_random_parallel_config(const FFModel& ff) const
 {
   std::vector<int> candidates;
+  int batch_size = outputs[0].adim[outputs[0].numDim-1];
   for (int i = 1; i <= ff.config.workersPerNode; i++)
-    if (ff.config.workersPerNode % i == 0)
+    if (ff.config.workersPerNode % i == 0) {
+      if (batch_size % i != 0)
+        continue;
       candidates.push_back(i);
+    }
   for (int i = 1; i <= ff.config.numNodes; i++)
-    if (ff.config.numNodes % i == 0)
+    if (ff.config.numNodes % i == 0) {
+      if (batch_size % (i * ff.config.workersPerNode) != 0)
+        continue;
       candidates.push_back(i * ff.config.workersPerNode);
+    }
+  assert(candidates.size() > 0);
   int idx = std::rand() % candidates.size();
   int num_parts = candidates[idx];
   ParallelConfig pc;
@@ -911,6 +948,13 @@ void FFModel::forward()
     layers[i]->forward(*this);
 }
 
+void FFModel::compute_metrics()
+{
+  Op* final_layer = layers[layers.size()-1];
+  assert(final_layer->numOutputs == 1);
+  metrics_op->compute(this, &(final_layer->outputs[0]), &label_tensor);
+}
+
 void FFModel::backward()
 {
   // Compute metrics
@@ -1037,7 +1081,7 @@ void FFModel::optimize(Simulator* simulator,
   for (size_t iter = 0; iter < budget; iter++) {
     rewrite(current, next);
     float next_runtime = simulator->simulate_runtime(this, next);
-    if (iter % 1 == 0) {
+    if (iter % 100 == 0) {
       printf("iter(%zu) cur(%.2lf) next(%.2lf) best(%.2lf)\n", iter,
              current_runtime, next_runtime, best_runtime);
     }
@@ -1055,6 +1099,23 @@ void FFModel::optimize(Simulator* simulator,
       current = next;
       current_runtime = next_runtime;
     }
+  }
+  printf("=========== Best Discovered Strategy ==========\n");
+  std::map<Op*, ParallelConfig>::const_iterator it;
+  for (it = best.begin(); it != best.end(); it++) {
+    printf("[%s] num_dims(%d) dims[", it->first->name, it->second.nDims);
+    for (int i = 0; i < it->second.nDims; i++)
+      if (i < it->second.nDims - 1)
+        printf("%d,", it->second.dim[i]);
+      else
+        printf("%d", it->second.dim[i]);
+    printf("] device_ids[");
+    for (int i = 0; i < it->second.num_parts(); i++)
+      if (i < it->second.num_parts() - 1) 
+        printf("%d,", it->second.device_ids[i]);
+      else
+        printf("%d", it->second.device_ids[i]);
+    printf("]\n");
   }
 }
 

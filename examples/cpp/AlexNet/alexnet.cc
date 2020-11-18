@@ -54,12 +54,12 @@ void top_level_task(const Task* task,
   Tensor input;
   {
     const int dims[] = {ffConfig.batchSize, 3, 229, 229};
-    input = ff.create_tensor<4>(dims, "", DT_FLOAT);
+    input = ff.create_tensor<4>(dims, DT_FLOAT);
   }
   //Tensor label;
   //{
   //  const int dims[] = {ffConfig.batchSize, 1};
-  //  label = ff.create_tensor<2>(dims, "", DT_INT32);
+  //  label = ff.create_tensor<2>(dims, DT_INT32);
   //}
   // Add layers
   Tensor t = input, ts[2];
@@ -98,7 +98,7 @@ void top_level_task(const Task* task,
     data_loader.reset();
     ff.reset_metrics();
     int iterations = data_loader.num_samples / ffConfig.batchSize;
- 
+
     for (int iter = 0; iter < iterations; iter++) {
       if (alexnetConfig.dataset_path.length() == 0) {
         // Only load data once for random input
@@ -163,13 +163,13 @@ DataLoader::DataLoader(FFModel& ff,
   {
     batch_input = input;
     const int dims[] = {num_samples, input.adim[2], input.adim[1], input.adim[0]};
-    full_input = ff.create_tensor<4>(dims, "", DT_FLOAT);
+    full_input = ff.create_tensor<4>(dims, DT_FLOAT);
   }
   // Create full label
   {
     batch_label = label;
     const int dims[] = {num_samples, label.adim[0]};
-    full_label = ff.create_tensor<2>(dims, "", DT_INT32);
+    full_label = ff.create_tensor<2>(dims, DT_INT32);
   }
   // Load entire dataset
   // TODO: Use index launcher instead of task launcher

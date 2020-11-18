@@ -27,9 +27,8 @@
 #define MAX_NUM_WEIGHTS 4
 #define MAX_NUM_OUTPUTS 32
 #define MAX_NUM_WORKERS 1024
-#define MAX_DIM 10
-#define MAX_FILENAME 4096
-#define MAX_OPNAME 4096
+#define MAX_FILENAME 200
+#define MAX_OPNAME 64
 // DataLoader
 #define MAX_SAMPLES_PER_LOAD 64
 #define MAX_FILE_LENGTH 128
@@ -46,7 +45,7 @@ struct ParallelConfig {
   };
   int num_parts() const;
   DeviceType device_type;
-  int nDims, dim[MAX_DIM];
+  int nDims, dim[MAX_TENSOR_DIM];
   int device_ids[MAX_NUM_WORKERS];
 };
 
@@ -61,7 +60,7 @@ bool load_strategies_from_file(const std::string& filename,
          std::map<MappingTagID, ParallelConfig>& strategies);
 
 bool save_strategies_to_file(const std::string& filename,
-                             const std::map<MappingTagID, ParallelConfig>& strategies);
+                             const std::map<std::string, ParallelConfig>& strategies);
 
 class FFConfig {
 public:
@@ -71,6 +70,7 @@ public:
     DataParallelism_2D = 2,
     DataParallelism_3D = 3,
     DataParallelism_4D = 4,
+    DataParallelism_5D = 5,
   };
 
   FFConfig();
@@ -80,7 +80,7 @@ public:
   static MappingTagID get_hash_id(const std::string& pcname);
   bool find_parallel_config(int ndims,
                             const std::string& pcname,
-                            ParallelConfig& config);
+                            ParallelConfig& config) const;
 public:
   int epochs, batchSize, iterations, printFreq;
   //int inputHeight, inputWidth;

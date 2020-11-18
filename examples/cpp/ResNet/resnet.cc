@@ -36,14 +36,22 @@ Tensor BottleneckBlock(FFModel& ff,
                        int out_channels,
                        int stride)
 {
-  Tensor t = ff.conv2d("conv1", input, out_channels, 1, 1, 1, 1, 0, 0, AC_MODE_RELU);
-  t = ff.conv2d("conv2", t, out_channels, 3, 3, stride, stride, 1, 1, AC_MODE_RELU);
-  t = ff.conv2d("conv3", t, 4*out_channels, 1, 1, 1, 1, 0, 0);
-  if ((stride > 1) || (input.adim[1] != out_channels * 4)) {
-    printf("input.adim = %d out_channels*4 = %d\n", input.adim[1], out_channels*4);
-    input = ff.conv2d("conv4", input, 4*out_channels, 1, 1, stride, stride, 0, 0, AC_MODE_RELU);
+  Tensor t = ff.conv2d(input, out_channels, 1, 1, 1, 1, 0, 0, AC_MODE_NONE);
+  //t = ff.batch_norm(t);
+  
+  t = ff.conv2d(t, out_channels, 3, 3, stride, stride, 1, 1, AC_MODE_NONE);
+  //t = ff.batch_norm(t);
+  
+  t = ff.conv2d(t, 4*out_channels, 1, 1, 1, 1, 0, 0);
+  //t = ff.batch_norm(t, false);
+  
+  if ((stride > 1) || (input.adim[2] != out_channels * 4)) {
+    printf("input.adim = %d out_channels*4 = %d\n", input.adim[2], out_channels*4);
+    input = ff.conv2d(input, 4*out_channels, 1, 1, stride, stride, 0, 0, AC_MODE_NONE);
+    //input = ff.batch_norm(input, false);
   }
-  return ff.add("add", input, t);
+  t = ff.add(input, t);
+  return ff.relu(t);
 }
 
 void top_level_task(const Task* task,
@@ -69,17 +77,19 @@ void top_level_task(const Task* task,
   Tensor input;
   {
     const int dims[] = {ffConfig.batchSize, 3, 229, 229};
-    input = ff.create_tensor<4>(dims, "", DT_FLOAT);
+    input = ff.create_tensor<4>(dims, DT_FLOAT);
   }
-  Tensor label;
-  {
-    const int dims[] = {ffConfig.batchSize, 1};
-    label = ff.create_tensor<2>(dims, "", DT_INT32);
-  }
+  // Tensor label;
+  // {
+  //   const int dims[] = {ffConfig.batchSize, 1};
+  //   label = ff.create_tensor<2>(dims, DT_INT32);
+  // }
   // Add layers
   Tensor t = input;
-  t = ff.conv2d("conv", input, 64, 7, 7, 2, 2, 3, 3);
-  t = ff.pool2d("pool", t, 3, 3, 2, 2, 1, 1);
+  t = ff.conv2d(input, 64, 7, 7, 2, 2, 3, 3);
+  //t = ff.batch_norm(t);
+  t = ff.pool2d(t, 3, 3, 2, 2, 1, 1);
+
   for (int i = 0; i < 3; i++)
     t = BottleneckBlock(ff, t, 64, 1);
   for (int i = 0; i < 4; i++) {
@@ -94,13 +104,17 @@ void top_level_task(const Task* task,
     int stride = (i==0) ? 2 : 1;
     t = BottleneckBlock(ff, t, 512, stride);
   }
-  t = ff.pool2d("pool", t, 7, 7, 1, 1, 0, 0, POOL_AVG);
-  t = ff.flat("flat", t);
-  t = ff.dense("lienar", t, 10);
-  t = ff.softmax("softmax", t, label);
-  ff.optimizer = new SGDOptimizer(&ff, 0.001f);
+  t = ff.pool2d(t, 7, 7, 1, 1, 0, 0, POOL_AVG);
+  t = ff.flat(t);
+  t = ff.dense(t, 10);
+  t = ff.softmax(t);
+  Optimizer* optimizer = new SGDOptimizer(&ff, 0.001f);
+  std::vector<MetricsType> metrics;
+  metrics.push_back(METRICS_ACCURACY);
+  metrics.push_back(METRICS_SPARSE_CATEGORICAL_CROSSENTROPY);
+  ff.compile(optimizer, LOSS_SPARSE_CATEGORICAL_CROSSENTROPY, metrics);
   // Data Loader
-  DataLoader data_loader(ff, resnetConfig, input, label);
+  DataLoader data_loader(ff, resnetConfig, input, ff.label_tensor);
   ff.init_layers();
   //Start timer
   {
@@ -114,7 +128,7 @@ void top_level_task(const Task* task,
     data_loader.reset();
     ff.reset_metrics();
     int iterations = data_loader.num_samples / ffConfig.batchSize;
- 
+
     for (int iter = 0; iter < iterations; iter++) {
       if (resnetConfig.dataset_path.length() == 0) {
         // Only load data once for random input
@@ -167,7 +181,7 @@ DataLoader::DataLoader(FFModel& ff,
   num_samples = 0;
   if (resnet.dataset_path == "") {
     log_app.print("Use random dataset...");
-    num_samples = 256 * 10 * ff.config.workersPerNode * ff.config.numNodes;
+    num_samples = 256 * 1 * ff.config.workersPerNode * ff.config.numNodes;
     log_app.print("Number of random samples = %d\n", num_samples);
   } else {
     log_app.print("Start loading dataset from %s", resnet.dataset_path.c_str());
@@ -179,13 +193,13 @@ DataLoader::DataLoader(FFModel& ff,
   {
     batch_input = input;
     const int dims[] = {num_samples, input.adim[2], input.adim[1], input.adim[0]};
-    full_input = ff.create_tensor<4>(dims, "", DT_FLOAT);
+    full_input = ff.create_tensor<4>(dims, DT_FLOAT);
   }
   // Create full label
   {
     batch_label = label;
     const int dims[] = {num_samples, label.adim[0]};
-    full_label = ff.create_tensor<2>(dims, "", DT_INT32);
+    full_label = ff.create_tensor<2>(dims, DT_INT32);
   }
   // Load entire dataset
   // TODO: Use index launcher instead of task launcher

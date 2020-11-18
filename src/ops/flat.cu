@@ -88,7 +88,7 @@ void Flat::create_output_and_partition(FFModel& model)
   // Create output tensor
   {
     const int dims[2] = {batch_size, out_dim};
-    outputs[0] = model.create_tensor<2>(dims, (IndexSpaceT<2>)task_is, DT_FLOAT);
+    outputs[0] = model.create_tensor<2>(dims, DT_FLOAT, this);
     outputs[0].owner_op = this;
     outputs[0].owner_idx = 0;
   }
@@ -111,9 +111,12 @@ void Flat::init(const FFModel& ff)
   Context ctx = ff.config.lg_ctx;
   Runtime* runtime = ff.config.lg_hlr;
   Rect<2> rect = runtime->get_index_space_domain(ctx, task_is);
+  ParallelConfig pc;
+  std::string pcname = name;
+  ff.config.find_parallel_config(2, pcname, pc);
   int idx = 0;
   for (PointInRectIterator<2> it(rect); it(); it++) {
-    FFHandler handle = ff.handlers[idx++];
+    FFHandler handle = ff.handlers[pc.device_ids[idx++]];
     argmap.set_point(*it, TaskArgument(&handle, sizeof(FFHandler)));
   }
   IndexLauncher launcher(FLAT_INIT_TASK_ID, task_is,

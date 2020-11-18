@@ -27,7 +27,7 @@ SGDOptimizer::SGDOptimizer(const FFModel* _model,
 {}
 
 void SGDOptimizer::init(void)
-{  
+{
   Context ctx = model->config.lg_ctx;
   Runtime* runtime = model->config.lg_hlr;
   Initializer* initializer = new ZeroInitializer();
@@ -46,6 +46,7 @@ void SGDOptimizer::init(void)
       case 2:
       case 3:
       case 4:
+      case 5:
       {
         if (momentum > 0.0f) {
           v_regions[p.region] = runtime->create_logical_region(
@@ -112,7 +113,7 @@ AdamOptimizer::AdamOptimizer(const FFModel* _model,
   weight_decay(_weight_decay),
   epsilon(_epsilon), alpha_t(_alpha), beta1_t(1.0f), beta2_t(1.0f)
 {}
-  
+
 void AdamOptimizer::init(void)
 {
   Context ctx = model->config.lg_ctx;
@@ -132,6 +133,8 @@ void AdamOptimizer::init(void)
       case 1:
       case 2:
       case 3:
+      case 4:
+      case 5:
       {
         v_regions[p.region] = runtime->create_logical_region(
             ctx, p.region.get_index_space(), p.region.get_field_space());

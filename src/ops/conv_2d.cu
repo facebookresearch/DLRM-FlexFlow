@@ -101,6 +101,7 @@ Conv2D::Conv2D(FFModel& model,
   int output_h = 1 + (input_h + 2 * padding_h - kernel_h) / stride_h;
   int output_c = out_channels;
   int output_n = inputs[0].adim[3];
+  numOutputs = 1;
   outputs[0].numDim = 4;
   outputs[0].adim[0] = output_w;
   outputs[0].adim[1] = output_h;
@@ -194,7 +195,7 @@ void Conv2D::create_output_and_partition(FFModel& model)
   int num_par_n = part_rect.hi[3] - part_rect.lo[3] + 1;
   {
     const int dims[4] = {output_n, output_c, output_h, output_w};
-    outputs[0] = model.create_tensor<4>(dims, (IndexSpaceT<4>)task_is, DT_FLOAT);
+    outputs[0] = model.create_tensor<4>(dims, DT_FLOAT, this);
     outputs[0].owner_op = this;
     outputs[0].owner_idx = 0;
   }
@@ -357,9 +358,12 @@ void Conv2D::init(const FFModel& ff)
   Context ctx = ff.config.lg_ctx;
   Runtime* runtime = ff.config.lg_hlr;
   Rect<4> rect = runtime->get_index_space_domain(ctx, task_is);
+  ParallelConfig pc;
+  std::string pcname = name;
+  ff.config.find_parallel_config(4, pcname, pc);
   int idx = 0;
   for (PointInRectIterator<4> it(rect); it(); it++) {
-    FFHandler handle = ff.handlers[idx++];
+    FFHandler handle = ff.handlers[pc.device_ids[idx++]];
     argmap.set_point(*it, TaskArgument(&handle, sizeof(FFHandler)));
   }
   IndexLauncher launcher(CONV2D_INIT_TASK_ID, task_is,
@@ -402,7 +406,7 @@ void Conv2D::forward_kernel(const Conv2DMeta* m,
                             const float* input_ptr,
                             float* output_ptr,
                             const float* filter_ptr,
-                            const float* bias_ptr)
+                            const float* bias_ptr) const
 {
   float alpha = 1.0f, beta = 0.0f;
   checkCUDNN(cudnnConvolutionForward(m->handle.dnn, &alpha,
@@ -517,7 +521,7 @@ void Conv2D::backward_kernel(const Conv2DMeta* m,
                              float* output_grad_ptr,
                              const float* kernel_ptr,
                              float* kernel_grad_ptr,
-                             float* bias_grad_ptr)
+                             float* bias_grad_ptr) const
 {
   float alpha = 1.0f;
   //float beta = 0.0f;
@@ -578,7 +582,7 @@ void Conv2D::backward_task(const Task *task,
       regions[2], task->regions[2], FID_DATA, ctx, runtime);
   TensorAccessorW<float, 4> acc_output_grad(
       regions[3], task->regions[3], FID_DATA, ctx, runtime,
-      true/*rreadOutput*/);
+      true/*readOutput*/);
   TensorAccessorR<float, 4> acc_kernel(
       regions[4], task->regions[4], FID_DATA, ctx, runtime);
   TensorAccessorW<float, 4> acc_kernel_grad(

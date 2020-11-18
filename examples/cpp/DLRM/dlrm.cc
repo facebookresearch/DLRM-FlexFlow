@@ -103,18 +103,18 @@ void top_level_task(const Task* task,
   std::vector<Tensor> sparse_inputs;
   for (size_t i = 0; i < dlrmConfig.embedding_size.size(); i++) {
     const int dims[] = {ffConfig.batchSize, dlrmConfig.embedding_bag_size};
-    Tensor input = ff.create_tensor<2>(dims, "embedding"+std::to_string(i), DT_INT64);
+    Tensor input = ff.create_tensor<2>(dims, DT_INT64);
     sparse_inputs.push_back(input);
   }
   Tensor dense_input;
   {
     const int dims[] = {ffConfig.batchSize, dlrmConfig.mlp_bot[0]};
-    dense_input = ff.create_tensor<2>(dims, "", DT_FLOAT);
+    dense_input = ff.create_tensor<2>(dims, DT_FLOAT);
   }
   //Tensor label;
   //{
   //  const int dims[] = {ffConfig.batchSize, 1};
-  //  label = ff.create_tensor<2>(dims, "", DT_FLOAT);
+  //  label = ff.create_tensor<2>(dims, DT_FLOAT);
   //}
   // Step 1 create dense_mlp
   Tensor x = create_mlp(&ff, dense_input, dlrmConfig.mlp_bot, dlrmConfig.sigmoid_bot);
@@ -333,17 +333,17 @@ DataLoader::DataLoader(FFModel& ff,
   }
   {
     const int dims[] = {num_samples, (int)_sparse_inputs.size()*dlrm.embedding_bag_size};
-    full_sparse_input = ff.create_tensor<2>(dims, "", DT_INT64);
+    full_sparse_input = ff.create_tensor<2>(dims, DT_INT64);
   }
   {
     batch_dense_input = _dense_input;
     const int dims[] = {num_samples, dlrm.mlp_bot[0]};
-    full_dense_input = ff.create_tensor<2>(dims, "", DT_FLOAT);
+    full_dense_input = ff.create_tensor<2>(dims, DT_FLOAT);
   }
   {
     batch_label = _label;
     const int dims[] = {num_samples, 1};
-    full_label = ff.create_tensor<2>(dims, "", DT_FLOAT);
+    full_label = ff.create_tensor<2>(dims, DT_FLOAT);
   }
   // Load entire dataset
   // TODO: Use index launcher instead of task launcher

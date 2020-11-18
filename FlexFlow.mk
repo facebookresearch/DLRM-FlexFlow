@@ -31,14 +31,16 @@ GEN_GPU_SRC	+= ${FF_HOME}/src/ops/conv_2d.cu\
 		${FF_HOME}/src/ops/linear.cu\
 		${FF_HOME}/src/ops/softmax.cu\
 		${FF_HOME}/src/ops/concat.cu\
-		${FF_HOME}/src/ops/batch_matmul.cu\
+		${FF_HOME}/src/ops/split.cu\
 		${FF_HOME}/src/ops/dropout.cu\
 		${FF_HOME}/src/ops/flat.cu\
 		${FF_HOME}/src/ops/embedding.cu\
 		${FF_HOME}/src/ops/element_binary.cu\
 		${FF_HOME}/src/ops/element_unary.cu\
-		${FF_HOME}/src/ops/transpose.cu\
+		${FF_HOME}/src/ops/batch_matmul.cu\
 		${FF_HOME}/src/ops/reshape.cu\
+		${FF_HOME}/src/ops/reverse.cu\
+		${FF_HOME}/src/ops/transpose.cu\
 		${FF_HOME}/src/loss_functions/loss_functions.cu\
 		${FF_HOME}/src/metrics_functions/metrics_functions.cu\
 		${FF_HOME}/src/runtime/initializer_kernel.cu\
@@ -49,13 +51,13 @@ GEN_GPU_SRC	+= ${FF_HOME}/src/ops/conv_2d.cu\
 
 INC_FLAGS	+= -I${FF_HOME}/include/ -I${CUDNN}/include
 
-LD_FLAGS        += -lcuda -lcudart -lcudnn -lcublas -lcurand -lprotobuf -L/usr/local/lib -L${CUDNN}/lib64 #-mavx2 -mfma -mf16c
-CC_FLAGS	?=
-NVCC_FLAGS	?=
+LD_FLAGS        += -lcudnn -lcublas -lcurand -lprotobuf -L/usr/local/lib -L${CUDNN}/lib64 #-mavx2 -mfma -mf16c
+CC_FLAGS	?= -DMAX_TENSOR_DIM=$(MAX_DIM) 
+NVCC_FLAGS	?= -DMAX_TENSOR_DIM=$(MAX_DIM) 
 GASNET_FLAGS	?=
 # For Point and Rect typedefs
-CC_FLAGS	+= -DDISABLE_LEGION_CUDA_HIJACK -std=c++11 #-DMAX_RETURN_SIZE=16777216
-NVCC_FLAGS  	+= -DDISABLE_LEGION_CUDA_HIJACK -std=c++11 #-DMAX_RETURN_SIZE=16777216
+CC_FLAGS	+= -std=c++11 #-DMAX_RETURN_SIZE=16777216
+NVCC_FLAGS  	+= -std=c++11 #-DMAX_RETURN_SIZE=16777216
 
 ifndef CUDA
 #$(error CUDA variable is not defined, aborting build)

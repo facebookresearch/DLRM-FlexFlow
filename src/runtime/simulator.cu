@@ -34,6 +34,8 @@ warmup_times(5), repeat_times(10)
   conv2d_meta = new Conv2DMeta(handler);
   linear_meta = new LinearMeta(handler, 4096);
   pool2d_meta = new Pool2DMeta(handler);
+  ele_unary_meta = new ElementUnaryMeta(handler);
+  ele_binary_meta = new ElementBinaryMeta(handler);
   int num_nodes = model->config.numNodes;
   int gpus_per_node = model->config.workersPerNode;
   total_num_devices = num_nodes * gpus_per_node;
@@ -92,10 +94,12 @@ void Simulator::strategy_search_task(const Task *task,
   std::map<Op*, ParallelConfig> strategies;
   model->optimize(simulator, strategies, model->config.search_budget, model->config.search_alpha);
   if (model->config.export_strategy_file.length() > 0) {
+    fprintf(stderr, "Exporting the best discovered strategy to %s\n",
+        model->config.export_strategy_file.c_str());
     std::map<Op*, ParallelConfig>::const_iterator iter;
-    std::map<MappingTagID, ParallelConfig> strategy_output;
+    std::map<std::string, ParallelConfig> strategy_output;
     for (iter = strategies.begin(); iter != strategies.end(); iter++) {
-      strategy_output[FFConfig::get_hash_id(std::string(iter->first->name))] = iter->second;
+      strategy_output[iter->first->name] = iter->second;
     }
     save_strategies_to_file(model->config.export_strategy_file, strategy_output);
   }

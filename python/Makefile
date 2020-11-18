@@ -92,9 +92,14 @@ FF_GPU_SRC ?= 	$(FF_HOME)/src/ops/conv_2d.cu $(FF_HOME)/src/runtime/model.cu\
 		$(FF_HOME)/src/ops/pool_2d.cu $(FF_HOME)/src/ops/batch_norm.cu\
 		$(FF_HOME)/src/ops/linear.cu  $(FF_HOME)/src/ops/dropout.cu\
 		$(FF_HOME)/src/ops/softmax.cu $(FF_HOME)/src/ops/concat.cu\
-		$(FF_HOME)/src/ops/flat.cu $(FF_HOME)/src/ops/embedding.cu \
-		$(FF_HOME)/src/ops/element_binary.cu $(FF_HOME)/src/ops/element_unary.cu \
-    		$(FF_HOME)/src/loss_functions/loss_functions.cu\
+		$(FF_HOME)/src/ops/flat.cu $(FF_HOME)/src/ops/embedding.cu\
+		$(FF_HOME)/src/ops/element_binary.cu $(FF_HOME)/src/ops/element_unary.cu\
+    		${FF_HOME}/src/ops/batch_matmul.cu\
+		${FF_HOME}/src/ops/split.cu\
+		${FF_HOME}/src/ops/transpose.cu\
+		${FF_HOME}/src/ops/reverse.cu\
+		${FF_HOME}/src/ops/reshape.cu\
+		$(FF_HOME)/src/loss_functions/loss_functions.cu\
 		$(FF_HOME)/src/metrics_functions/metrics_functions.cu\
 		$(FF_HOME)/src/runtime/initializer_kernel.cu $(FF_HOME)/src/runtime/optimizer_kernel.cu\
 		$(FF_HOME)/src/runtime/accessor_kernel.cu $(FF_HOME)/src/runtime/simulator.cu\
@@ -104,8 +109,8 @@ GEN_GPU_SRC	?= $(FF_GPU_SRC) # .cu files
 
 # You can modify these variables, some will be appended to by the runtime makefile
 INC_FLAGS	?= -I$(FF_HOME)/include -I$(PROTOBUF_INC) -I$(CUDNN_HOME)/include -I$(CUDA_HOME)/include
-CC_FLAGS	?= -DBINDINGS_AUGMENT_PYTHONPATH -DFF_USE_PYTHON -std=c++11
-NVCC_FLAGS	?= -std=c++11
+CC_FLAGS	?= -DBINDINGS_AUGMENT_PYTHONPATH -DFF_USE_PYTHON -DMAX_TENSOR_DIM=$(MAX_DIM) -std=c++11
+NVCC_FLAGS	?= -DMAX_TENSOR_DIM=$(MAX_DIM) -std=c++11
 GASNET_FLAGS	?=
 LD_FLAGS	?= -lprotobuf -lcudnn -lcublas -lcurand -L$(PROTOBUF_LIB) -L$(CUDNN_HOME)/lib64 -L$(CUDA_HOME)/lib64
 

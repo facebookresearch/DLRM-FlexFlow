@@ -71,74 +71,25 @@ void FFMapper::slice_task(const MapperContext ctx,
     }
     switch (input.domain.get_dim())
     {
-      case 1:
-      {
-        Rect<1> rect = input.domain;
-        int cnt = 0;
-        for (PointInRectIterator<1> pir(rect); pir(); pir++) {
-          unsigned int idx = 0;
-          for (int i = input.domain.get_dim()-1; i >= 0; i--)
-            idx = idx*(input.domain.hi()[i]-input.domain.lo()[i]+1)+pir[i];
-          assert(config_num_parts > idx);
-          //assert((int)gpus.size() > config.gpu[idx]);
-          Rect<1> slice(*pir, *pir);
-          output.slices[cnt++] = TaskSlice(slice,
-              (*devices)[config.device_ids[idx] % devices->size()],
-              false/*recurse*/, false/*stealable*/);
-        }
-        break;
+#define DIMFUNC(DIM) \
+      case DIM: \
+      { \
+        Rect<DIM> rect = input.domain; \
+        int cnt = 0; \
+        for (PointInRectIterator<DIM> pir(rect); pir(); pir++) { \
+          unsigned int idx = 0; \
+          for (int i = input.domain.get_dim()-1; i >= 0; i--) \
+            idx = idx*(input.domain.hi()[i]-input.domain.lo()[i]+1)+pir[i]; \
+          assert(config_num_parts > idx); \
+          Rect<DIM> slice(*pir, *pir); \
+          output.slices[cnt++] = TaskSlice(slice, \
+              (*devices)[config.device_ids[idx] % devices->size()], \
+              false/*recurse*/, false/*stealable*/); \
+        } \
+        break; \
       }
-      case 2:
-      {
-        Rect<2> rect = input.domain;
-        int cnt = 0;
-        for (PointInRectIterator<2> pir(rect); pir(); pir++) {
-          unsigned int idx = 0;
-          for (int i = input.domain.get_dim()-1; i >= 0; i--)
-            idx = idx*(input.domain.hi()[i]-input.domain.lo()[i]+1)+pir[i];
-          assert(config_num_parts > idx);
-          //assert((int)gpus.size() > config.gpu[idx]);
-          Rect<2> slice(*pir, *pir);
-          output.slices[cnt++] = TaskSlice(slice,
-              (*devices)[config.device_ids[idx] % devices->size()],
-              false/*recurse*/, false/*stealable*/);
-        }
-        break;
-      }
-      case 3:
-      {
-        Rect<3> rect = input.domain;
-        int cnt = 0;
-        for (PointInRectIterator<3> pir(rect); pir(); pir++) {
-          unsigned int idx = 0;
-          for (int i = input.domain.get_dim()-1; i >= 0; i--)
-            idx = idx*(input.domain.hi()[i]-input.domain.lo()[i]+1)+pir[i];
-          assert(config_num_parts > idx);
-          //assert((int)gpus.size() > config.gpu[idx]);
-          Rect<3> slice(*pir, *pir);
-          output.slices[cnt++] = TaskSlice(slice,
-              (*devices)[config.device_ids[idx] % devices->size()],
-              false/*recurse*/, false/*stealable*/);
-        }
-        break;
-      }
-      case 4:
-      {
-        Rect<4> rect = input.domain;
-        int cnt = 0;
-        for (PointInRectIterator<4> pir(rect); pir(); pir++) {
-          unsigned int idx = 0;
-          for (int i = input.domain.get_dim()-1; i >= 0; i--)
-            idx = idx*(input.domain.hi()[i]-input.domain.lo()[i]+1)+pir[i];
-          assert(config_num_parts > idx);
-          //assert((int)gpus.size() > config.gpu[idx]);
-          Rect<4> slice(*pir, *pir);
-          output.slices[cnt++] = TaskSlice(slice,
-              (*devices)[config.device_ids[idx] % devices->size()],
-              false/*recurse*/, false/*stealable*/);
-        }
-        break;
-      }
+      LEGION_FOREACH_N(DIMFUNC)
+#undef DIMFUNC
       default:
         assert(false);
     }
@@ -184,7 +135,7 @@ void FFMapper::select_task_options(const MapperContext ctx,
     output.map_locally = map_locally;
     return;
   }
-  
+
   DefaultMapper::select_task_options(ctx, task, output);
   if ((task.task_id == SGD_UPD_TASK_ID)
   && (cache_update_tasks.find(task_hash) == cache_update_tasks.end())) {
@@ -316,7 +267,7 @@ void update_mappers(Machine machine, Runtime *runtime,
   }
   for (std::map<Processor, Memory>::iterator it = proc_fbmems->begin();
        it != proc_fbmems->end(); it++) {
-    gpus->push_back(it->first); 
+    gpus->push_back(it->first);
   }
 */
   // Find strategy file path
@@ -325,7 +276,7 @@ void update_mappers(Machine machine, Runtime *runtime,
   char **argv = command_args.argv;
   int argc = command_args.argc;
   for (int i = 1; i < argc; i++) {
-    if ((!strcmp(argv[i], "-s")) || (!strcmp(argv[i], "--strategy"))) {
+    if ((!strcmp(argv[i], "--import")) || (!strcmp(argv[i], "--import-strategy"))) {
       strategyFile = std::string(argv[++i]);
       continue;
     }
@@ -340,7 +291,11 @@ void update_mappers(Machine machine, Runtime *runtime,
                      strategyFile.c_str());
     load_strategies_from_file(strategyFile, *strategies);
   }
-  for (int i = FFConfig::DataParallelism_1D; i <= FFConfig::DataParallelism_4D; i++) {
+  int start_dim = FFConfig::DataParallelism_1D, end_dim = FFConfig::DataParallelism_4D;
+#if MAX_TENSOR_DIM >= 5
+  end_dim = FFConfig::DataParallelism_5D;
+#endif
+  for (int i = start_dim; i <= end_dim; i++) {
     ParallelConfig pc;
     pc.device_type = ParallelConfig::GPU;
     pc.nDims = i - FFConfig::DataParallelism_1D + 1;

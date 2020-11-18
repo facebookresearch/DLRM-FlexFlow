@@ -58,30 +58,15 @@ void Dropout::create_output_and_partition(FFModel& model)
 {
   int dim = inputs[0].numDim;
   switch (dim) {
-    case 1:
-    {
-      task_is = model.get_or_create_task_is(1, name);
-      create_output_and_partition_with_dim<1>(model);
-      break;
+#define DIMFUNC(DIM) \
+    case DIM: \
+    { \
+      task_is = model.get_or_create_task_is(DIM, name); \
+      create_output_and_partition_with_dim<DIM>(model); \
+      break; \
     }
-    case 2:
-    {
-      task_is = model.get_or_create_task_is(2, name);
-      create_output_and_partition_with_dim<2>(model);
-      break;
-    }
-    case 3:
-    {
-      task_is = model.get_or_create_task_is(3, name);
-      create_output_and_partition_with_dim<3>(model);
-      break;
-    }
-    case 4:
-    {
-      task_is = model.get_or_create_task_is(4, name);
-      create_output_and_partition_with_dim<4>(model);
-      break;
-    }
+    LEGION_FOREACH_N(DIMFUNC)
+#undef DIMFUNC
     default:
     {
       assert(false && "Unsupported dim");
@@ -100,7 +85,7 @@ void Dropout::create_output_and_partition_with_dim(FFModel& model)
   int dims[NDIM];
   for (int i = 0; i < NDIM; i++)
     dims[i] = inputs[0].adim[NDIM-1-i];
-  outputs[0] = model.create_tensor<NDIM>(dims, IndexSpaceT<NDIM>(task_is), DT_FLOAT);
+  outputs[0] = model.create_tensor<NDIM>(dims, DT_FLOAT, this);
   outputs[0].owner_op = this;
   outputs[0].owner_idx = 0;
   Rect<NDIM> input_rect;
@@ -151,46 +136,22 @@ void Dropout::init(const FFModel& ff)
   Runtime* runtime = ff.config.lg_hlr;
   Domain domain = runtime->get_index_space_domain(ctx, task_is);
   switch (domain.get_dim()) {
-    case 1:
-    {
-      Rect<1> rect = domain;
-      int idx = 0;
-      for (PointInRectIterator<1> it(rect); it(); it++) {
-        FFHandler handle = ff.handlers[idx++];
-        argmap.set_point(*it, TaskArgument(&handle, sizeof(FFHandler)));
-      }
-      break;
+#define DIMFUNC(DIM) \
+    case DIM: \
+    { \
+      Rect<DIM> rect = domain; \
+      ParallelConfig pc; \
+      std::string pcname = name; \
+      ff.config.find_parallel_config(DIM, pcname, pc); \
+      int idx = 0; \
+      for (PointInRectIterator<DIM> it(rect); it(); it++) { \
+        FFHandler handle = ff.handlers[pc.device_ids[idx++]]; \
+        argmap.set_point(*it, TaskArgument(&handle, sizeof(FFHandler))); \
+      } \
+      break; \
     }
-    case 2:
-    {
-      Rect<2> rect = domain;
-      int idx = 0;
-      for (PointInRectIterator<2> it(rect); it(); it++) {
-        FFHandler handle = ff.handlers[idx++];
-        argmap.set_point(*it, TaskArgument(&handle, sizeof(FFHandler)));
-      }
-      break;
-    }
-    case 3:
-    {
-      Rect<3> rect = domain;
-      int idx = 0;
-      for (PointInRectIterator<3> it(rect); it(); it++) {
-        FFHandler handle = ff.handlers[idx++];
-        argmap.set_point(*it, TaskArgument(&handle, sizeof(FFHandler)));
-      }
-      break;
-    }
-    case 4:
-    {
-      Rect<4> rect = domain;
-      int idx = 0;
-      for (PointInRectIterator<4> it(rect); it(); it++) {
-        FFHandler handle = ff.handlers[idx++];
-        argmap.set_point(*it, TaskArgument(&handle, sizeof(FFHandler)));
-      }
-      break;
-    }
+    LEGION_FOREACH_N(DIMFUNC)
+#undef DIMFUNC
     default:
       assert(false);
   }
@@ -209,42 +170,20 @@ void Dropout::init(const FFModel& ff)
   FutureMap fm = runtime->execute_index_space(ctx, init_launcher);
   fm.wait_all_results();
   switch (domain.get_dim()) {
-    case 1:
-    {
-      Rect<1> rect = domain;
-      int idx = 0;
-      for (PointInRectIterator<1> it(rect); it(); it++) {
-        meta[idx++] = fm.get_result<OpMeta*>(*it);
-      }
-      break;
+#define DIMFUNC(DIM) \
+    case DIM: \
+    { \
+      Rect<DIM> rect = domain; \
+      int idx = 0; \
+      for (PointInRectIterator<DIM> it(rect); it(); it++) { \
+        meta[idx++] = fm.get_result<OpMeta*>(*it); \
+      } \
+      break; \
     }
-    case 2:
-    {
-      Rect<2> rect = domain;
-      int idx = 0;
-      for (PointInRectIterator<2> it(rect); it(); it++) {
-        meta[idx++] = fm.get_result<OpMeta*>(*it);
-      }
-      break;
-    }
-    case 3:
-    {
-      Rect<3> rect = domain;
-      int idx = 0;
-      for (PointInRectIterator<3> it(rect); it(); it++) {
-        meta[idx++] = fm.get_result<OpMeta*>(*it);
-      }
-      break;
-    }
-    case 4:
-    {
-      Rect<4> rect = domain;
-      int idx = 0;
-      for (PointInRectIterator<4> it(rect); it(); it++) {
-        meta[idx++] = fm.get_result<OpMeta*>(*it);
-      }
-      break;
-    }
+    LEGION_FOREACH_N(DIMFUNC)
+#undef DIMFUNC
+    default:
+      assert(false);
   }
 }
 
@@ -279,46 +218,19 @@ void Dropout::forward(const FFModel& ff)
   Runtime* runtime = ff.config.lg_hlr;
   Domain domain = runtime->get_index_space_domain(ctx, task_is);
   switch (domain.get_dim()) {
-    case 1:
-    {
-      Rect<1> rect = domain;
-      int idx = 0;
-      for (PointInRectIterator<1> it(rect); it(); it++) {
-        OpMeta* mp = meta[idx++];
-        argmap.set_point(*it, TaskArgument(&mp, sizeof(OpMeta*)));
-      }
-      break;
+#define DIMFUNC(DIM) \
+    case DIM: \
+    { \
+      Rect<DIM> rect = domain; \
+      int idx = 0; \
+      for (PointInRectIterator<DIM> it(rect); it(); it++) { \
+        OpMeta* mp = meta[idx++]; \
+        argmap.set_point(*it, TaskArgument(&mp, sizeof(OpMeta*))); \
+      } \
+      break; \
     }
-    case 2:
-    {
-      Rect<2> rect = domain;
-      int idx = 0;
-      for (PointInRectIterator<2> it(rect); it(); it++) {
-        OpMeta* mp = meta[idx++];
-        argmap.set_point(*it, TaskArgument(&mp, sizeof(OpMeta*)));
-      }
-      break;
-    }
-    case 3:
-    {
-      Rect<3> rect = domain;
-      int idx = 0;
-      for (PointInRectIterator<3> it(rect); it(); it++) {
-        OpMeta* mp = meta[idx++];
-        argmap.set_point(*it, TaskArgument(&mp, sizeof(OpMeta*)));
-      }
-      break;
-    }
-    case 4:
-    {
-      Rect<4> rect = domain;
-      int idx = 0;
-      for (PointInRectIterator<4> it(rect); it(); it++) {
-        OpMeta* mp = meta[idx++];
-        argmap.set_point(*it, TaskArgument(&mp, sizeof(OpMeta*)));
-      }
-      break;
-    }
+    LEGION_FOREACH_N(DIMFUNC)
+#undef DIMFUNC
     default:
       assert(false);
   }
@@ -373,46 +285,19 @@ void Dropout::backward(const FFModel& ff)
   Runtime* runtime = ff.config.lg_hlr;
   Domain domain = runtime->get_index_space_domain(ctx, task_is);
   switch (domain.get_dim()) {
-    case 1:
-    {
-      Rect<1> rect = domain;
-      int idx = 0;
-      for (PointInRectIterator<1> it(rect); it(); it++) {
-        OpMeta* mp = meta[idx++];
-        argmap.set_point(*it, TaskArgument(&mp, sizeof(OpMeta*)));
-      }
-      break;
+#define DIMFUNC(DIM) \
+    case DIM: \
+    { \
+      Rect<DIM> rect = domain; \
+      int idx = 0; \
+      for (PointInRectIterator<DIM> it(rect); it(); it++) { \
+        OpMeta* mp = meta[idx++]; \
+        argmap.set_point(*it, TaskArgument(&mp, sizeof(OpMeta*))); \
+      } \
+      break; \
     }
-    case 2:
-    {
-      Rect<2> rect = domain;
-      int idx = 0;
-      for (PointInRectIterator<2> it(rect); it(); it++) {
-        OpMeta* mp = meta[idx++];
-        argmap.set_point(*it, TaskArgument(&mp, sizeof(OpMeta*)));
-      }
-      break;
-    }
-    case 3:
-    {
-      Rect<3> rect = domain;
-      int idx = 0;
-      for (PointInRectIterator<3> it(rect); it(); it++) {
-        OpMeta* mp = meta[idx++];
-        argmap.set_point(*it, TaskArgument(&mp, sizeof(OpMeta*)));
-      }
-      break;
-    }
-    case 4:
-    {
-      Rect<4> rect = domain;
-      int idx = 0;
-      for (PointInRectIterator<4> it(rect); it(); it++) {
-        OpMeta* mp = meta[idx++];
-        argmap.set_point(*it, TaskArgument(&mp, sizeof(OpMeta*)));
-      }
-      break;
-    }
+    LEGION_FOREACH_N(DIMFUNC)
+#undef DIMFUNC
     default:
       assert(false);
   }

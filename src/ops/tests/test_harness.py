@@ -496,6 +496,7 @@ class DotCompressor(torch.nn.Module):
               print('dense_projection', dense_projection.shape)
           return cat_compression_ret
 
+<<<<<<< HEAD
 
 
 
@@ -688,6 +689,8 @@ class DotCompressorTest(unittest.TestCase):
 
 
 
+=======
+>>>>>>> 131466e75c28cc9c63006996f962ebdbf895fa9f
 class LinearTest(unittest.TestCase):
     TEST_TARGET = 'linear_test'
     def _dump_meta(self, batch_size, i_dim, num_channels, dense_projection_o_dim, dense_projection_i_dim):

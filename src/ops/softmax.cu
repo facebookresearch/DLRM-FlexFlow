@@ -16,24 +16,34 @@
 #include "model.h"
 #include "cuda_helper.h"
 
-Tensor FFModel::softmax(std::string name,
-                        const Tensor& _logit,
-                        const Tensor& _label)
+
+Tensor FFModel::softmax(const Tensor& _input)
 {
-  assert(_logit.numDim == 2);
-  assert(_label.numDim == 2);
-  Softmax *sm = new Softmax(*this, name, _logit, _label);
+  assert(_input.numDim == 2);
+  Softmax *sm = new Softmax(*this, _input);
   layers.push_back(sm);
-  return sm->output;
+  return sm->outputs[0];
 }
 
 Softmax::Softmax(FFModel& model,
-                 const std::string& pcname,
-                 const Tensor& _logit,
-                 const Tensor& _label)
-: Op(pcname, _logit, _label), profiling(model.config.profiling)
+                 const Tensor& _input)
+: Op(model, OP_SOFTMAX, "Softmax", _input), profiling(model.config.profiling)
+{
+  outputs[0].numDim = 2;
+  outputs[0].adim[0] = _input.adim[0];
+  outputs[0].adim[1] = _input.adim[1];
+}
+
+
+void Softmax::create_weights(FFModel& model)
+{
+  // Do nothing since we don't ahve weights
+}
+
+void Softmax::create_output_and_partition(FFModel& model)
 {
   // Retrive the task indexspace for the op
+  std::string pcname = name;
   task_is = IndexSpaceT<2>(model.get_or_create_task_is(2, pcname));
   Context ctx = model.config.lg_ctx;
   Runtime* runtime = model.config.lg_hlr;
@@ -42,29 +52,21 @@ Softmax::Softmax(FFModel& model,
   int num_par_n = part_rect.hi[1] - part_rect.lo[1] + 1;
   // Current require data parallelism for Softmax
   assert(num_par_c == 1);
-
   {
-    const int dims[2] = {_logit.adim[1], _logit.adim[0]};
-    output = model.create_tensor<2>(dims, task_is, DT_FLOAT);
+    const int dims[2] = {inputs[0].adim[1], inputs[0].adim[0]};
+    outputs[0] = model.create_tensor<2>(dims, DT_FLOAT, this);
+    outputs[0].owner_op = this;
+    outputs[0].owner_idx = 0;
   }
   // Compute partition bound for input
-  Rect<2> logit_rect = runtime->get_index_partition_color_space(
+  Rect<2> input_rect = runtime->get_index_partition_color_space(
       ctx, inputs[0].part.get_index_partition());
-  Rect<2> label_rect = runtime->get_index_partition_color_space(
-      ctx, inputs[1].part.get_index_partition());
-  if (logit_rect == part_rect) {
+  if (input_rect == part_rect) {
     input_lps[0] = inputs[0].part;
     input_grad_lps[0] = inputs[0].part_grad;
   } else {
     model.create_disjoint_partition<2>(
-        inputs[0], task_is, input_lps[0], input_grad_lps[0]);
-  }
-  if (label_rect == part_rect) {
-    input_lps[1] = inputs[1].part;
-    input_grad_lps[1] = inputs[1].part_grad;
-  } else {
-    model.create_disjoint_partition<2>(
-        inputs[1], task_is, input_lps[1], input_grad_lps[1]);
+        inputs[0], (IndexSpaceT<2>)task_is, input_lps[0], input_grad_lps[0]);
   }
 }
 
@@ -105,9 +107,12 @@ void Softmax::init(const FFModel& ff)
   Context ctx = ff.config.lg_ctx;
   Runtime* runtime = ff.config.lg_hlr;
   Rect<2> rect = runtime->get_index_space_domain(ctx, task_is);
+  ParallelConfig pc;
+  std::string pcname = name;
+  ff.config.find_parallel_config(2, pcname, pc);
   int idx = 0;
   for (PointInRectIterator<2> it(rect); it(); it++) {
-    FFHandler handle = ff.handlers[idx++];
+    FFHandler handle = ff.handlers[pc.device_ids[idx++]];
     argmap.set_point(*it, TaskArgument(&handle, sizeof(FFHandler)));
   }
   IndexLauncher launcher(SOFTMAX_INIT_TASK_ID, task_is,
@@ -119,8 +124,8 @@ void Softmax::init(const FFModel& ff)
                         READ_ONLY, EXCLUSIVE, inputs[0].region));
   launcher.add_field(0, FID_DATA);
   launcher.add_region_requirement(
-      RegionRequirement(output.part, 0/*projection id*/,
-                        WRITE_DISCARD, EXCLUSIVE, output.region));
+      RegionRequirement(outputs[0].part, 0/*projection id*/,
+                        WRITE_DISCARD, EXCLUSIVE, outputs[0].region));
   launcher.add_field(1, FID_DATA);
   FutureMap fm = runtime->execute_index_space(ctx, launcher);
   fm.wait_all_results();
@@ -169,6 +174,7 @@ void Softmax::forward_task(const Task *task,
   if (softmax->profiling) {
     cudaEventRecord(t_end);
     checkCUDA(cudaEventSynchronize(t_end));
+    //print_tensor<2, float>(acc_output.ptr, acc_output.rect, "[Softmax:forward:output]");
     float elapsed = 0;
     checkCUDA(cudaEventElapsedTime(&elapsed, t_start, t_end));
     cudaEventDestroy(t_start);
@@ -198,52 +204,37 @@ void Softmax::forward(const FFModel& ff)
                         READ_ONLY, EXCLUSIVE, inputs[0].region));
   launcher.add_field(0, FID_DATA);
   launcher.add_region_requirement(
-      RegionRequirement(output.part, 0/*projection id*/,
-                        WRITE_ONLY, EXCLUSIVE, output.region));
+      RegionRequirement(outputs[0].part, 0/*projection id*/,
+                        WRITE_ONLY, EXCLUSIVE, outputs[0].region));
   launcher.add_field(1, FID_DATA);
 
   runtime->execute_index_space(ctx, launcher);
 }
 
-__global__ void SoftmaxLossBackprop(float *input, const int *label, int num_labels, int batch_size)
-{
-  CUDA_KERNEL_LOOP(i, batch_size)
-  {
-    int label_idx = label[i];
-    input[i * num_labels + label_idx] -= 1.0f;
-  }
-}
 
 /*
-  regions[0](O): input_grad
-  regions[1](I): output
-  regions[2](I): labels
+  regions[0](I/O): input_grad
+  regions[1](I): output_grad
 */
+// Note that the backward task of softmax is actually a no op (i.e., input_grad = output_grad)
+// since the upstream cross_entropy_loss function computes performs softmax_cross_entropy_loss
+// to avoid intermediate zeros
 __host__
 void Softmax::backward_task(const Task *task,
                             const std::vector<PhysicalRegion> &regions,
                             Context ctx, Runtime *runtime)
 {
-  assert(regions.size() == 3);
-  assert(task->regions.size() == 3);
+  assert(regions.size() == 2);
+  assert(task->regions.size() == 2);
   const Softmax* softmax = (Softmax*) task->args;
   const SoftmaxMeta* m = *((SoftmaxMeta**) task->local_args);
   TensorAccessorW<float, 2> acc_input_grad(
       regions[0], task->regions[0], FID_DATA, ctx, runtime,
       true/*readOutput*/);
-  TensorAccessorR<float, 2> acc_output(
+  TensorAccessorR<float, 2> acc_output_grad(
       regions[1], task->regions[1], FID_DATA, ctx, runtime);
-  TensorAccessorR<int, 2> acc_label(
-      regions[2], task->regions[2], FID_DATA, ctx, runtime);
   // make sure the image indices match!
-  assert(acc_label.rect.hi[1] == acc_output.rect.hi[1]);
-  assert(acc_label.rect.lo[1] == acc_output.rect.lo[1]);
-  assert(acc_input_grad.rect == acc_output.rect);
-  assert(acc_label.rect.lo[0] == acc_label.rect.hi[0]);
-  // make sure each sample only has one label
-  int num_samples = acc_output.rect.hi[1] - acc_output.rect.lo[1] + 1;
-  int num_labels = acc_output.rect.hi[0] - acc_output.rect.lo[0] + 1;
-  //assert(num_labels == 1000); // check that we have 1000 different labels
+  assert(acc_input_grad.rect == acc_output_grad.rect);
 
   cudaEvent_t t_start, t_end;
   if (softmax->profiling) {
@@ -257,19 +248,14 @@ void Softmax::backward_task(const Task *task,
   checkCUDA(cublasSetStream(m->handle.blas, stream));
   checkCUDNN(cudnnSetStream(m->handle.dnn, stream));
 #endif
-  checkCUDA(cudaMemcpyAsync(acc_input_grad.ptr, acc_output.ptr,
+  checkCUDA(cudaMemcpyAsync(acc_input_grad.ptr, acc_output_grad.ptr,
                             acc_input_grad.rect.volume() * sizeof(float),
                             cudaMemcpyDeviceToDevice));
-  //SoftmaxLossBackprop<<<GET_BLOCKS(num_samples), CUDA_NUM_THREADS>>>(
-  //    acc_input_grad.ptr, acc_label.ptr, num_labels, num_samples);
-
-  // Accouting for batch size in SGD
-  float scalVal = 1.0f / static_cast<float>(num_samples);
-  checkCUDA(cublasSscal(m->handle.blas, acc_input_grad.rect.volume(),
-                        &scalVal, acc_input_grad.ptr, 1));
   if (softmax->profiling) {
     cudaEventRecord(t_end);
     checkCUDA(cudaEventSynchronize(t_end));
+    //print_tensor<2, float>(acc_output_grad.ptr, acc_output_grad.rect, "[Softmax:backward:output_grad]");
+    //print_tensor<2, float>(acc_input_grad.ptr, acc_input_grad.rect, "[Softmax:backward:input_grad]");
     float elapsed = 0;
     checkCUDA(cudaEventElapsedTime(&elapsed, t_start, t_end));
     cudaEventDestroy(t_start);
@@ -296,19 +282,20 @@ void Softmax::backward(const FFModel& ff)
                          FFConfig::get_hash_id(std::string(name)));
   launcher.add_region_requirement(
       RegionRequirement(input_grad_lps[0], 0/*projection id*/,
-                        WRITE_ONLY, EXCLUSIVE, inputs[0].region_grad));
+                        READ_WRITE, EXCLUSIVE, inputs[0].region_grad));
   launcher.add_field(0, FID_DATA);
   launcher.add_region_requirement(
-      RegionRequirement(output.part, 0/*projection id*/,
-                        READ_ONLY, EXCLUSIVE, output.region));
+      RegionRequirement(outputs[0].part_grad, 0/*projection id*/,
+                        READ_ONLY, EXCLUSIVE, outputs[0].region_grad));
   launcher.add_field(1, FID_DATA);
-  launcher.add_region_requirement(
-      RegionRequirement(input_lps[1], 0/*projection id*/,
-                        READ_ONLY, EXCLUSIVE, inputs[1].region));
-  launcher.add_field(2, FID_DATA);
   runtime->execute_index_space(ctx, launcher);
 }
 
-//void Softmax::update(const FFModel& ff)
-//{
-//}
+bool Softmax::measure_compute_time(Simulator* sim,
+                                   const ParallelConfig& pc,
+                                   float& forward_time,
+                                   float& backward_time)
+{
+  //TODO: implement measure_forward
+  return false;
+}

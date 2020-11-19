@@ -13,30 +13,51 @@
 # limitations under the License.
 #
 
-GEN_SRC		+= ${FF_HOME}/src/runtime/model.cc ${FF_HOME}/src/mapper/mapper.cc\
-		${FF_HOME}/src/runtime/initializer.cc ${FF_HOME}/src/runtime/optimizer.cc\
+GEN_SRC		+= ${FF_HOME}/src/runtime/model.cc\
+		${FF_HOME}/src/mapper/mapper.cc\
+		${FF_HOME}/src/runtime/initializer.cc\
+		${FF_HOME}/src/runtime/optimizer.cc\
 		${FF_HOME}/src/ops/embedding.cc\
-		${FF_HOME}/src/runtime/strategy.pb.cc ${FF_HOME}/src/runtime/strategy.cc\
-		${FF_HOME}/src/ops/tests/test_utils.cc #${FF_HOME}/src/ops/embedding_avx2.cc
-GEN_GPU_SRC	+= ${FF_HOME}/src/ops/conv_2d.cu ${FF_HOME}/src/runtime/model.cu\
-		${FF_HOME}/src/ops/pool_2d.cu ${FF_HOME}/src/ops/batch_norm.cu\
-		${FF_HOME}/src/ops/linear.cu ${FF_HOME}/src/ops/softmax.cu\
-		${FF_HOME}/src/ops/batch_matmul.cu ${FF_HOME}/src/ops/concat.cu\
-		${FF_HOME}/src/ops/flat.cu ${FF_HOME}/src/ops/embedding.cu\
-		${FF_HOME}/src/ops/mse_loss.cu ${FF_HOME}/src/ops/transpose.cu\
-		${FF_HOME}/src/ops/reshape.cu ${FF_HOME}/src/ops/tanh.cu\
-		${FF_HOME}/src/runtime/initializer_kernel.cu ${FF_HOME}/src/runtime/optimizer_kernel.cu\
-		${FF_HOME}/src/runtime/accessor_kernel.cu ${FF_HOME}/src/runtime/cuda_helper.cu# .cu files
+		${FF_HOME}/src/runtime/strategy.pb.cc\
+		${FF_HOME}/src/runtime/strategy.cc\
+		${FF_HOME}/src/runtime/simulator.cc\
+		${FF_HOME}/src/ops/tests/test_utils.cc\
+		${FF_HOME}/src/metrics_functions/metrics_functions.cc
 
-INC_FLAGS	?= -I${FF_HOME}/include/ -I${CUDNN}/include 
-LD_FLAGS        ?= -L/usr/local/lib -L${CUDNN}/lib64 -lcudnn -lcublas -lcurand -lprotobuf #-mavx2 -mfma -mf16c
-CC_FLAGS	?=
-NVCC_FLAGS	?=
+GEN_GPU_SRC	+= ${FF_HOME}/src/ops/conv_2d.cu\
+		${FF_HOME}/src/runtime/model.cu\
+		${FF_HOME}/src/ops/pool_2d.cu\
+		${FF_HOME}/src/ops/batch_norm.cu\
+		${FF_HOME}/src/ops/linear.cu\
+		${FF_HOME}/src/ops/softmax.cu\
+		${FF_HOME}/src/ops/concat.cu\
+		${FF_HOME}/src/ops/split.cu\
+		${FF_HOME}/src/ops/dropout.cu\
+		${FF_HOME}/src/ops/flat.cu\
+		${FF_HOME}/src/ops/embedding.cu\
+		${FF_HOME}/src/ops/element_binary.cu\
+		${FF_HOME}/src/ops/element_unary.cu\
+		${FF_HOME}/src/ops/batch_matmul.cu\
+		${FF_HOME}/src/ops/reshape.cu\
+		${FF_HOME}/src/ops/reverse.cu\
+		${FF_HOME}/src/ops/transpose.cu\
+		${FF_HOME}/src/loss_functions/loss_functions.cu\
+		${FF_HOME}/src/metrics_functions/metrics_functions.cu\
+		${FF_HOME}/src/runtime/initializer_kernel.cu\
+		${FF_HOME}/src/runtime/optimizer_kernel.cu\
+		${FF_HOME}/src/runtime/accessor_kernel.cu\
+		${FF_HOME}/src/runtime/simulator.cu\
+		${FF_HOME}/src/runtime/cuda_helper.cu# .cu files
+
+INC_FLAGS	+= -I${FF_HOME}/include/ -I${CUDNN}/include
+
+LD_FLAGS        += -lcudnn -lcublas -lcurand -lprotobuf -L/usr/local/lib -L${CUDNN}/lib64 #-mavx2 -mfma -mf16c
+CC_FLAGS	?= -DMAX_TENSOR_DIM=$(MAX_DIM) 
+NVCC_FLAGS	?= -DMAX_TENSOR_DIM=$(MAX_DIM) 
 GASNET_FLAGS	?=
-
 # For Point and Rect typedefs
-CC_FLAGS	+= -std=c++11
-NVCC_FLAGS  	+= -std=c++11
+CC_FLAGS	+= -std=c++11 #-DMAX_RETURN_SIZE=16777216
+NVCC_FLAGS  	+= -std=c++11 #-DMAX_RETURN_SIZE=16777216
 
 ifndef CUDA
 #$(error CUDA variable is not defined, aborting build)
@@ -51,16 +72,15 @@ LG_RT_DIR	?= ${FF_HOME}/legion/runtime
 endif
 
 ifndef GASNET
-GASNET	?= ${FF_HOME}/GASNet-2019.9.0 
+GASNET		?= ${FF_HOME}/GASNet-2019.9.0 
 endif
 
 ifndef PROTOBUF
 #$(error PROTOBUF variable is not defined, aborting build)
 endif
 
-PROTOBUF	?= protobuf
-INC_FLAGS	+= -I${PROTOBUF}/src
-LD_FLAGS	+= -L${PROTOBUF}/src/.libs
+INC_FLAGS	+= -I${FF_HOME}/protobuf/src
+LD_FLAGS	+= -L${FF_HOME}/protobuf/src/.libs
 
 ifndef HDF5
 HDF5_inc	?= /usr/include/hdf5/serial
@@ -68,7 +88,6 @@ HDF5_lib	?= /usr/lib/x86_64-linux-gnu/hdf5/serial
 INC_FLAGS	+= -I${HDF5}/
 LD_FLAGS	+= -L${HDF5_lib} -lhdf5
 endif
-
 
 ###########################################################################
 #

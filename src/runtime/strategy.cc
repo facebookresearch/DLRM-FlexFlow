@@ -15,6 +15,7 @@
 
 #include "strategy.pb.h"
 #include "config.h"
+#include "simulator.h"
 #include <fstream>
 #include <iostream>
 #include <string>
@@ -26,48 +27,56 @@ MappingTagID FFConfig::get_hash_id(const std::string& pcname)
 
 bool FFConfig::find_parallel_config(int ndims,
                                     const std::string& pcname,
-                                    ParallelConfig& config)
+                                    ParallelConfig& config) const
 {
   MappingTagID hash = get_hash_id(pcname);
+  std::map<MappingTagID, ParallelConfig>::const_iterator iter;
   if (strategies.find(hash) == strategies.end()) {
     // No strategy found, use default data parallelism
     switch (ndims) {
       case 1:
       {
-        assert(strategies.find(DataParallelism_1D) != strategies.end());
-        config = strategies[DataParallelism_1D];
+        iter = strategies.find(DataParallelism_1D);
+        assert(iter != strategies.end());
+        config = iter->second;
         break;
       }
       case 2:
       {
-        assert(strategies.find(DataParallelism_2D) != strategies.end());
-        config = strategies[DataParallelism_2D];
+        iter = strategies.find(DataParallelism_2D);
+        assert(iter != strategies.end());
+        config = iter->second;
         break;
       }
       case 3:
       {
-        assert(strategies.find(DataParallelism_3D) != strategies.end());
-        config = strategies[DataParallelism_3D];
+        iter = strategies.find(DataParallelism_3D);
+        assert(iter != strategies.end());
+        config = iter->second;
         break;
       }
       case 4:
       {
-        assert(strategies.find(DataParallelism_4D) != strategies.end());
-        config = strategies[DataParallelism_4D];
+        iter = strategies.find(DataParallelism_4D);
+        assert(iter != strategies.end());
+        config = iter->second;
         break;
       }
+#if MAX_TENSOR_DIM >= 5
       case 5:
       {
-        assert(strategies.find(DataParallelism_5D) != strategies.end());
-        config = strategies[DataParallelism_5D];
+        iter = strategies.find(DataParallelism_5D);
+        assert(iter != strategies.end());
+        config = iter->second;
         break;
       }
-      case 6:
-      {
-        assert(strategies.find(DataParallelism_6D) != strategies.end());
-        config = strategies[DataParallelism_6D];
-        break;
-      }
+#endif
+      //case 6:
+      //{
+      //  assert(strategies.find(DataParallelism_6D) != strategies.end());
+      //  config = strategies[DataParallelism_6D];
+      //  break;
+      //}
       default:
       {
         // Unsupported dimension for data parallelism
@@ -76,7 +85,8 @@ bool FFConfig::find_parallel_config(int ndims,
     }
     return true;
   } else {
-    config = strategies[hash];
+    iter = strategies.find(hash);
+    config = iter->second;
     // Check that the returned config matches what we are looking for
     assert(config.nDims == ndims);
     return true;
@@ -125,10 +135,10 @@ bool load_strategies_from_file(const std::string& filename,
 }
 
 bool save_strategies_to_file(const std::string& filename,
-                             const std::map<MappingTagID, ParallelConfig>& strategies)
+                             const std::map<std::string, ParallelConfig>& strategies)
 {
   FFProtoBuf::Strategy strategyPb;
-  std::map<MappingTagID, ParallelConfig>::const_iterator it;
+  std::map<std::string, ParallelConfig>::const_iterator it;
   for (it = strategies.begin(); it != strategies.end(); it++) {
     FFProtoBuf::Op* op = strategyPb.add_ops();
     ParallelConfig config = it->second;
@@ -143,7 +153,7 @@ bool save_strategies_to_file(const std::string& filename,
         fprintf(stderr, "Unsupported Device Type\n");
         assert(false);
     }
-    op->set_name(std::to_string(it->first));
+    op->set_name(it->first);
     int n = 1;
     for (int j = 0; j < config.nDims; j++) {
       n = n * config.dim[j];

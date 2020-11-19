@@ -1,6 +1,7 @@
 #ifndef _LEGION_CNN_HELPER_H_
 #define _LEGION_CNN_HELPER_H_
 #include "legion.h"
+#include <cudnn.h>
 
 #define FatalError(s) do {                                             \
     std::stringstream _where, _message;                                \
@@ -36,7 +37,7 @@
 
 // CUDA: grid stride looping
 #define CUDA_KERNEL_LOOP(i, n) \
-  for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < (n); i += blockDim.x * gridDim.x)
+  for (coord_t i = blockIdx.x * blockDim.x + threadIdx.x; i < (n); i += blockDim.x * gridDim.x)
 
 // Use 1024 threads per block, which requires cuda sm_2x or above
 const int CUDA_NUM_THREADS = 1024;
@@ -71,26 +72,21 @@ __global__
 void apply_add_with_scale(float *data_ptr, const float *grad_ptr,
                           size_t size, float scale);
 
+// Use by concat and split
+__global__
+void add_with_stride(float* output, const float* input,
+                     int num_blocks, int output_blk_size, int input_blk_size);
+__global__
+void copy_with_stride(float* output, const float* input,
+                      int num_blocks, int output_blk_size, int input_blk_size);
+
 __host__
 void updateGAS(float* para_ptr, const float* grad_ptr, size_t replica_size,
                int num_replica, float learning_rate);
 
 template<unsigned DIM, typename T>
-void print_tensor(const T* ptr, Rect<DIM> rect, const char* prefix)
-{
-  // device synchronize to make sure the data are ready
-  checkCUDA(cudaDeviceSynchronize());
-  T* host_ptr;
-  checkCUDA(cudaHostAlloc(&host_ptr, sizeof(T) * rect.volume(),
-                          cudaHostAllocPortable | cudaHostAllocMapped));
-  checkCUDA(cudaMemcpy(host_ptr, ptr, sizeof(T) * rect.volume(),
-                       cudaMemcpyDeviceToHost));
-  int idx = 0;
-  printf("%s", prefix);
-  for (PointInRectIterator<DIM> it(rect); it(); it++, idx++) {
-    printf(" %.4lf", (float)host_ptr[idx]);
-  }
-  printf("\n");
-  checkCUDA(cudaFreeHost(host_ptr));
-}
+void print_tensor(const T* ptr, Rect<DIM> rect, const char* prefix);
+
+cudnnStatus_t cudnnSetTensorDescriptorFromDomain(cudnnTensorDescriptor_t tensor,
+                                                 Legion::Domain domain);
 #endif

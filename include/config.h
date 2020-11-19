@@ -17,16 +17,18 @@
 #define _FLEXFLOW_CONFIG_H_
 #include <cstring>
 #include "legion.h"
+#include <cudnn.h>
+#include <cublas_v2.h>
 
 // ========================================================
 // Define Runtime Constants
 // ========================================================
 #define MAX_NUM_INPUTS 512
-#define MAX_NUM_LOCALS 3
+#define MAX_NUM_WEIGHTS 4
+#define MAX_NUM_OUTPUTS 32
 #define MAX_NUM_WORKERS 1024
-#define MAX_DIM 10
-#define MAX_FILENAME 4096
-#define MAX_OPNAME 4096
+#define MAX_FILENAME 200
+#define MAX_OPNAME 64
 // DataLoader
 #define MAX_SAMPLES_PER_LOAD 64
 #define MAX_FILE_LENGTH 128
@@ -41,16 +43,24 @@ struct ParallelConfig {
     GPU = 0,
     CPU = 1,
   };
+  int num_parts() const;
   DeviceType device_type;
-  int nDims, dim[MAX_DIM];
+  int nDims, dim[MAX_TENSOR_DIM];
   int device_ids[MAX_NUM_WORKERS];
 };
 
+struct FFHandler {
+  cudnnHandle_t dnn;
+  cublasHandle_t blas;
+  void *workSpace;
+  size_t workSpaceSize;
+};
+
 bool load_strategies_from_file(const std::string& filename,
-                               std::map<MappingTagID, ParallelConfig>& strategies);
+         std::map<MappingTagID, ParallelConfig>& strategies);
 
 bool save_strategies_to_file(const std::string& filename,
-                             const std::map<MappingTagID, ParallelConfig>& strategies);
+                             const std::map<std::string, ParallelConfig>& strategies);
 
 class FFConfig {
 public:
@@ -61,7 +71,6 @@ public:
     DataParallelism_3D = 3,
     DataParallelism_4D = 4,
     DataParallelism_5D = 5,
-    DataParallelism_6D = 6,
   };
 
   FFConfig();
@@ -71,19 +80,25 @@ public:
   static MappingTagID get_hash_id(const std::string& pcname);
   bool find_parallel_config(int ndims,
                             const std::string& pcname,
-                            ParallelConfig& config);
+                            ParallelConfig& config) const;
 public:
   int epochs, batchSize, iterations, printFreq;
-  int inputHeight, inputWidth;
+  //int inputHeight, inputWidth;
   int numNodes, loadersPerNode, workersPerNode;
   float learningRate, weightDecay;
   size_t workSpaceSize;
   Context lg_ctx;
   Runtime* lg_hlr;
   FieldSpace field_space;
-  bool syntheticInput, profiling, debug;
-  std::string datasetPath, strategyFile;
-  // We use MappingTagID has the key since we will pass the tag to the mapper
+  bool syntheticInput, profiling;
+  size_t simulator_work_space_size;
+  size_t search_budget;
+  float search_alpha;
+  bool search_overlap_backward_update;
+  std::string dataset_path;
+  std::string import_strategy_file;
+  std::string export_strategy_file;
+  // We use MappingTagID as the key since we will pass the tag to the mapper
   std::map<MappingTagID, ParallelConfig> strategies;
 };
 

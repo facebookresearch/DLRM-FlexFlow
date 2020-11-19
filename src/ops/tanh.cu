@@ -30,6 +30,7 @@ Tanh<DIM>::Tanh(FFModel& model,
 }
 
 template <int DIM>
+<<<<<<< HEAD
 void Tanh<DIM>::init(const FFModel& ff)
 {
   ArgumentMap argmap;
@@ -60,6 +61,16 @@ void Tanh<DIM>::init(const FFModel& ff)
       RegionRequirement(input_lps[0], 0/*projection id*/,
                         READ_WRITE, EXCLUSIVE, inputs[0].region));
 
+=======
+Tensor Tanh<DIM>::init_inout(FFModel& model, const Tensor& _input)
+{
+  // TODO: This function is designed for support functional APIs
+  // as used in PyTorch and Keras
+  // TO BE IMPLEMENTED...
+  assert(false);
+  return Tensor();
+}
+>>>>>>> 131466e75c28cc9c63006996f962ebdbf895fa9f
 
 
   launcher.add_field(0, FID_DATA);

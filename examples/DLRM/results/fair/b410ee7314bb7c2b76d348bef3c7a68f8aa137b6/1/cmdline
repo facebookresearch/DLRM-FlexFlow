@@ -1,1 +1,0 @@
-for a in 1 2 4 8 16 ; do sh launch_fair.sh run_fair_small.sh $a >& ${a}.log; done

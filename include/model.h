@@ -376,22 +376,6 @@ public:
   Tensor concat(int n, const Tensor* tensors,
                 int axis);
 
-  // Add a dot compressor layer
-  Tensor dot_compressor(std::string name,
-                        int num_dense_embeddings,
-                        int num_sparse_embeddings, 
-                        Tensor* _dense_embeddings, 
-                        Tensor* _sparse_embeddings,
-                        int compressed_num_channels,
-                        Tensor* dense_projection = NULL, 
-                        ActiMode activation = AC_MODE_NONE,
-                        Initializer* kernel_initializer = NULL,
-                        Initializer* bias_initializer = NULL,
-                        bool use_bias = true,
-                        Tensor* _kernel = NULL,
-                        Tensor* _bias = NULL,
-                        bool test = false);
-
   // Add a split layer
   void split(const Tensor& input, Tensor* outputs,
              const std::vector<int>& split, int axis);

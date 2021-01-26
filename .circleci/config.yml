@@ -10,22 +10,11 @@ workflows:
 
 
 jobs:
-<<<<<<< HEAD
   build-and-test:
     machine: # executor type
       image: ubuntu-2004:202010-01 
-=======
-  build-and-test: 
-    machine: # executor type
-      image: ubuntu-2004:202010-01
->>>>>>> 1a12334256281523f27a646f426ca14706eaafb4
     steps:
       - checkout
       - run:
           name: Run tests
-<<<<<<< HEAD
           command: nvidia-smi
-=======
-          command: echo hello
-
->>>>>>> 1a12334256281523f27a646f426ca14706eaafb4

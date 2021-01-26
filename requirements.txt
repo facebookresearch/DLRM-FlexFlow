@@ -1,0 +1,155 @@
+absl-py==0.11.0
+aiohttp==3.7.3
+antlr4-python3-runtime==4.8
+apex==0.1
+appdirs==1.4.4
+argcomplete==1.12.2
+async-generator==1.10
+async-timeout==3.0.1
+atomicwrites==1.4.0
+attrs @ file:///tmp/build/80754af9/attrs_1604765588209/work
+awscli==1.18.207
+backcall==0.2.0
+black==20.8b1
+boto==2.49.0
+boto3==1.16.47
+botocore==1.19.47
+brotlipy==0.7.0
+cachetools==4.2.0
+certifi==2020.12.5
+cffi @ file:///tmp/build/80754af9/cffi_1606255081583/work
+chardet @ file:///tmp/build/80754af9/chardet_1607706746162/work
+click==8.0.0a1
+cloudpickle==1.6.0
+colorama==0.4.3
+configparser==5.0.1
+crcmod==1.7
+cryptography @ file:///tmp/build/80754af9/cryptography_1607635341180/work
+Cython==0.29.21
+dask==2.30.0
+dask-jobqueue==0.7.0
+decorator==4.4.2
+distributed==2.30.1
+docker-pycreds==0.4.0
+docutils==0.15.2
+editdistance==0.5.3
+fairscale==0.1.1
+fairtask==1.1.0
+fairtask-slurm==0.3.1
+fastBPE==0.1.0
+fasteners==0.16
+flake8==3.8.4
+future==0.18.2
+gcs-oauth2-boto-plugin==2.7
+ghstack==0.3.3
+gitdb==4.0.5
+GitPython==3.1.11
+google-apitools==0.5.31
+google-auth==1.24.0
+google-auth-oauthlib==0.4.2
+google-reauth==0.1.1
+grpcio==1.34.0
+gsutil==4.57
+HeapDict==1.0.1
+httplib2==0.18.1
+hydra-core==1.0.4
+hydra-fair-cluster==1.0.0
+hydra-fair-plugins==1.0.0
+hydra-fairtask==1.0.0
+hydra-submitit-launcher==1.0.1
+idna @ file:///tmp/build/80754af9/idna_1593446292537/work
+importlib-metadata @ file:///tmp/build/80754af9/importlib-metadata_1602276842396/work
+importlib-resources==4.1.1
+iopath==0.1.2
+ipykernel @ file:///tmp/build/80754af9/ipykernel_1596207638929/work/dist/ipykernel-5.3.4-py3-none-any.whl
+ipython @ file:///tmp/build/80754af9/ipython_1604101197014/work
+ipython-genutils @ file:///tmp/build/80754af9/ipython_genutils_1606773439826/work
+jedi @ file:///tmp/build/80754af9/jedi_1611333125342/work
+jmespath==0.10.0
+joblib==1.0.0
+jupyter-client @ file:///tmp/build/80754af9/jupyter_client_1601311786391/work
+jupyter-core @ file:///tmp/build/80754af9/jupyter_core_1606148996965/work
+Markdown==3.3.3
+mccabe==0.6.1
+mkl-fft==1.2.0
+mkl-random==1.1.1
+mkl-service==2.3.0
+mock==2.0.0
+monotonic==1.5
+more-itertools @ file:///tmp/build/80754af9/more-itertools_1605111547926/work
+msgpack==1.0.2
+multidict==5.1.0
+mypy-extensions==0.4.3
+nltk==3.5
+numpy @ file:///tmp/build/80754af9/numpy_and_numpy_base_1603570489231/work
+oauth2client==4.1.3
+oauthlib==3.1.0
+omegaconf==2.0.5
+packaging @ file:///tmp/build/80754af9/packaging_1607971725249/work
+parso @ file:///tmp/build/80754af9/parso_1607623074025/work
+pathspec==0.8.1
+pbr==5.5.1
+pexpect @ file:///tmp/build/80754af9/pexpect_1605563209008/work
+pickleshare @ file:///tmp/build/80754af9/pickleshare_1606932040724/work
+Pillow==8.0.1
+pluggy==0.13.1
+portalocker==2.0.0
+promise==2.3
+prompt-toolkit @ file:///tmp/build/80754af9/prompt-toolkit_1602688806899/work
+protobuf==3.14.0
+psutil==5.8.0
+ptyprocess @ file:///tmp/build/80754af9/ptyprocess_1609355006118/work/dist/ptyprocess-0.7.0-py2.py3-none-any.whl
+py @ file:///tmp/build/80754af9/py_1607971587848/work
+pyarrow==2.0.0
+pyasn1==0.4.8
+pyasn1-modules==0.2.8
+pycodestyle==2.6.0
+pycparser @ file:///tmp/build/80754af9/pycparser_1594388511720/work
+pydantic==1.7.3
+pyflakes==2.2.0
+Pygments @ file:///tmp/build/80754af9/pygments_1610565767015/work
+pyOpenSSL @ file:///tmp/build/80754af9/pyopenssl_1608057966937/work
+pyparsing @ file:///home/linux1/recipes/ci/pyparsing_1610983426697/work
+PySocks @ file:///tmp/build/80754af9/pysocks_1605305779399/work
+pytest==5.0.0
+python-dateutil==2.8.1
+pyu2f==0.1.5
+PyYAML==5.3.1
+pyzmq==20.0.0
+regex==2020.11.13
+requests @ file:///tmp/build/80754af9/requests_1608241421344/work
+requests-oauthlib==1.3.0
+retry-decorator==1.1.1
+rsa==4.5
+s3transfer==0.3.3
+sacrebleu==1.4.14
+sacremoses==0.0.43
+sentencepiece==0.1.94
+sentry-sdk==0.19.5
+shortuuid==1.0.1
+six @ file:///tmp/build/80754af9/six_1605205327372/work
+smmap==3.0.4
+sortedcontainers==2.3.0
+submitit==1.1.5
+subprocess32==3.5.4
+subword-nmt==0.3.7
+tblib==1.7.0
+tensorboard==2.4.0
+tensorboard-plugin-wit==1.7.0
+toml==0.10.2
+toolz==0.11.1
+torch==1.7.1
+torchaudio==0.7.0a0+a853dff
+tornado @ file:///tmp/build/80754af9/tornado_1606942300299/work
+tqdm==4.55.0
+traitlets @ file:///tmp/build/80754af9/traitlets_1602787416690/work
+typed-ast==1.4.2
+typing-extensions @ file:///tmp/build/80754af9/typing_extensions_1598376058250/work
+urllib3 @ file:///tmp/build/80754af9/urllib3_1606938623459/work
+wandb==0.10.12
+watchdog==1.0.2
+wcwidth @ file:///tmp/build/80754af9/wcwidth_1593447189090/work
+Werkzeug==1.0.1
+yarl==1.6.3
+zict==2.0.0
+zipp @ file:///tmp/build/80754af9/zipp_1604001098328/work

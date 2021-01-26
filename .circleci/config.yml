@@ -1,20 +1,21 @@
 version: 2.1
 
 orbs:
-  welcome: circleci/welcome-orb@0.4.1
+  python: circleci/python@0.2.1
+
+jobs:
+  build-and-test:
+    executor: python/default
+    steps:
+      - checkout
+      - python/install-packages:
+          pkg-manager: conda
+      - run:
+          name: pytest
+          command: pytest
 
 workflows:
   sample:  
     jobs:
       - build-and-test
 
-
-jobs:
-  build-and-test:
-    machine: # executor type
-      image: ubuntu-2004:202010-01 
-    steps:
-      - checkout
-      - run:
-          name: Run tests
-          command: nvidia-smi

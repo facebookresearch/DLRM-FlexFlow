@@ -1,7 +1,7 @@
 version: 2.1
 
 orbs:
-  python: circleci/python@1.2
+  welcome: circleci/welcome-orb@0.4.1
 
 workflows:
   sample:  
@@ -11,11 +11,11 @@ workflows:
 
 jobs:
   build-and-test: 
-    docker:
-      - image: cimg/python:3.8
+    machine: # executor type
+      image: ubuntu-2004:202010-01
     steps:
       - checkout
       - run:
           name: Run tests
-          command: nvidia-smi
+          command: echo hello
 

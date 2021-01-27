@@ -14,8 +14,9 @@ jobs:
     steps:
       - checkout
       - run: nvidia-smi
+      - run: pip
 
 workflows:
-  sample:  
+  nvidia:  
     jobs:
       - build-and-test

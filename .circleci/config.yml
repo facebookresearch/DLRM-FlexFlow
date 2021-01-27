@@ -13,10 +13,7 @@ jobs:
     resource_class: gpu.large
     steps:
       - checkout
-      - run:
-          command: |
-            pytest --version
-          name: Test
+      - run: nvidia-smi
 
 workflows:
   sample:  

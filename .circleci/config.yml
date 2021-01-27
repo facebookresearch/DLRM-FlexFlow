@@ -21,11 +21,8 @@ jobs:
   pytest:
     <<: *cpu_py39
     steps:
-      -run:
-        name: install
-        command: |
-          pip install pytest
-          pytest
+      -run: pip install pytest
+      -run: pytest
 
 workflows:
   nvidia:  

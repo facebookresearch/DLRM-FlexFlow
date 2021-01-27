@@ -13,9 +13,9 @@ jobs:
           pkg-manager: pip
           pypi-cache: false
       - run:
-          name: pytest
           command: |
-          pytest --version
+            pytest --version
+          name: Test
 
 workflows:
   python:  

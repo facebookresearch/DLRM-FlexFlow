@@ -5,20 +5,21 @@ orbs:
 
 jobs:
   build-and-test:
-    executor: python/default
+    gpu: &gpu
+    environment:
+      CUDA_VERSION: "10.1"
+    machine:
+      image: ubuntu-1604-cuda-10.1:201909-23
+    resource_class: gpu.large
     steps:
       - checkout
-      - python/install-packages:
-          args: pytest
-          pkg-manager: pip
-          pypi-cache: false
       - run:
           command: |
             pytest --version
           name: Test
 
 workflows:
-  python:  
+  sample:  
     jobs:
       - build-and-test
 

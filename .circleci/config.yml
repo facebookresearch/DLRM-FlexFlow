@@ -15,7 +15,7 @@ jobs:
       - checkout
       - run: nvidia-smi
       - run: pip install pytest
-      - run: python -m pytest
+      - run: python --version
 workflows:
   nvidia:  
     jobs:

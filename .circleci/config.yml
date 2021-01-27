@@ -9,13 +9,16 @@ jobs:
     steps:
       - checkout
       - python/install-packages:
-          pkg-manager: conda
+          args: pytest
+          pkg-manager: pip
+          pypi-cache: false
       - run:
           name: pytest
-          command: pytest
+          command: |
+          pytest --version
 
 workflows:
-  sample:  
+  python:  
     jobs:
       - build-and-test
 

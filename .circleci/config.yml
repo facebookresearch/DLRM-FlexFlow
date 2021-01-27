@@ -18,14 +18,14 @@ jobs:
     steps:
       - checkout
       - run: nvidia-smi
-  pytest:
+  onnx_test:
     <<: *cpu_py39
     steps:
-      -run: pip install pytest
-      -run: pytest
+      - run: pip install pytest
+      - run: pytest ./tests/ONNX/test.py
 
 workflows:
   nvidia:  
     jobs:
       - test_nvidia_smi
-      - pytest
+      - onnx_test

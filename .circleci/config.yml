@@ -23,7 +23,7 @@ jobs:
     steps:
       - checkout
       - run: pip install pytest
-      - run: pytest tests/ONNX/test.py
+      - run: pytest tests/ONNX
 
 workflows:
   nvidia:  

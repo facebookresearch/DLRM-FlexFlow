@@ -22,7 +22,7 @@ jobs:
     <<: *cpu_py39
     steps:
       - run: pip install pytest
-      - run: pytest ./tests/ONNX/test.py
+      - run: ls
 
 workflows:
   nvidia:  

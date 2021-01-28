@@ -22,7 +22,7 @@ jobs:
     <<: *cpu_py39
     steps:
       - checkout
-      - run: apt install -y protobuf-compiler
+      - run: sudo apt install -y protobuf-compiler
       - run: pip install pytest
       - run: pip install torch
       - run: pip install onnx

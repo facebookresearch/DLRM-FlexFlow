@@ -1,3 +1,17 @@
+version: 2.1
+
+cpu_py39: &cpu_py39
+  docker:
+    - image: circleci/python:3.9
+  resource_class: medium
+
+gpu: &gpu
+  environment:
+    CUDA_VERSION: "10.1"
+  machine:
+    image: ubuntu-1604-cuda-10.1:201909-23
+  resource_class: gpu.large
+
 jobs:
   test_nvidia_smi:
     <<: *gpu
@@ -20,3 +34,4 @@ workflows:
     jobs:
       - test_nvidia_smi
       - flexflow_build_test
+

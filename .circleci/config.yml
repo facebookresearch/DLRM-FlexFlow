@@ -1,24 +1,10 @@
-version: 2.1
-
-cpu_py39: &cpu_py39
-  docker:
-    - image: circleci/python:3.9
-  resource_class: medium
-
-gpu: &gpu
-  environment:
-    CUDA_VERSION: "10.1"
-  machine:
-    image: ubuntu-1604-cuda-10.1:201909-23
-  resource_class: gpu.large
-
 jobs:
   test_nvidia_smi:
     <<: *gpu
     steps:
       - checkout
       - run: nvidia-smi
-  onnx_test:
+  flexflow_build_test:
     <<: *cpu_py39
     steps:
       - checkout
@@ -26,13 +12,11 @@ jobs:
       - run: pip install pytest
       - run: pip install torch
       - run: pip install onnx
-      - run: pip install flexflow
       - run: export FF_HOME=$PWD
-      - run: python examples/python/onnx/mnist_mlp_pt.py
-      - run: pytest tests/onnx
-
+      - run: cd python
+      - run: make
 workflows:
   nvidia:  
     jobs:
       - test_nvidia_smi
-      - onnx_test
+      - flexflow_build_test

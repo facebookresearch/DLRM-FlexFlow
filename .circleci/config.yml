@@ -27,7 +27,7 @@ jobs:
       - run: pip install torch
       - run: pip install onnx
       - run: pip install flexflow
-      - run: export FF_HOME = .
+      - run: export FF_HOME=$PWD
       - run: python examples/python/onnx/mnist_mlp_pt.py
       - run: pytest tests/onnx
 

@@ -1,25 +1,37 @@
 version: 2.1
 
-orbs:
-  python: circleci/python@1.2
+cpu_py39: &cpu_py39
+  docker:
+    - image: circleci/python:3.9
+  resource_class: medium
 
-workflows:
-  sample:  
-    jobs:
-      - build-and-test
-
+gpu: &gpu
+  environment:
+    CUDA_VERSION: "10.1"
+  machine:
+    image: ubuntu-1604-cuda-10.1:201909-23
+  resource_class: gpu.large
 
 jobs:
-  build-and-test: 
-    docker:
-      - image: cimg/python:3.8
+  test_nvidia_smi:
+    <<: *gpu
     steps:
       - checkout
-      - python/install-packages:
-          pkg-manager: pip
-          # app-dir: ~/project/package-directory/  # If you're requirements.txt isn't in the root directory.
-          # pip-dependency-file: test-requirements.txt  # if you have a different name for your requirements file, maybe one that combines your runtime and test requirements.
-      - run:
-          name: Run tests
-          command: nvidia-smi
+      - run: nvidia-smi
+  flexflow_build_test:
+    <<: *cpu_py39
+    steps:
+      - checkout
+      - run: sudo apt install -y protobuf-compiler
+      - run: pip install pytest
+      - run: pip install torch
+      - run: pip install onnx
+      - run: export FF_HOME=$PWD
+      - run: cd python
+      - run: make
+workflows:
+  nvidia:  
+    jobs:
+      - test_nvidia_smi
+      - flexflow_build_test
 

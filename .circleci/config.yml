@@ -1,21 +1,85 @@
 version: 2.1
 
-orbs:
-  python: circleci/python@0.2.1
+# -------------------------------------------------------------------------------------
+# Environments to run the jobs in
+# -------------------------------------------------------------------------------------
+gpu: &gpu
+  environment:
+    CUDA_VERSION: "10.1"
+  machine:
+    image: ubuntu-1604-cuda-10.1:201909-23
+  resource_class: gpu.large
+
+cpu_py37: &cpu_py37
+  docker:
+    - image: circleci/python:3.7
+  resource_class: medium
+
+# -------------------------------------------------------------------------------------
+# Re-usable commands
+# -------------------------------------------------------------------------------------
+setup_venv: &setup_venv
+  - run:
+      name: Setup Virtual Env
+      working_directory: ~/
+      command: |
+        python -m venv ~/venv
+        echo ". ~/venv/bin/activate" >> $BASH_ENV
+        . ~/venv/bin/activate
+        python --version
+        which python
+        which pip
+        pip install --upgrade pip
+
+install_deps: &install_deps
+  - run:
+      name: Install Dependencies
+      command: |
+        sudo apt install -y protobuf-compiler
+
+build: &build
+  - run:
+      name: Build FlexFlow
+      command: |
+        FF_HOME=/path/to/FlexFlow
+        CUDA_ARCH="60,70"
+        GPU_ARCH="60,70"
+        CUDA_HOME=/usr/local/cuda-10.1
+        cd nccl
+        make -j src.build NVCC_GENCODE="-gencode=arch=compute_70,code=sm_70"
+        cd ../python
+        make
+
+# -------------------------------------------------------------------------------------
+# Jobs to run
+# -------------------------------------------------------------------------------------
 
 jobs:
-  build-and-test:
-    gpu: &gpu
-    environment:
-      CUDA_VERSION: "10.1"
-    machine:
-      image: ubuntu-1604-cuda-10.1:201909-23
-    resource_class: gpu.large
+  build:
+    <<: *gpu
+
+    working_directory: ~/FlexFlow
+
     steps:
       - checkout
+      - run: git submodule sync
+      - run: git submodule update --init --recursive
+        
       - run: nvidia-smi
 
+      - run: pyenv global 3.7.0
+
+      - <<: *setup_venv
+
+      - <<: *install_deps
+
+      - <<: *build
+
+# -------------------------------------------------------------------------------------
+# Workflows
+# -------------------------------------------------------------------------------------
+
 workflows:
-  nvidia:  
+  build:  
     jobs:
-      - build-and-test
+      - build

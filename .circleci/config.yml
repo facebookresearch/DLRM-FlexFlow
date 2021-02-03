@@ -30,7 +30,7 @@ jobs:
             sudo /opt/conda/bin/conda install -y conda-build conda-verify
             sudo /opt/conda/bin/conda clean -ya
             sudo /opt/conda/bin/conda install -y cmake make pillow
-            sudo /opt/conda/bin/conda install -y -c conda-forge protobuf=3.9 numpy keras-preprocessing pytest torch
+            sudo /opt/conda/bin/conda install -y -c conda-forge protobuf=3.9 numpy keras-preprocessing pytest
       - run: 
           name: Install FlexFlow dependencies
           command: |

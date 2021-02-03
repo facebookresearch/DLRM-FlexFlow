@@ -44,6 +44,7 @@ jobs:
             cd ..
             git clone https://github.com/StanfordLegion/gasnet.git
             cd gasnet
+            export CONDUIT=mpi
             make
             cd ..
             wget -c http://developer.download.nvidia.com/compute/redist/cudnn/v8.0.5/cudnn-10.1-linux-x64-v8.0.5.39.tgz
@@ -64,9 +65,7 @@ jobs:
             export PYTHON_ROOT=/opt/conda/bin/python3
             export PYTHON_EXE=python3
             export PYTHON_VERSION_MAJOR=3
-            export MPI_HOME=/usr/
-            export GASNET=$PWD/release
-            export CONDUIT=mpi
+            export GASNET=$FF_HOME/../gasnet/release
             export CPLUS_INCLUDE_PATH=/usr/include/mpi:$CPLUS_INCLUDE_PATH 
             cd python
             make -j 8

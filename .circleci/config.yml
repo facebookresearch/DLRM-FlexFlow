@@ -33,7 +33,7 @@ jobs:
             sudo /opt/conda/bin/conda clean -ya
             sudo /opt/conda/bin/conda install -y cmake make pillow
             sudo /opt/conda/bin/conda uninstall -y protobuf
-            sudo /opt/conda/bin/conda install -y protobuf
+            sudo /opt/conda/bin/conda install -y -c conda-forge protobuf
             sudo /opt/conda/bin/conda install -y -c conda-forge onnx pytest
             python -c 'import onnx'
             sudo /opt/conda/bin/conda install -y -c pytorch pytorch torchvision

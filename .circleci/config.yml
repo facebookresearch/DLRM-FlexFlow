@@ -26,13 +26,17 @@ jobs:
             chmod +x ~/Miniconda3-latest-Linux-x86_64.sh
             sudo ~/Miniconda3-latest-Linux-x86_64.sh -b -p /opt/conda
             rm ~/Miniconda3-latest-Linux-x86_64.sh
+            sudo /opt/conda/bin/conda init
+            source ~/.bashrc
             sudo /opt/conda/bin/conda upgrade --all
             sudo /opt/conda/bin/conda install -y conda-build conda-verify
             sudo /opt/conda/bin/conda clean -ya
             sudo /opt/conda/bin/conda install -y cmake make pillow
-            sudo /opt/conda/bin/conda install -y protobuf=3.9 numpy
+            sudo /opt/conda/bin/conda uninstall -y protobuf
+            sudo /opt/conda/bin/conda install -y protobuf numpy
             sudo /opt/conda/bin/conda install -y -c conda-forge onnx keras-preprocessing pytest
             sudo /opt/conda/bin/conda install -y -c pytorch pytorch torchvision
+            python -c 'import onnx'
       - run: 
           name: Install FlexFlow dependencies
           command: |
@@ -71,7 +75,7 @@ jobs:
             export CPLUS_INCLUDE_PATH=/usr/include/mpi:$CPLUS_INCLUDE_PATH 
             cd python
             make -j 8
-            sudo /opt/conda/bin/conda install install .
+            sudo /opt/conda/bin/conda install .
       - run:
           name: Run pytest
           command: |

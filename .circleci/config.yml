@@ -31,6 +31,7 @@ jobs:
             sudo /opt/conda/bin/conda clean -ya
             sudo /opt/conda/bin/conda install -y cmake make pillow
             sudo /opt/conda/bin/conda install -y -c conda-forge protobuf=3.9 numpy keras-preprocessing pytest
+            sudo /opt/conda/bin/conda install -y -c pytorch pytorch torchvision
       - run: 
           name: Install FlexFlow dependencies
           command: |
@@ -70,6 +71,11 @@ jobs:
             cd python
             make -j 8
             pip install .
+      - run:
+          name: Run pytest
+          command: |
+            python examples/python/onnx/mnist_mlp_pt.py
+            pytest tests/onnx
           
       
 workflows:

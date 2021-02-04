@@ -74,7 +74,6 @@ jobs:
             export CPLUS_INCLUDE_PATH=/usr/include/mpi:$CPLUS_INCLUDE_PATH 
             cd python
             make -j 8
-            sudo pip install .
       - run:
           name: Run pytest
           command: |

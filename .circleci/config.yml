@@ -61,7 +61,7 @@ jobs:
           command: |
             export FF_HOME=$PWD
             export CUDNN_HOME=$CUDNN_ROOT_DIR
-            export CUDA_ARCH="52,60,70"
+            export FF_CUDA_ARCH="52,60,70"
             export GPU_ARCH="52,60,70"
             export CUDA_HOME=/usr/local/cuda-10.1
             export NCCL_HOME=$FF_HOME/deps/nccl/build
@@ -72,8 +72,10 @@ jobs:
             #export PYTHON_VERSION_MAJOR=3
             export GASNET=$FF_HOME/../gasnet/release
             export CPLUS_INCLUDE_PATH=/usr/include/mpi:$CPLUS_INCLUDE_PATH 
-            cd python
+            mkdir build; cd build
+            ../config/config.linux
             make -j
+            cd $FF_HOME/python
             pip install -e .
             python -c 'import flexflow.core'
       - run:
@@ -136,7 +138,7 @@ jobs:
           command: |
             export FF_HOME=$PWD
             export CUDNN_HOME=$CUDNN_ROOT_DIR
-            export CUDA_ARCH="52,60,70"
+            export FF_CUDA_ARCH="52,60,70"
             export GPU_ARCH="52,60,70"
             export CUDA_HOME=/usr/local/cuda-10.1
             export NCCL_HOME=$FF_HOME/deps/nccl/build
@@ -147,8 +149,10 @@ jobs:
             #export PYTHON_VERSION_MAJOR=3
             export GASNET=$FF_HOME/../gasnet/release
             export CPLUS_INCLUDE_PATH=/usr/include/mpi:$CPLUS_INCLUDE_PATH 
-            cd python
+            mkdir build; cd build
+            ../config/config.linux
             make -j
+            cd $FF_HOME/python
             pip install -e .
             python -c 'import flexflow.core'
       - run:

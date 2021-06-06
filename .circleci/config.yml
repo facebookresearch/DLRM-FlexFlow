@@ -35,6 +35,9 @@ jobs:
             sudo /opt/conda/bin/conda install -y -c conda-forge onnx pytest
             python -c 'import onnx'
             sudo /opt/conda/bin/conda install -y -c pytorch pytorch torchvision
+            sudo apt-get update
+            sudo apt-get install build-essential
+            gcc --version
       - run:
           name: Install FlexFlow dependencies
           command: |
@@ -44,7 +47,6 @@ jobs:
             make -j src.build NVCC_GENCODE="-gencode arch=compute_52,code=sm_52 -gencode arch=compute_60,code=sm_60 -gencode arch=compute_70,code=sm_70"
             cd $FF_HOME
             sudo add-apt-repository ppa:deadsnakes/ppa
-            sudo apt-get update
             sudo apt-get install mpich
             cd $FF_HOME
             git clone https://github.com/StanfordLegion/gasnet.git
@@ -112,6 +114,9 @@ jobs:
             sudo /opt/conda/bin/conda install -y -c conda-forge onnx pytest
             python -c 'import onnx'
             sudo /opt/conda/bin/conda install -y -c pytorch pytorch torchvision
+            sudo apt-get update
+            sudo apt-get install build-essential
+            gcc --version
       - run: 
           name: Install FlexFlow dependencies
           command: |
